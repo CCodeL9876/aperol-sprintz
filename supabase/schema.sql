@@ -35,6 +35,7 @@ create table if not exists public.routes (
   distance_km double precision,
   elevation_gain_m double precision,
   elevation_loss_m double precision,
+  url         text check (char_length(url) <= 2000),
   added_by    text not null default '' check (char_length(added_by) <= 80),
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
@@ -44,6 +45,8 @@ create index if not exists routes_trip_key_idx on public.routes (trip_key);
 -- Nachträglich ergänzt (Höhenmeter): bei bereits bestehender Tabelle die Spalten hinzufügen
 alter table public.routes add column if not exists elevation_gain_m double precision;
 alter table public.routes add column if not exists elevation_loss_m double precision;
+-- Nachträglich ergänzt: Link zur Tour (Strava, Komoot …)
+alter table public.routes add column if not exists url text check (char_length(url) <= 2000);
 
 -- Original-GPX je Route (für den Download) – eigene Tabelle, damit der regelmäßige Abgleich die
 -- großen Dateien nicht jedes Mal mitlädt. Wird beim Löschen der Route automatisch mit gelöscht.

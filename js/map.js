@@ -15,6 +15,9 @@ const TILES = {
   maxZoom: 19,
 };
 
+// Nur http(s)-Links in href übernehmen – nie javascript: o. Ä. aus der Datenbank
+const safeHttpUrl = (u) => (/^https?:\/\//i.test(u || '') ? u : '');
+
 const escapeHtml = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -162,6 +165,7 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets }) {
         <span class="popup-cat" style="${categoryStyle(ROUTE_CATEGORY)}">${escapeHtml(ROUTE_CATEGORY.label)}</span>
         <strong class="popup-name">${escapeHtml(r.name)}</strong>
         <span class="popup-dist">${formatKm(r.distanceKm)}${Number.isFinite(r.elevationGainM) ? ` · ↑ ${Math.round(r.elevationGainM).toLocaleString('de-DE')} Hm` : ''}${Number.isFinite(r.elevationLossM) ? ` · ↓ ${Math.round(r.elevationLossM).toLocaleString('de-DE')} Hm` : ''}</span>
+        ${safeHttpUrl(r.url) ? `<a class="popup-link" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">Tour öffnen ↗</a>` : ''}
       </div>`;
   }
 

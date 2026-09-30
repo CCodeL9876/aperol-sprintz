@@ -42,6 +42,7 @@ export class LocalBackend {
   async deletePlace() { this.#save(); }
   async deleteAllPlaces() { this.#save(); }
   async addRoutes() { this.#save(); }
+  async updateRoute() { this.#save(); }
   async deleteRoute() { this.#save(); }
   async deleteAllRoutes() { this.#save(); }
   async saveSettings() { this.#save(); }
@@ -90,6 +91,7 @@ const toRouteRow = (route, key) => ({
   distance_km: Number.isFinite(route.distanceKm) ? route.distanceKm : null,
   elevation_gain_m: Number.isFinite(route.elevationGainM) ? route.elevationGainM : null,
   elevation_loss_m: Number.isFinite(route.elevationLossM) ? route.elevationLossM : null,
+  url: route.url || null,
   added_by: route.addedBy || '',
   created_at: new Date(route.addedAt || Date.now()).toISOString(),
 });
@@ -102,6 +104,7 @@ const fromRouteRow = (r) => ({
   distanceKm: r.distance_km,
   elevationGainM: r.elevation_gain_m ?? null,
   elevationLossM: r.elevation_loss_m ?? null,
+  url: r.url || '',
   addedBy: r.added_by || '',
   addedAt: Date.parse(r.created_at) || 0,
 });
@@ -188,6 +191,11 @@ export class SharedBackend {
     const { data, error } = await this.db.from('route_files').select('gpx').eq('route_id', id).eq('trip_key', this.key).maybeSingle();
     if (error) return null;
     return data?.gpx || null;
+  }
+
+  // Bisher nur der Link zur Tour (Strava, Komoot …) – weitere Felder bei Bedarf hier ergänzen
+  async updateRoute(id, { url }) {
+    check(await this.db.from('routes').update({ url: url || null, updated_at: new Date().toISOString() }).eq('id', id).eq('trip_key', this.key));
   }
 
   async deleteRoute(id) {

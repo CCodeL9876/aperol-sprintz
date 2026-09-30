@@ -325,10 +325,30 @@ function renderRoutes() {
       : '';
   }
   if (empty) empty.hidden = state.routes.length > 0;
+  // Offenes Link-Feld übersteht das Neuzeichnen (z. B. Abgleich alle 20 s) samt Eingabe und Fokus
+  const draftInput = $('.route-link-form input', list);
+  const draft = draftInput ? { value: draftInput.value, focused: document.activeElement === draftInput } : null;
+  if (editingRouteLink && !state.routes.some((r) => r.id === editingRouteLink)) editingRouteLink = null;
   list.innerHTML = state.routes.map((r) => {
     const on = visible.has(r.id);
     const hm = formatHm(r.elevationGainM);
+    const url = safeHttpUrl(r.url);
+    const linkLine = editingRouteLink === r.id
+      ? `<form class="route-link-form" data-action="save-route-link" autocomplete="off">
+          <input type="url" inputmode="url" placeholder="Link zur Tour (Strava, Komoot …)" aria-label="Link zur Tour" value="${escapeHtml(r.url || '')}">
+          <button class="btn btn-small" type="submit">Speichern</button>
+          <button class="btn-link muted" type="button" data-action="cancel-route-link">Abbrechen</button>
+        </form>`
+      : url
+        ? `<div class="route-link-line">
+            <a class="route-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">${icon('link', { size: 13, stroke: 2 })}<span>${escapeHtml(linkLabel(url))}</span> ↗</a>
+            <button class="btn-link muted" type="button" data-action="edit-route-link">Ändern</button>
+          </div>`
+        : `<div class="route-link-line">
+            <button class="btn-link muted route-link-add" type="button" data-action="edit-route-link">${icon('link', { size: 13, stroke: 2 })}Link hinzufügen</button>
+          </div>`;
     return `<li class="place route-item${on ? ' is-on' : ''}" data-id="${r.id}" style="${categoryStyle(ROUTE_CATEGORY)}">
+      <div class="route-row">
       <button type="button" class="place-main" data-action="toggle-route" aria-pressed="${on}" title="${on ? 'Auf der Karte ausblenden' : 'Auf der Karte einblenden'}">
         <span class="place-icon" aria-hidden="true">${categoryIcon(ROUTE_CATEGORY, { size: 18, stroke: 1.7 })}</span>
         <span class="place-body">
@@ -340,8 +360,36 @@ function renderRoutes() {
       </button>
       <button type="button" class="route-action" data-action="download-route" aria-label="Route „${escapeHtml(r.name)}“ als GPX herunterladen" title="Als GPX herunterladen">${icon('download', { size: 15, stroke: 1.9 })}</button>
       <button type="button" class="route-action is-danger" data-action="delete-route" aria-label="Route „${escapeHtml(r.name)}“ entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
+      </div>
+      ${linkLine}
     </li>`;
   }).join('');
+  const input = $('.route-link-form input', list);
+  if (input && draft) {
+    input.value = draft.value;
+    if (draft.focused) input.focus();
+  }
+}
+
+// Link zur Tour (Strava, Komoot, …): Id der Route, deren Link-Feld gerade offen ist
+let editingRouteLink = null;
+
+// Nur http(s)-Links in href übernehmen – nie javascript: o. Ä. aus der Datenbank
+const safeHttpUrl = (u) => (/^https?:\/\//i.test(u || '') ? u : '');
+
+// „https://www.komoot.com/de-de/tour/123“ → „komoot.com“
+function linkLabel(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
+}
+
+// Eingabe prüfen: ohne Schema wird https:// ergänzt; alles außer http(s) wird abgelehnt
+function normalizeLink(value) {
+  const v = value.trim();
+  if (!v) return '';
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v}`);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : null;
+  } catch { return null; }
 }
 
 // GPX-Download: bevorzugt die beim Import gespeicherte Datei in voller Auflösung mit Höhen (gemeinsame
@@ -666,6 +714,15 @@ $('#route-list')?.addEventListener('click', async (e) => {
       mapView.fitToRoute(route);
     }
   }
+  if (action === 'edit-route-link') {
+    editingRouteLink = id;
+    renderRoutes();
+    $('.route-link-form input', $('#route-list'))?.focus();
+  }
+  if (action === 'cancel-route-link') {
+    editingRouteLink = null;
+    renderRoutes();
+  }
   if (action === 'download-route') await downloadRouteGpx(route);
   if (action === 'delete-route') {
     if (!confirm(`Route „${route.name}“ entfernen?`)) return;
@@ -674,6 +731,26 @@ $('#route-list')?.addEventListener('click', async (e) => {
     render();
     persist((b) => b.deleteRoute(id), 'Route konnte nicht entfernt werden');
   }
+});
+
+$('#route-list')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target.closest('.route-link-form');
+  const route = state.routes.find((r) => r.id === form?.closest('[data-id]')?.dataset.id);
+  if (!route) return;
+  const url = normalizeLink($('input', form).value);
+  if (url === null) return toast('Bitte einen gültigen Link eingeben (z. B. https://www.komoot.com/…)');
+  const before = route.url || '';
+  route.url = url;
+  editingRouteLink = null;
+  render();
+  const ok = await persist((b) => b.updateRoute(route.id, { url }), 'Link konnte nicht gespeichert werden');
+  if (!ok) {
+    route.url = before;
+    render();
+    return;
+  }
+  toast(url ? 'Link gespeichert' : 'Link entfernt');
 });
 
 // Sicherung anbieten, wenn die lokale Liste leer ist, aber ein früherer Stand existiert.
