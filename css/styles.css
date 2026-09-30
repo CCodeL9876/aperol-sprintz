@@ -517,7 +517,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .route-link-form input { flex: 1 1 100%; min-height: 38px; padding: 6px 12px; background: var(--card); }
 .route-item .place-meta { display: flex; align-items: center; gap: 4px; }
 .route-item .place-meta .icon { flex: none; color: var(--ci); }
-.route-item.is-on::before { background: var(--card); border-color: var(--green); }
+.route-item.is-on::before { background: var(--card); border-color: var(--ci, var(--green)); }
 .route-item.is-on .place-icon { background: var(--c); color: #FFFFFF; transform: rotate(-3deg); }
 /* Kippschalter, rein aus CSS: ::before ist der runde Knopf, verschiebt sich bei .is-on */
 .route-switch {

@@ -159,10 +159,10 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets }) {
     fitPoints(pts, 14);
   }
 
-  function routePopupHtml(r) {
+  function routePopupHtml(r, color) {
     return `
       <div class="popup">
-        <span class="popup-cat" style="${categoryStyle(ROUTE_CATEGORY)}">${escapeHtml(ROUTE_CATEGORY.label)}</span>
+        <span class="popup-cat" style="${categoryStyle({ ...ROUTE_CATEGORY, ink: color })}">${escapeHtml(ROUTE_CATEGORY.label)}</span>
         <strong class="popup-name">${escapeHtml(r.name)}</strong>
         <span class="popup-dist">${formatKm(r.distanceKm)}${Number.isFinite(r.elevationGainM) ? ` · ↑ ${Math.round(r.elevationGainM).toLocaleString('de-DE')} Hm` : ''}${Number.isFinite(r.elevationLossM) ? ` · ↓ ${Math.round(r.elevationLossM).toLocaleString('de-DE')} Hm` : ''}</span>
         ${safeHttpUrl(r.url) ? `<a class="popup-link" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">Tour öffnen ↗</a>` : ''}
@@ -176,10 +176,22 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets }) {
     routeLayer.clearLayers();
     for (const r of routes) {
       if (!r.points?.length) continue;
-      L.polyline(r.points, { color: '#FFFFFF', weight: 6, opacity: 0.9, lineJoin: 'round', interactive: false }).addTo(routeLayer);
-      L.polyline(r.points, { color: ROUTE_CATEGORY.ink, weight: 3.5, opacity: 0.95, lineJoin: 'round' })
-        .bindPopup(routePopupHtml(r), { closeButton: false, className: 'llocs-popup' })
+      const color = r.color || ROUTE_CATEGORY.ink;
+      const casing = L.polyline(r.points, { color: '#FFFFFF', weight: 6, opacity: 0.9, lineJoin: 'round', interactive: false }).addTo(routeLayer);
+      const line = L.polyline(r.points, { color, weight: 3.5, opacity: 0.95, lineJoin: 'round' })
+        .bindPopup(routePopupHtml(r, color), { closeButton: false, className: 'llocs-popup' })
         .addTo(routeLayer);
+      // Bei überlappenden Strecken: die berührte/angetippte Route nach vorne holen und hervorheben
+      const raise = () => {
+        casing.bringToFront();
+        line.bringToFront().setStyle({ weight: 5.5 });
+        casing.setStyle({ weight: 8 });
+      };
+      const lower = () => {
+        line.setStyle({ weight: 3.5 });
+        casing.setStyle({ weight: 6 });
+      };
+      line.on('mouseover', raise).on('mouseout', lower).on('popupopen', raise).on('popupclose', lower);
     }
   }
 

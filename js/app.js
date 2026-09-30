@@ -1,4 +1,4 @@
-import { DEFAULT_CATEGORIES, FALLBACK_CATEGORY, ROUTE_CATEGORY } from './categories.js';
+import { DEFAULT_CATEGORIES, FALLBACK_CATEGORY, ROUTE_CATEGORY, routeColor } from './categories.js';
 import { haversineKm, hasCoords, parseCoords, formatKm, geocode } from './geo.js';
 import { parseFile, parseGeoJSON, parseLinks, assignCategory, buildGpx } from './importers.js';
 import { loadUi, saveUi, readPref, writePref, downloadBackup, newId, newTripKey, loadLocalBackup, clearLocalBackup } from './store.js';
@@ -251,7 +251,11 @@ function render({ fit = false } = {}) {
   if (activeId && !visible.some((p) => p.id === activeId)) activeId = null;
   // Gelöschte Routen (z. B. von jemand anderem in der Reise entfernt) aus der Auswahl nehmen.
   state.ui.visibleRoutes = state.ui.visibleRoutes.filter((id) => state.routes.some((r) => r.id === id));
-  const visibleRoutes = state.routes.filter((r) => state.ui.visibleRoutes.includes(r.id));
+  // In Einschalt-Reihenfolge zeichnen: die zuletzt eingeblendete Route liegt oben
+  const visibleRoutes = state.ui.visibleRoutes
+    .map((id) => state.routes.findIndex((r) => r.id === id))
+    .filter((i) => i >= 0)
+    .map((i) => ({ ...state.routes[i], color: routeColor(i).ink }));
 
   renderAirbnb();
   renderFlights();
@@ -329,8 +333,9 @@ function renderRoutes() {
   const draftInput = $('.route-link-form input', list);
   const draft = draftInput ? { value: draftInput.value, focused: document.activeElement === draftInput } : null;
   if (editingRouteLink && !state.routes.some((r) => r.id === editingRouteLink)) editingRouteLink = null;
-  list.innerHTML = state.routes.map((r) => {
+  list.innerHTML = state.routes.map((r, i) => {
     const on = visible.has(r.id);
+    const colors = { ...ROUTE_CATEGORY, ...routeColor(i) }; // gleiche Farbe wie die Linie auf der Karte
     const hm = formatHm(r.elevationGainM);
     const url = safeHttpUrl(r.url);
     const linkLine = editingRouteLink === r.id
@@ -347,7 +352,7 @@ function renderRoutes() {
         : `<div class="route-link-line">
             <button class="btn-link muted route-link-add" type="button" data-action="edit-route-link">${icon('link', { size: 13, stroke: 2 })}Link hinzufügen</button>
           </div>`;
-    return `<li class="place route-item${on ? ' is-on' : ''}" data-id="${r.id}" style="${categoryStyle(ROUTE_CATEGORY)}">
+    return `<li class="place route-item${on ? ' is-on' : ''}" data-id="${r.id}" style="${categoryStyle(colors)}">
       <div class="route-row">
       <button type="button" class="place-main" data-action="toggle-route" aria-pressed="${on}" title="${on ? 'Auf der Karte ausblenden' : 'Auf der Karte einblenden'}">
         <span class="place-icon" aria-hidden="true">${categoryIcon(ROUTE_CATEGORY, { size: 18, stroke: 1.7 })}</span>

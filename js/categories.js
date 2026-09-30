@@ -51,6 +51,22 @@ export const FALLBACK_CATEGORY = 'sonstiges';
 // Gleiche Farbfamilie wie „Rennrad-Hotspot“ (Icon unterscheidet Punkt vs. Strecke).
 export const ROUTE_CATEGORY = { id: 'rennrad-route', label: 'Rennrad-Route', icon: 'route', color: '#8FB783', ink: '#3F6B34' };
 
+// Jede Route bekommt ihre eigene Farbe (nach Reihenfolge in der Liste), damit sich überschneidende
+// Strecken auf der Karte auseinanderhalten lassen. ink = Linie auf der Karte, color = helle Fläche
+// für das Symbol in der Liste. Ab der 9. Route wiederholen sich die Farben.
+export const ROUTE_COLORS = [
+  { color: '#8FB783', ink: '#3F6B34' }, // Flaschengrün
+  { color: '#F29A66', ink: '#D2601F' }, // Aperol-Orange
+  { color: '#8CC3DB', ink: '#2F6E8C' }, // Meerblau
+  { color: '#B9A3D9', ink: '#6B4C9A' }, // Violett
+  { color: '#E98A78', ink: '#A8352D' }, // Ziegelrot
+  { color: '#7FC4B6', ink: '#1F7A6B' }, // Petrol
+  { color: '#F2C95C', ink: '#8A620A' }, // Ocker
+  { color: '#E3A0C4', ink: '#A23B72' }, // Beere
+];
+
+export const routeColor = (index) => ROUTE_COLORS[((index % ROUTE_COLORS.length) + ROUTE_COLORS.length) % ROUTE_COLORS.length];
+
 const normalize = (s) => ` ${String(s || '').toLowerCase().normalize('NFC')} `;
 
 // Findet eine Kategorie über den Namen einer Liste/Datei (z. B. "Kaffee.csv", "Rennrad Mallorca").
