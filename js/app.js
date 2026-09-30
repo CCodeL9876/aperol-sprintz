@@ -445,9 +445,35 @@ function renderChips(base) {
     chips.join('');
 }
 
+// Startansicht: nur die ersten PLACES_PREVIEW Orte, der Rest ist über „Alle … anzeigen“ aufklappbar.
+// Die Karte zeigt trotzdem alle Orte; zugeklappt wird nur die Liste.
+const PLACES_PREVIEW = 3;
+let placesExpanded = false;
+
+function renderPlaceMore(count) {
+  const btn = $('#place-more');
+  const list = $('#place-list');
+  const extra = count - PLACES_PREVIEW;
+  list.classList.toggle('is-collapsed', !placesExpanded && extra > 0);
+  btn.hidden = extra <= 0;
+  if (extra <= 0) return;
+  btn.setAttribute('aria-expanded', String(placesExpanded));
+  btn.innerHTML = placesExpanded
+    ? `Weniger anzeigen ${icon('chevron-up', { size: 15, stroke: 2.2 })}`
+    : `Alle ${count} Orte anzeigen ${icon('chevron-down', { size: 15, stroke: 2.2 })}`;
+}
+
+$('#place-more').addEventListener('click', () => {
+  placesExpanded = !placesExpanded;
+  renderPlaceMore($$('#place-list .place').length);
+  // Beim Zuklappen zurück an den Listenanfang, sonst steht man mitten im leeren Bereich
+  if (!placesExpanded) $('.list-section .list-head')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+
 function renderList(visible, total) {
   const list = $('#place-list');
   const empty = $('#empty-state');
+  renderPlaceMore(visible.length);
   $('#result-count').innerHTML = total
     ? `<strong>${visible.length} ${visible.length === 1 ? 'Ort' : 'Orte'}</strong> von ${total}`
     : '';
@@ -473,13 +499,13 @@ function renderList(visible, total) {
   empty.hidden = true;
 
   const cats = displayCategories();
-  list.innerHTML = visible.map((p) => {
+  list.innerHTML = visible.map((p, i) => {
     const c = catOf(p.category);
     const gmaps = p.url || (hasCoords(p) ? `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}`);
     const dist = p.distance != null
       ? `<span class="place-dist">${distanceHtml(p.distance)}</span>`
       : !hasCoords(p) ? '<span class="place-dist is-missing" title="Kein Standort">ohne Standort</span>' : '';
-    return `<li class="place${p.id === activeId ? ' is-active' : ''}" data-id="${p.id}" style="${categoryStyle(c)}">
+    return `<li class="place${p.id === activeId ? ' is-active' : ''}${i >= PLACES_PREVIEW ? ' is-extra' : ''}" data-id="${p.id}" style="${categoryStyle(c)}">
       <button type="button" class="place-main" data-action="select" aria-expanded="${p.id === activeId}">
         <span class="place-icon" aria-hidden="true">${categoryIcon(c, { size: 18, stroke: 1.7 })}</span>
         <span class="place-body">
@@ -526,6 +552,11 @@ function selectPlace(id, { fly = true, scrollList = false } = {}) {
   if (activeId && fly) mapView.focusPlace(activeId);
   if (activeId && scrollList) {
     const li = $(`#place-list .place[data-id="${CSS.escape(activeId)}"]`);
+    // Marker eines Orts angetippt, der in der zugeklappten Liste versteckt ist → Liste aufklappen
+    if (li?.classList.contains('is-extra') && !placesExpanded) {
+      placesExpanded = true;
+      renderPlaceMore($$('#place-list .place').length);
+    }
     // auf dem Handy erst nach dem Aufziehen des Blatts scrollen (Animation 0,25 s)
     setTimeout(() => li?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), isMobile() ? 280 : 0);
   }

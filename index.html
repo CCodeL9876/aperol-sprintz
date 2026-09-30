@@ -17,8 +17,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-09-30.16">
-  <link rel="stylesheet" href="css/styles.css?v=2026-09-30.16">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-09-30.17">
+  <link rel="stylesheet" href="css/styles.css?v=2026-09-30.17">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -95,6 +95,7 @@
           </label>
         </div>
         <ul id="place-list" class="place-list"></ul>
+        <button id="place-more" class="list-more" type="button" aria-controls="place-list" aria-expanded="false" hidden></button>
         <div id="empty-state" class="empty-state" hidden></div>
       </section>
 
@@ -286,23 +287,23 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-09-30.16"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-09-30.17"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-09-30.16",
-      "./js/backend.js": "./js/backend.js?v=2026-09-30.16",
-      "./js/categories.js": "./js/categories.js?v=2026-09-30.16",
-      "./js/config.js": "./js/config.js?v=2026-09-30.16",
-      "./js/geo.js": "./js/geo.js?v=2026-09-30.16",
-      "./js/icons.js": "./js/icons.js?v=2026-09-30.16",
-      "./js/importers.js": "./js/importers.js?v=2026-09-30.16",
-      "./js/map.js": "./js/map.js?v=2026-09-30.16",
-      "./js/store.js": "./js/store.js?v=2026-09-30.16"
+      "./js/app.js": "./js/app.js?v=2026-09-30.17",
+      "./js/backend.js": "./js/backend.js?v=2026-09-30.17",
+      "./js/categories.js": "./js/categories.js?v=2026-09-30.17",
+      "./js/config.js": "./js/config.js?v=2026-09-30.17",
+      "./js/geo.js": "./js/geo.js?v=2026-09-30.17",
+      "./js/icons.js": "./js/icons.js?v=2026-09-30.17",
+      "./js/importers.js": "./js/importers.js?v=2026-09-30.17",
+      "./js/map.js": "./js/map.js?v=2026-09-30.17",
+      "./js/store.js": "./js/store.js?v=2026-09-30.17"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-09-30.16"></script>
+  <script type="module" src="js/app.js?v=2026-09-30.17"></script>
 </body>
 </html>
