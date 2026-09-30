@@ -1193,5 +1193,9 @@ async function boot() {
   });
 }
 
+// Welche Version läuft gerade? (Zahl aus index.html, von deploy.sh erhöht) – hilft zu erkennen,
+// ob z. B. die App auf dem Home-Bildschirm noch einen alten Stand zeigt.
+$('#app-version').textContent = `Version ${document.querySelector('link[href*="styles.css"]')?.href.match(/v=([\d.-]+)/)?.[1] || '–'}`;
+
 boot();
 window.addEventListener('resize', () => mapView.invalidate());
