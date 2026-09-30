@@ -832,6 +832,13 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   .place-list { margin: 0 -8px; }
   .place-details { padding-left: 12px; }
   .route-link-line, .route-link-form { padding-left: 12px; }
+  /* Fingergerechte Tippflächen (mind. ~40px) für die kleinen Knöpfe in Orts- und Routenliste */
+  .route-action { width: 40px; height: 40px; }
+  .route-action:last-child { margin-right: 2px; }
+  .route-link-line { gap: 16px; margin-top: -4px; }
+  .route-link-line .btn-link, .route-link { min-height: 32px; font-size: 13px; }
+  .route-link-form .btn { min-height: 38px; }
+  .list-more { padding: 12px; font-size: 14px; }
 
   /* Reise/Unterkunft: zwei kleine Boxen nebeneinander oben über der Karte; eine aufgeklappte Box
      nimmt die ganze Breite und scrollt, wenn sie nicht in den freien Kartenteil passt. */

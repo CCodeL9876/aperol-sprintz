@@ -466,6 +466,8 @@ function renderPlaceMore(count) {
 $('#place-more').addEventListener('click', () => {
   placesExpanded = !placesExpanded;
   renderPlaceMore($$('#place-list .place').length);
+  // Handy: aufgeklappte Liste braucht Platz → Blatt ganz hochziehen
+  if (placesExpanded && isMobile()) setSheet('full');
   // Beim Zuklappen zurück an den Listenanfang, sonst steht man mitten im leeren Bereich
   if (!placesExpanded) $('.list-section .list-head')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 });
