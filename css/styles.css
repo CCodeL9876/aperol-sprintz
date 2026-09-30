@@ -228,7 +228,7 @@ select {
   scrollbar-color: var(--line) transparent;
 }
 
-/* Reise/Unterkunft/Strecken: auf dem Handy zugeklappt unter der Liste (eigene, engere Gruppe mit
+/* Reise/Unterkunft: auf dem Handy zugeklappt unter der Liste (eigene, engere Gruppe mit
    Trennlinie). Ab Desktop-Breite (siehe Media Query weiter unten) eine eigene schwebende Zeile
    rechts neben der Suchleisten-Box, nebeneinander statt gestapelt. */
 .panel-row {
@@ -274,7 +274,7 @@ select {
     box-shadow: var(--shadow-lg);
   }
 
-  /* Reise/Unterkunft/Strecken: statt gestapelt unter der Liste jetzt eine eigene schwebende Zeile
+  /* Reise/Unterkunft: statt gestapelt unter der Liste jetzt eine eigene schwebende Zeile
      rechts neben der Suchleisten-Box, Boxen nebeneinander statt untereinander. Jede Box behält ihre
      eigene gemalte Karte; passt eine Zeile nicht (schmales Fenster), scrollt sie seitwärts. */
   .panel-row {
@@ -294,19 +294,17 @@ select {
 .map-error strong { font-family: var(--font-marker); font-weight: 400; font-size: 22px; color: var(--green); text-transform: uppercase; }
 
 /* --- Unterkunft, Reise & Routen: gleiche gemalte, klappbare Box (natives <details>/<summary>) ------ */
-/* Alle drei sind <details class="panel airbnb|trip|routes">; zugeklappt zeigt die Kopfzeile
+/* Beide sind <details class="panel airbnb|trip">; zugeklappt zeigt die Kopfzeile
    (.panel-summary) nur Symbol, Eyebrow und Titel – der Inhalt darunter ist eingeklappt. */
 
 .panel.airbnb,
-.panel.trip,
-.panel.routes {
+.panel.trip {
   position: relative; isolation: isolate;
   padding: 16px;
   border-radius: var(--radius-lg);
 }
 .panel.airbnb::before,
-.panel.trip::before,
-.panel.routes::before {
+.panel.trip::before {
   content: ''; position: absolute; inset: 0; z-index: -1;
   background: var(--card);
   border: 3px solid var(--green); border-radius: inherit;
@@ -323,11 +321,9 @@ select {
 }
 .arch-badge .icon { width: 18px; height: 18px; stroke-width: 2.2; }
 .airbnb-body,
-.trip-body,
-.routes-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.trip-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .airbnb h2,
-.trip h2,
-.routes h2 { font-size: 22px; line-height: 1.1; text-transform: uppercase; }
+.trip h2 { font-size: 22px; line-height: 1.1; text-transform: uppercase; }
 .airbnb-label { margin: 0; color: var(--text-soft); font-size: 13px; overflow-wrap: anywhere; }
 .airbnb-label.is-set { color: var(--text-soft); }
 .inline-form { display: flex; gap: 8px; }
@@ -353,12 +349,10 @@ select {
 }
 details.panel[open] .panel-chevron { transform: rotate(180deg); }
 
-/* Inhalt unterhalb der Kopfzeile – bei allen drei Boxen mit gestrichelter Trennlinie abgesetzt */
+/* Inhalt unterhalb der Kopfzeile – bei beiden Boxen mit gestrichelter Trennlinie abgesetzt */
 .airbnb-details,
-.trip-flights,
-.routes-details { margin-top: 14px; padding-top: 14px; border-top: 2px dashed var(--line); }
+.trip-flights { margin-top: 14px; padding-top: 14px; border-top: 2px dashed var(--line); }
 .airbnb-details { display: flex; flex-direction: column; gap: 10px; }
-.routes-details .hint { margin: 0 0 8px; }
 
 /* Hin- & Rückreise: zwei Zeilen mit Datum + Uhrzeit */
 .trip-flights { display: flex; flex-direction: column; gap: 10px; }
@@ -374,34 +368,6 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .trip-flight-inputs input { background: var(--bg); }
 .trip-flight-inputs input[type="date"] { flex: 1.3; min-width: 0; }
 .trip-flight-inputs input[type="time"] { flex: 1; min-width: 0; }
-
-/* Rennrad-Routen: Liste aus Kippschaltern – standardmäßig aus, an bis zum nächsten Antippen */
-.route-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.route-item { display: flex; align-items: center; gap: 6px; }
-.route-chip {
-  flex: 1; min-width: 0;
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 10px 8px 12px; border: 0; border-radius: var(--radius);
-  background: var(--chip); color: var(--text); cursor: pointer; text-align: left;
-}
-.route-chip:hover { background: var(--chip-hover); }
-.route-chip-icon { flex: none; display: flex; color: var(--muted); }
-.route-chip[aria-pressed="true"] .route-chip-icon { color: var(--ci, #3F6B34); }
-.route-chip-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.route-chip-name { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.route-chip-meta { font-size: 12px; color: var(--muted); }
-/* Kippschalter, rein aus CSS: ::before ist der runde Knopf, verschiebt sich bei aria-pressed. */
-.route-chip-switch {
-  flex: none; width: 34px; height: 20px; border-radius: 999px;
-  background: var(--line); position: relative; transition: background 0.15s;
-}
-.route-chip-switch::before {
-  content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
-  border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 2px rgba(37, 50, 31, 0.25);
-  transition: transform 0.15s;
-}
-.route-chip[aria-pressed="true"] .route-chip-switch { background: var(--ci, #3F6B34); }
-.route-chip[aria-pressed="true"] .route-chip-switch::before { transform: translateX(14px); }
 
 .search-results {
   list-style: none; margin: 8px 0 0; padding: 4px;
@@ -529,6 +495,38 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .place-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
 .place.is-active .chip-btn { background: var(--bg); }
 .place.is-active .chip-btn:hover { background: var(--green-tint); }
+/* Rennrad-Routen: eigener Abschnitt unter den Orten, gleicher Aufbau wie die Ortsliste.
+   Ganze Zeile ist ein Kippschalter (aria-pressed); eingeblendete Routen wirken wie ein aktiver Ort. */
+.list-title {
+  font-size: 22px; line-height: 1.1; letter-spacing: 0.02em;
+  color: var(--green); text-transform: uppercase;
+}
+.route-empty { margin: 10px 0 0; }
+.route-item { display: flex; align-items: center; }
+.route-item .place-main { flex: 1; min-width: 0; }
+.route-item .place-meta { display: flex; align-items: center; gap: 4px; }
+.route-item .place-meta .icon { flex: none; color: var(--ci); }
+.route-item.is-on::before { background: var(--card); border-color: var(--green); }
+.route-item.is-on .place-icon { background: var(--c); color: #FFFFFF; transform: rotate(-3deg); }
+/* Kippschalter, rein aus CSS: ::before ist der runde Knopf, verschiebt sich bei .is-on */
+.route-switch {
+  flex: none; width: 34px; height: 20px; border-radius: 999px;
+  background: var(--line); position: relative; transition: background 0.15s;
+}
+.route-switch::before {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 2px rgba(37, 50, 31, 0.25);
+  transition: transform 0.15s;
+}
+.route-item.is-on .route-switch { background: var(--ci, var(--green)); }
+.route-item.is-on .route-switch::before { transform: translateX(14px); }
+.route-delete {
+  flex: none; display: grid; place-items: center;
+  width: 32px; height: 32px; margin-right: 6px;
+  border: 0; border-radius: var(--radius-sm); background: none; color: var(--muted); cursor: pointer;
+}
+.route-delete:hover { background: var(--chip); color: var(--orange-ink); }
+
 .cat-select {
   min-height: 32px; height: 32px; width: auto; max-width: 100%;
   padding: 0 30px 0 10px; font-size: 13px; font-weight: 600;

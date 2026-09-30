@@ -88,6 +88,8 @@ const toRouteRow = (route, key) => ({
   category: route.category || 'rennrad-route',
   points: route.points,
   distance_km: Number.isFinite(route.distanceKm) ? route.distanceKm : null,
+  elevation_gain_m: Number.isFinite(route.elevationGainM) ? route.elevationGainM : null,
+  elevation_loss_m: Number.isFinite(route.elevationLossM) ? route.elevationLossM : null,
   added_by: route.addedBy || '',
   created_at: new Date(route.addedAt || Date.now()).toISOString(),
 });
@@ -98,6 +100,8 @@ const fromRouteRow = (r) => ({
   category: r.category || 'rennrad-route',
   points: Array.isArray(r.points) ? r.points : [],
   distanceKm: r.distance_km,
+  elevationGainM: r.elevation_gain_m ?? null,
+  elevationLossM: r.elevation_loss_m ?? null,
   addedBy: r.added_by || '',
   addedAt: Date.parse(r.created_at) || 0,
 });

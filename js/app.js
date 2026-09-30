@@ -249,33 +249,41 @@ function renderFlights() {
   setVal('flight-back-time', f.backTime);
 }
 
-// Rennrad-Routen: eigene Liste mit Kippschaltern statt Kategorie-Filtern – standardmäßig ist
-// state.ui.visibleRoutes leer, also ist zugeklappt keine Route auf der Karte zu sehen.
+// Rennrad-Routen: eigener Abschnitt unter den Orten, gleicher Aufbau wie die Ortsliste, aber jede
+// Zeile ist ein Kippschalter – standardmäßig ist state.ui.visibleRoutes leer, also keine Route auf der Karte.
 function renderRoutes() {
   const list = $('#route-list');
   if (!list) return; // Null-sicher: altes index.html im Cache
   const empty = $('#route-empty');
-  if (!state.routes.length) {
-    list.innerHTML = '';
-    if (empty) empty.hidden = false;
-    return;
-  }
-  if (empty) empty.hidden = true;
+  const count = $('#route-count');
   const visible = new Set(state.ui.visibleRoutes);
+  if (count) {
+    count.textContent = state.routes.length
+      ? `${visible.size} von ${state.routes.length} ${state.routes.length === 1 ? 'Route' : 'Routen'} eingeblendet`
+      : '';
+  }
+  if (empty) empty.hidden = state.routes.length > 0;
   list.innerHTML = state.routes.map((r) => {
     const on = visible.has(r.id);
-    return `<li class="route-item" data-id="${r.id}">
-      <button type="button" class="route-chip" data-action="toggle-route" aria-pressed="${on}" style="${categoryStyle(ROUTE_CATEGORY)}">
-        <span class="route-chip-icon">${categoryIcon(ROUTE_CATEGORY, { size: 16, stroke: 2 })}</span>
-        <span class="route-chip-body">
-          <span class="route-chip-name">${escapeHtml(r.name)}</span>
-          <span class="route-chip-meta">${escapeHtml(ROUTE_CATEGORY.label)} · ${formatKm(r.distanceKm)}</span>
+    const hm = formatHm(r.elevationGainM);
+    return `<li class="place route-item${on ? ' is-on' : ''}" data-id="${r.id}" style="${categoryStyle(ROUTE_CATEGORY)}">
+      <button type="button" class="place-main" data-action="toggle-route" aria-pressed="${on}" title="${on ? 'Auf der Karte ausblenden' : 'Auf der Karte einblenden'}">
+        <span class="place-icon" aria-hidden="true">${categoryIcon(ROUTE_CATEGORY, { size: 18, stroke: 1.7 })}</span>
+        <span class="place-body">
+          <span class="place-name">${escapeHtml(r.name)}</span>
+          <span class="place-meta">${hm ? `${icon('trending-up', { size: 13, stroke: 2.2 })} ${hm}` : escapeHtml(ROUTE_CATEGORY.label)}</span>
         </span>
-        <span class="route-chip-switch" aria-hidden="true"></span>
+        ${r.distanceKm != null ? `<span class="place-dist">${distanceHtml(r.distanceKm)}</span>` : ''}
+        <span class="route-switch" aria-hidden="true"></span>
       </button>
-      <button type="button" class="chip-btn chip-btn-icon danger" data-action="delete-route" aria-label="Route entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
+      <button type="button" class="route-delete" data-action="delete-route" aria-label="Route „${escapeHtml(r.name)}“ entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
     </li>`;
   }).join('');
+}
+
+// Höhenmeter bergauf, z. B. „1.230 Hm“; leer bei Routen ohne Höhendaten (ältere Importe, GPX ohne <ele>)
+function formatHm(m) {
+  return Number.isFinite(m) ? `${Math.round(m).toLocaleString('de-DE')} Hm` : '';
 }
 
 function renderChips(base) {
@@ -693,6 +701,8 @@ async function addRoute(parsed, sourceLabel) {
     category: ROUTE_CATEGORY.id,
     points: parsed.points,
     distanceKm: parsed.distanceKm,
+    elevationGainM: parsed.elevationGainM ?? null,
+    elevationLossM: parsed.elevationLossM ?? null,
     addedBy: memberName(),
     addedAt: Date.now(),
   };
@@ -704,7 +714,7 @@ async function addRoute(parsed, sourceLabel) {
     render();
     return;
   }
-  log(`${sourceLabel}: Route „${route.name}“ importiert (${formatKm(route.distanceKm)}, standardmäßig ausgeblendet).`, 'ok');
+  log(`${sourceLabel}: Route „${route.name}“ importiert (${formatKm(route.distanceKm)}${route.elevationGainM != null ? `, ${formatHm(route.elevationGainM)}` : ''}, standardmäßig ausgeblendet).`, 'ok');
 }
 
 async function handleFiles(files) {

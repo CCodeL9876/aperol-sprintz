@@ -211,11 +211,15 @@ export function parseGpx(text, fallbackName = 'Route') {
   if (doc.querySelector('parsererror')) throw new Error('GPX-Datei konnte nicht gelesen werden.');
 
   const points = [];
+  const elevations = [];
   const readPoints = (parent, tag) => {
     for (const pt of parent.getElementsByTagName(tag)) {
       const lat = parseFloat(pt.getAttribute('lat'));
       const lon = parseFloat(pt.getAttribute('lon'));
-      if (Number.isFinite(lat) && Number.isFinite(lon)) points.push([round5(lat), round5(lon)]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      points.push([round5(lat), round5(lon)]);
+      const ele = parseFloat(pt.getElementsByTagName('ele')[0]?.textContent);
+      if (Number.isFinite(ele)) elevations.push(ele);
     }
   };
   for (const trk of doc.getElementsByTagName('trk')) readPoints(trk, 'trkpt');
@@ -232,7 +236,25 @@ export function parseGpx(text, fallbackName = 'Route') {
     || doc.getElementsByTagName('metadata')[0]?.getElementsByTagName('name')[0];
   const name = nameEl?.textContent?.trim() || fallbackName;
 
-  return { name, points: decimate(points, GPX_MAX_POINTS), distanceKm };
+  return { name, points: decimate(points, GPX_MAX_POINTS), distanceKm, ...elevationGain(elevations) };
+}
+
+// Höhenmeter bergauf/bergab aus den <ele>-Werten (volle Auflösung, vor dem Ausdünnen).
+// GPS-Höhen rauschen um ein paar Meter; ohne Schwelle käme bei jeder Route ein Vielfaches der
+// echten Höhenmeter heraus. Gezählt wird daher erst, wenn sich die Höhe um mindestens
+// ELE_THRESHOLD_M vom letzten gezählten Punkt entfernt hat (ähnlich wie Strava/Komoot).
+const ELE_THRESHOLD_M = 4;
+function elevationGain(elevations) {
+  if (elevations.length < 2) return { elevationGainM: null, elevationLossM: null };
+  let gain = 0;
+  let loss = 0;
+  let ref = elevations[0];
+  for (const ele of elevations) {
+    const diff = ele - ref;
+    if (diff >= ELE_THRESHOLD_M) { gain += diff; ref = ele; }
+    else if (diff <= -ELE_THRESHOLD_M) { loss -= diff; ref = ele; }
+  }
+  return { elevationGainM: Math.round(gain), elevationLossM: Math.round(loss) };
 }
 
 // --- Eingefügte Links / Koordinaten -------------------------------------------

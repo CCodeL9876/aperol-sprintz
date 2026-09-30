@@ -28,8 +28,9 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
 - **Import** per Drag & Drop: Takeout-`Gespeicherte Orte.json`, Listen-CSVs, KML aus My Maps, eigene CSVs
   (Spalten `name`, `lat`, `lng`, `category` …), Llocs-Backups – oder Google-Maps-Links einfügen.
 - **GPX-Rennradrouten** (Strava, Komoot, Garmin, RideWithGPS …) per Drag & Drop importieren. Werden als eigene
-  Art „Rennrad-Route“ gespeichert, stehen aber standardmäßig ausgeblendet in der Box „Rennrad-Routen“ –
-  erst ein Antippen dort zeichnet die Strecke (Linie, keine Punkte) auf der Karte ein.
+  Art „Rennrad-Route“ gespeichert und stehen in der Seitenleiste im Abschnitt „Rennrad-Routen“ unter den Orten –
+  mit Länge und Höhenmetern (aus den `<ele>`-Werten der GPX, GPS-Rauschen unter 4 m wird ignoriert).
+  Standardmäßig ausgeblendet; der Schalter pro Route zeichnet die Strecke (Linie, keine Punkte) auf der Karte ein.
 - **Automatische Kategorie** über Stichwörter im Namen bzw. über den Listennamen (`Rennrad.csv` → Rennrad-Hotspot).
   Google exportiert keine Orts-Typen, daher lässt sich die Kategorie pro Ort in der Liste ändern.
 - **Fehlende Standorte** (typisch bei Listen-CSVs) werden über OpenStreetMap gesucht (1 Anfrage/Sekunde).
@@ -83,5 +84,5 @@ Hinweise:
 ## Mögliche nächste Schritte
 
 - Mehrere Unterkünfte (z. B. für verschiedene Reisen) speichern und umschalten
-- Radrouten (GPX/KML-Linien) als Ebene anzeigen
+- Höhenprofil pro Route
 - Marker-Clustering bei sehr vielen Orten

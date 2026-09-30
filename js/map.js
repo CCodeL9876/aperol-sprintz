@@ -137,7 +137,7 @@ export function createMap(el, { onMapClick, onMarkerClick }) {
       <div class="popup">
         <span class="popup-cat" style="${categoryStyle(ROUTE_CATEGORY)}">${escapeHtml(ROUTE_CATEGORY.label)}</span>
         <strong class="popup-name">${escapeHtml(r.name)}</strong>
-        <span class="popup-dist">${formatKm(r.distanceKm)}</span>
+        <span class="popup-dist">${formatKm(r.distanceKm)}${Number.isFinite(r.elevationGainM) ? ` · ↑ ${Math.round(r.elevationGainM).toLocaleString('de-DE')} Hm` : ''}${Number.isFinite(r.elevationLossM) ? ` · ↓ ${Math.round(r.elevationLossM).toLocaleString('de-DE')} Hm` : ''}</span>
       </div>`;
   }
 

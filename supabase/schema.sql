@@ -33,12 +33,17 @@ create table if not exists public.routes (
   category    text not null default 'rennrad-route' check (char_length(category) <= 80),
   points      jsonb not null default '[]'::jsonb,
   distance_km double precision,
+  elevation_gain_m double precision,
+  elevation_loss_m double precision,
   added_by    text not null default '' check (char_length(added_by) <= 80),
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
 
 create index if not exists routes_trip_key_idx on public.routes (trip_key);
+-- Nachträglich ergänzt (Höhenmeter): bei bereits bestehender Tabelle die Spalten hinzufügen
+alter table public.routes add column if not exists elevation_gain_m double precision;
+alter table public.routes add column if not exists elevation_loss_m double precision;
 
 create table if not exists public.trip_settings (
   trip_key           text primary key check (char_length(trip_key) between 32 and 128),
