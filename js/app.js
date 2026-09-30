@@ -143,7 +143,69 @@ const mapView = createMap($('#map'), {
     setAirbnb({ label: `Gewählter Punkt (${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)})`, lat: latlng.lat, lng: latlng.lng });
   },
   onMarkerClick: (id) => selectPlace(id, { fly: false, scrollList: true }),
+  getInsets: mapInsets,
 });
+
+// --- Handy: Liste als Blatt über der Karte ------------------------------------------------
+// Unter 900px liegt die Seitenleiste als Blatt unten über der randlosen Karte (wie auf dem Desktop
+// schwebend, nur von unten). Drei Höhen: „peek“ (nur Suche), „half“ (Standard), „full“ (ganze Liste).
+// Die Höhen selbst stehen in styles.css (--sheet-h); hier wird nur umgeschaltet.
+
+const isMobile = () => window.matchMedia('(max-width: 899px)').matches;
+const SHEET_STATES = ['peek', 'half', 'full'];
+const SHEET_PEEK_PX = 150; // muss zu --sheet-h bei [data-sheet="peek"] in styles.css passen
+
+function sheetState() {
+  return $('.layout').dataset.sheet || 'half';
+}
+
+function setSheet(next) {
+  if (!SHEET_STATES.includes(next)) return;
+  $('.layout').dataset.sheet = next;
+  $('#sheet-handle').setAttribute('aria-expanded', String(next === 'full'));
+}
+
+// Wie viele Pixel der Karte an jedem Rand verdeckt sind. Aus dem Zielzustand berechnet statt aus den
+// aktuellen Maßen, weil das Blatt beim Umschalten noch animiert, während die Karte schon losfliegt.
+function mapInsets() {
+  const mapEl = $('#map');
+  const m = mapEl.getBoundingClientRect();
+  if (!m.height) return {};
+  const row = $('.panel-row').getBoundingClientRect();
+  let top = row.height ? Math.max(0, row.bottom - m.top) : 0;
+  if (isMobile()) {
+    const state = sheetState();
+    const bottom = state === 'peek' ? SHEET_PEEK_PX : state === 'half' ? m.height * 0.5 : m.height;
+    if (m.height - bottom - top < 120) top = 0; // offene Box: nicht auf einen Streifen quetschen
+    return { top, bottom: Math.min(bottom, m.height - 40) };
+  }
+  const left = Math.max(0, $('.sidebar').getBoundingClientRect().right - m.left);
+  if (m.height - top < 160) top = 0;
+  return { top, left };
+}
+
+(() => {
+  const handle = $('#sheet-handle');
+  handle.setAttribute('aria-expanded', 'false');
+  // Tippen: halb ↔ ganz (aus „peek“ auf halb). Wischen auf dem Griff: hoch = größer, runter = kleiner.
+  handle.addEventListener('click', () => {
+    const cur = sheetState();
+    setSheet(cur === 'half' ? 'full' : 'half');
+  });
+  let startY = null;
+  handle.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; }, { passive: true });
+  handle.addEventListener('touchend', (e) => {
+    if (startY == null) return;
+    const dy = e.changedTouches[0].clientY - startY;
+    startY = null;
+    if (Math.abs(dy) < 30) return; // kurzer Tipp → normales click
+    e.preventDefault(); // kein zusätzliches click nach dem Wischen
+    const i = SHEET_STATES.indexOf(sheetState());
+    setSheet(SHEET_STATES[Math.max(0, Math.min(SHEET_STATES.length - 1, i + (dy < 0 ? 1 : -1)))]);
+  });
+  // Suchen braucht Platz für Tastatur und Treffer
+  $('#search').addEventListener('focus', () => { if (isMobile()) setSheet('full'); });
+})();
 
 // --- Ableitungen -------------------------------------------------------------------
 
@@ -379,9 +441,16 @@ function selectPlace(id, { fly = true, scrollList = false } = {}) {
     $('.place-main', li).setAttribute('aria-expanded', String(on));
   });
   mapView.setActive(activeId);
+  if (isMobile() && activeId) {
+    // Ort aus der Liste gewählt: Karte muss sichtbar sein. Marker angetippt: Eintrag muss sichtbar sein.
+    if (fly && sheetState() === 'full') setSheet('half');
+    if (scrollList && sheetState() === 'peek') setSheet('half');
+  }
   if (activeId && fly) mapView.focusPlace(activeId);
   if (activeId && scrollList) {
-    $(`#place-list .place[data-id="${CSS.escape(activeId)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const li = $(`#place-list .place[data-id="${CSS.escape(activeId)}"]`);
+    // auf dem Handy erst nach dem Aufziehen des Blatts scrollen (Animation 0,25 s)
+    setTimeout(() => li?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), isMobile() ? 280 : 0);
   }
 }
 
@@ -396,7 +465,7 @@ function setAirbnb(airbnb) {
   render();
   persistSettings();
   if (airbnb) {
-    mapView.map.flyTo([airbnb.lat, airbnb.lng], Math.max(mapView.map.getZoom(), 11), { duration: 0.6 });
+    mapView.centerOn([airbnb.lat, airbnb.lng], Math.max(mapView.map.getZoom(), 11));
     toast('Airbnb gesetzt – Entfernungen werden jetzt berechnet.');
   }
 }
@@ -405,7 +474,11 @@ function setPickMode(on) {
   pickMode = on;
   $('#pick-banner').hidden = !on;
   $('#map').classList.toggle('is-picking', on);
-  if (on && window.matchMedia('(max-width: 899px)').matches) $('.map-wrap').scrollIntoView({ behavior: 'smooth' });
+  if (on && isMobile()) {
+    // Karte freimachen: Liste nach unten, offene Boxen zu (sonst verdecken sie die Karte)
+    setSheet('peek');
+    $$('.panel-row details[open]').forEach((d) => { d.open = false; });
+  }
 }
 
 $('#airbnb-form').addEventListener('submit', async (e) => {
@@ -564,7 +637,10 @@ $('#route-list')?.addEventListener('click', async (e) => {
     if (turningOn) set.add(id); else set.delete(id);
     state.ui.visibleRoutes = [...set];
     render();
-    if (turningOn) mapView.fitToRoute(route);
+    if (turningOn) {
+      if (isMobile() && sheetState() === 'full') setSheet('half');
+      mapView.fitToRoute(route);
+    }
   }
   if (action === 'delete-route') {
     if (!confirm(`Route „${route.name}“ entfernen?`)) return;

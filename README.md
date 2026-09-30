@@ -52,7 +52,7 @@ mallorca-places/
 ├── index.html               Grundgerüst: Kopfzeile, Seitenleiste, Karte, Dialoge
 ├── ANLEITUNG.md             Online stellen (GitHub Pages) + gemeinsame Datenbank (Supabase)
 ├── manifest.webmanifest     „Zum Home-Bildschirm“ auf dem iPhone
-├── css/styles.css           Design „Aperol Spritz“, responsive (Desktop: Karte randlos, Seitenleiste schwebt darüber; Handy: Karte oben, Liste darunter)
+├── css/styles.css           Design „Aperol Spritz“, responsive (Karte randlos; Desktop: Seitenleiste schwebt links darüber; Handy: Liste als ziehbares Blatt von unten)
 ├── js/
 │   ├── app.js               Zustand, Filter, Rendering, Import-Ablauf, Dialoge, Teilen
 │   ├── backend.js           Speicher: lokal im Browser oder gemeinsame Reise in Supabase

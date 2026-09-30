@@ -24,10 +24,10 @@ function createFallbackMap(el) {
   el.innerHTML = '<div class="map-error"><strong>Karte nicht verfügbar</strong><span>Die Kartenbibliothek konnte nicht geladen werden. Liste und Filter funktionieren trotzdem – Seite neu laden versuchen.</span></div>';
   const noop = () => {};
   const fakeMap = { flyTo: noop, getZoom: () => 9, setView: noop, fitBounds: noop };
-  return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, invalidate: noop };
+  return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, centerOn: noop, invalidate: noop };
 }
 
-export function createMap(el, { onMapClick, onMarkerClick }) {
+export function createMap(el, { onMapClick, onMarkerClick, getInsets }) {
   if (typeof L === 'undefined') return createFallbackMap(el);
   const map = L.map(el, { zoomControl: false, attributionControl: true }).setView(MALLORCA.center, MALLORCA.zoom);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -40,6 +40,30 @@ export function createMap(el, { onMapClick, onMarkerClick }) {
   let activeId = null;
 
   map.on('click', (e) => onMapClick?.(e.latlng));
+
+  // Seitenleiste, Boxen-Zeile und (auf dem Handy) die Liste unten liegen über der Karte. getInsets
+  // liefert, wie viele Pixel davon an jedem Rand verdeckt sind, damit Orte und Routen in der Mitte
+  // des sichtbaren Kartenteils landen statt darunter.
+  const insets = () => ({ top: 0, right: 0, bottom: 0, left: 0, ...(getInsets?.() || {}) });
+
+  function centerOn(latlng, zoom, { animate = true } = {}) {
+    const { top, right, bottom, left } = insets();
+    const target = map.unproject(
+      map.project(latlng, zoom).subtract([(left - right) / 2, (top - bottom) / 2]),
+      zoom,
+    );
+    if (animate) map.flyTo(target, zoom, { duration: 0.6 });
+    else map.setView(target, zoom);
+  }
+
+  function fitPoints(pts, maxZoom) {
+    const { top, right, bottom, left } = insets();
+    map.fitBounds(pts, {
+      paddingTopLeft: [left + 40, top + 40],
+      paddingBottomRight: [right + 40, bottom + 40],
+      maxZoom,
+    });
+  }
 
   function placeIcon(cat, active) {
     return L.divIcon({
@@ -120,7 +144,7 @@ export function createMap(el, { onMapClick, onMarkerClick }) {
     const m = markers.get(id)?.marker;
     if (!m) return;
     setActive(id);
-    map.flyTo(m.getLatLng(), Math.max(map.getZoom(), 13), { duration: 0.6 });
+    centerOn(m.getLatLng(), Math.max(map.getZoom(), 13));
     m.openPopup();
   }
 
@@ -128,8 +152,8 @@ export function createMap(el, { onMapClick, onMarkerClick }) {
     const pts = places.filter(hasCoords).map((p) => [p.lat, p.lng]);
     if (airbnb) pts.push([airbnb.lat, airbnb.lng]);
     if (!pts.length) return map.setView(MALLORCA.center, MALLORCA.zoom);
-    if (pts.length === 1) return map.setView(pts[0], 13);
-    map.fitBounds(pts, { padding: [40, 40], maxZoom: 14 });
+    if (pts.length === 1) return centerOn(pts[0], 13, { animate: false });
+    fitPoints(pts, 14);
   }
 
   function routePopupHtml(r) {
@@ -157,9 +181,9 @@ export function createMap(el, { onMapClick, onMarkerClick }) {
 
   function fitToRoute(route) {
     if (!route?.points?.length) return;
-    if (route.points.length === 1) return map.setView(route.points[0], 13);
-    map.fitBounds(route.points, { padding: [40, 40], maxZoom: 14 });
+    if (route.points.length === 1) return centerOn(route.points[0], 13);
+    fitPoints(route.points, 14);
   }
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, invalidate: () => map.invalidateSize() };
+  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, invalidate: () => map.invalidateSize() };
 }
