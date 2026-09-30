@@ -1,6 +1,6 @@
 import { DEFAULT_CATEGORIES, FALLBACK_CATEGORY, ROUTE_CATEGORY } from './categories.js';
 import { haversineKm, hasCoords, parseCoords, formatKm, geocode } from './geo.js';
-import { parseFile, parseGeoJSON, parseLinks, assignCategory } from './importers.js';
+import { parseFile, parseGeoJSON, parseLinks, assignCategory, buildGpx } from './importers.js';
 import { loadUi, saveUi, readPref, writePref, downloadBackup, newId, newTripKey, loadLocalBackup, clearLocalBackup } from './store.js';
 import {
   LocalBackend, SharedBackend, sharingConfigured, tripKeyFromUrl,
@@ -338,9 +338,33 @@ function renderRoutes() {
         ${r.distanceKm != null ? `<span class="place-dist">${distanceHtml(r.distanceKm)}</span>` : ''}
         <span class="route-switch" aria-hidden="true"></span>
       </button>
-      <button type="button" class="route-delete" data-action="delete-route" aria-label="Route „${escapeHtml(r.name)}“ entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
+      <button type="button" class="route-action" data-action="download-route" aria-label="Route „${escapeHtml(r.name)}“ als GPX herunterladen" title="Als GPX herunterladen">${icon('download', { size: 15, stroke: 1.9 })}</button>
+      <button type="button" class="route-action is-danger" data-action="delete-route" aria-label="Route „${escapeHtml(r.name)}“ entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
     </li>`;
   }).join('');
+}
+
+// GPX-Download: bevorzugt die beim Import gespeicherte Datei in voller Auflösung mit Höhen (gemeinsame
+// Reise: Tabelle route_files; lokal: nur in dieser Sitzung). Sonst wird sie aus den Kartenpunkten
+// erzeugt – gröber (max. 800 Punkte) und ohne Höhenangaben, z. B. bei älteren Importen.
+const gpxCache = new Map();
+
+async function downloadRouteGpx(route) {
+  let gpx = gpxCache.get(route.id);
+  if (!gpx && backend.routeGpx) {
+    try { gpx = await backend.routeGpx(route.id); } catch { gpx = null; }
+  }
+  const reduced = !gpx;
+  if (reduced) gpx = buildGpx(route.name, route.points);
+  const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${route.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'route'}.gpx`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  if (reduced) toast('GPX aus den Kartenpunkten erstellt (ohne Höhen) – für volle Genauigkeit Route neu importieren.');
 }
 
 // Höhenmeter bergauf, z. B. „1.230 Hm“; leer bei Routen ohne Höhendaten (ältere Importe, GPX ohne <ele>)
@@ -642,6 +666,7 @@ $('#route-list')?.addEventListener('click', async (e) => {
       mapView.fitToRoute(route);
     }
   }
+  if (action === 'download-route') await downloadRouteGpx(route);
   if (action === 'delete-route') {
     if (!confirm(`Route „${route.name}“ entfernen?`)) return;
     state.routes = state.routes.filter((r) => r.id !== id);
@@ -784,7 +809,8 @@ async function addRoute(parsed, sourceLabel) {
   };
   state.routes.push(route);
   render();
-  const ok = await persist((b) => b.addRoutes([route]), 'Route konnte nicht gespeichert werden');
+  if (parsed.gpx) gpxCache.set(route.id, parsed.gpx);
+  const ok = await persist((b) => b.addRoutes([route], { [route.id]: parsed.gpx }), 'Route konnte nicht gespeichert werden');
   if (!ok) {
     state.routes = state.routes.filter((r) => r.id !== route.id);
     render();

@@ -31,6 +31,8 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
   Art „Rennrad-Route“ gespeichert und stehen in der Seitenleiste im Abschnitt „Rennrad-Routen“ unter den Orten –
   mit Länge und Höhenmetern (aus den `<ele>`-Werten der GPX, GPS-Rauschen unter 4 m wird ignoriert).
   Standardmäßig ausgeblendet; der Schalter pro Route zeichnet die Strecke (Linie, keine Punkte) auf der Karte ein.
+  Jede Route lässt sich wieder **als GPX herunterladen** (z. B. für Garmin/Wahoo): in voller Auflösung mit Höhen,
+  sofern beim Import gespeichert (Tabelle `route_files`); bei älteren Importen aus den Kartenpunkten erzeugt.
 - **Automatische Kategorie** über Stichwörter im Namen bzw. über den Listennamen (`Rennrad.csv` → Rennrad-Hotspot).
   Google exportiert keine Orts-Typen, daher lässt sich die Kategorie pro Ort in der Liste ändern.
 - **Fehlende Standorte** (typisch bei Listen-CSVs) werden über OpenStreetMap gesucht (1 Anfrage/Sekunde).

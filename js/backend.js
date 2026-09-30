@@ -169,10 +169,25 @@ export class SharedBackend {
   }
 
   // Kleinere Stapel als bei Orten: eine Route trägt viele Punkte und ist dadurch je Zeile größer.
-  async addRoutes(routes) {
+  // gpxById: optionale Original-GPX-Dateien je Route-ID – liegen in einer eigenen Tabelle, damit der
+  // Abgleich alle 20 s (load) sie nicht jedes Mal mitlädt. Scheitert nur das Speichern der Datei
+  // (z. B. Tabelle noch nicht angelegt), bleibt die Route trotzdem gespeichert.
+  async addRoutes(routes, gpxById = {}) {
     for (let i = 0; i < routes.length; i += 50) {
       check(await this.db.from('routes').insert(routes.slice(i, i + 50).map((r) => toRouteRow(r, this.key))));
     }
+    const files = routes.filter((r) => gpxById[r.id]).map((r) => ({ route_id: r.id, trip_key: this.key, gpx: gpxById[r.id] }));
+    for (const file of files) {
+      const { error } = await this.db.from('route_files').insert(file);
+      if (error) console.warn('GPX-Datei nicht gespeichert (supabase/schema.sql ausgeführt?):', error.message);
+    }
+  }
+
+  // Original-GPX einer Route oder null (ältere Importe, Tabelle fehlt)
+  async routeGpx(id) {
+    const { data, error } = await this.db.from('route_files').select('gpx').eq('route_id', id).eq('trip_key', this.key).maybeSingle();
+    if (error) return null;
+    return data?.gpx || null;
   }
 
   async deleteRoute(id) {

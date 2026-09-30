@@ -45,6 +45,15 @@ create index if not exists routes_trip_key_idx on public.routes (trip_key);
 alter table public.routes add column if not exists elevation_gain_m double precision;
 alter table public.routes add column if not exists elevation_loss_m double precision;
 
+-- Original-GPX je Route (für den Download) – eigene Tabelle, damit der regelmäßige Abgleich die
+-- großen Dateien nicht jedes Mal mitlädt. Wird beim Löschen der Route automatisch mit gelöscht.
+create table if not exists public.route_files (
+  route_id    uuid primary key references public.routes (id) on delete cascade,
+  trip_key    text not null check (char_length(trip_key) between 32 and 128),
+  gpx         text not null check (char_length(gpx) <= 5000000),
+  created_at  timestamptz not null default now()
+);
+
 create table if not exists public.trip_settings (
   trip_key           text primary key check (char_length(trip_key) between 32 and 128),
   airbnb             jsonb,
@@ -68,6 +77,7 @@ $$;
 
 alter table public.places enable row level security;
 alter table public.routes enable row level security;
+alter table public.route_files enable row level security;
 alter table public.trip_settings enable row level security;
 
 drop policy if exists "Nur mit Reise-Schlüssel" on public.places;
@@ -82,10 +92,16 @@ create policy "Nur mit Reise-Schlüssel" on public.routes
   using (trip_key = public.request_trip_key())
   with check (trip_key = public.request_trip_key());
 
+drop policy if exists "Nur mit Reise-Schlüssel" on public.route_files;
+create policy "Nur mit Reise-Schlüssel" on public.route_files
+  for all to anon, authenticated
+  using (trip_key = public.request_trip_key())
+  with check (trip_key = public.request_trip_key());
+
 drop policy if exists "Nur mit Reise-Schlüssel" on public.trip_settings;
 create policy "Nur mit Reise-Schlüssel" on public.trip_settings
   for all to anon, authenticated
   using (trip_key = public.request_trip_key())
   with check (trip_key = public.request_trip_key());
 
-grant select, insert, update, delete on public.places, public.routes, public.trip_settings to anon, authenticated;
+grant select, insert, update, delete on public.places, public.routes, public.route_files, public.trip_settings to anon, authenticated;

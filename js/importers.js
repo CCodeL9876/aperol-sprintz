@@ -194,6 +194,8 @@ export function parseKML(text, listName = '') {
 // Maß, das schnell zeichnet und klein genug zum Speichern/Teilen bleibt.
 const GPX_MAX_POINTS = 800;
 const round5 = (n) => Math.round(n * 1e5) / 1e5; // ~1,1 m genau, reicht für eine Linie auf der Karte
+const round6 = (n) => Math.round(n * 1e6) / 1e6; // ~0,1 m – für die herunterladbare GPX-Datei
+const GPX_FILE_MAX_POINTS = 20000; // Obergrenze fürs Speichern der Datei (~1 MB)
 
 function decimate(points, max) {
   if (points.length <= max) return points;
@@ -212,6 +214,7 @@ export function parseGpx(text, fallbackName = 'Route') {
 
   const points = [];
   const elevations = [];
+  const full = []; // volle Auflösung inkl. Höhe – für den GPX-Download (Navigation auf dem Radcomputer)
   const readPoints = (parent, tag) => {
     for (const pt of parent.getElementsByTagName(tag)) {
       const lat = parseFloat(pt.getAttribute('lat'));
@@ -220,6 +223,7 @@ export function parseGpx(text, fallbackName = 'Route') {
       points.push([round5(lat), round5(lon)]);
       const ele = parseFloat(pt.getElementsByTagName('ele')[0]?.textContent);
       if (Number.isFinite(ele)) elevations.push(ele);
+      full.push([round6(lat), round6(lon), Number.isFinite(ele) ? Math.round(ele * 10) / 10 : null]);
     }
   };
   for (const trk of doc.getElementsByTagName('trk')) readPoints(trk, 'trkpt');
@@ -236,7 +240,34 @@ export function parseGpx(text, fallbackName = 'Route') {
     || doc.getElementsByTagName('metadata')[0]?.getElementsByTagName('name')[0];
   const name = nameEl?.textContent?.trim() || fallbackName;
 
-  return { name, points: decimate(points, GPX_MAX_POINTS), distanceKm, ...elevationGain(elevations) };
+  return {
+    name,
+    points: decimate(points, GPX_MAX_POINTS),
+    distanceKm,
+    ...elevationGain(elevations),
+    // Bereinigte Kopie der Originaldatei (nur Punkte + Höhe, ohne Zeitstempel, Puls usw.)
+    gpx: buildGpx(name, decimate(full, GPX_FILE_MAX_POINTS)),
+  };
+}
+
+const escapeXml = (s) =>
+  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
+
+// Schreibt eine GPX-1.1-Datei mit einem Track. points: [lat, lon] oder [lat, lon, ele].
+export function buildGpx(name, points) {
+  const pts = points.map(([lat, lon, ele]) =>
+    `      <trkpt lat="${lat}" lon="${lon}">${Number.isFinite(ele) ? `<ele>${ele}</ele>` : ''}</trkpt>`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Aperol Sprintz" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>${escapeXml(name)}</name></metadata>
+  <trk>
+    <name>${escapeXml(name)}</name>
+    <trkseg>
+${pts}
+    </trkseg>
+  </trk>
+</gpx>
+`;
 }
 
 // Höhenmeter bergauf/bergab aus den <ele>-Werten (volle Auflösung, vor dem Ausdünnen).

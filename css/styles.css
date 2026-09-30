@@ -521,12 +521,15 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 }
 .route-item.is-on .route-switch { background: var(--ci, var(--green)); }
 .route-item.is-on .route-switch::before { transform: translateX(14px); }
-.route-delete {
+/* Herunterladen / Entfernen rechts neben der Zeile */
+.route-action {
   flex: none; display: grid; place-items: center;
-  width: 32px; height: 32px; margin-right: 6px;
+  width: 32px; height: 32px;
   border: 0; border-radius: var(--radius-sm); background: none; color: var(--muted); cursor: pointer;
 }
-.route-delete:hover { background: var(--chip); color: var(--orange-ink); }
+.route-action:last-child { margin-right: 6px; }
+.route-action:hover { background: var(--chip); color: var(--green); }
+.route-action.is-danger:hover { color: var(--orange-ink); }
 
 .cat-select {
   min-height: 32px; height: 32px; width: auto; max-width: 100%;
