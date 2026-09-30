@@ -1,0 +1,192 @@
+# Aperol Sprintz online stellen und gemeinsam nutzen
+
+Dauer: etwa 20 Minuten. Du brauchst ein kostenloses Konto bei **Supabase** (Datenbank für die gemeinsame
+Ortsliste) und bei **GitHub** (hostet die App als Website). Danach funktioniert die App auf jedem Gerät,
+auch unterwegs, und alle mit dem Reise-Link sehen dieselben Orte und können welche hinzufügen.
+
+> **Wo liegen die Orte?**
+> - **Ohne Supabase** speichert jeder Browser seine eigene Liste (localStorage) – getrennt nach Gerät,
+>   Browser und Adresse. `localhost:5173` und die spätere Online-Adresse sind zwei verschiedene Listen.
+> - **Mit Supabase und gemeinsamer Reise** liegen die Orte in der Datenbank. Alle Geräte und alle
+>   Mitreisenden sehen dieselbe Liste; der Browser merkt sich nur noch den Reise-Link.
+
+---
+
+## 1. Deine bisherigen Orte sichern
+
+Solange die Orte nur im Browser liegen, nimmst du sie so mit:
+
+1. Die App wie gewohnt lokal öffnen (`python3 serve.py`, dann <http://localhost:5173>) – in dem Browser,
+   in dem deine Orte gespeichert sind.
+2. Menü **•••** → **Backup herunterladen**. Es entsteht eine Datei `aperol-sprintz-backup-….json`.
+
+Die Datei importierst du in Schritt 4 auf der Online-Seite.
+
+---
+
+## 2. Datenbank bei Supabase anlegen
+
+1. Auf <https://supabase.com> registrieren (am einfachsten „Continue with GitHub“, siehe Schritt 3).
+2. **New project** anlegen:
+   - Name: `aperol-sprintz`
+   - Database Password: ein beliebiges sicheres Passwort (brauchst du für die App nicht)
+   - Region: **Central EU (Frankfurt)**
+3. Warten, bis das Projekt bereit ist (ca. 1–2 Minuten).
+4. Links im Menü **SQL Editor** öffnen → **New query**.
+5. Den kompletten Inhalt der Datei `supabase/schema.sql` hineinkopieren und auf **Run** klicken.
+   Unten sollte „Success. No rows returned“ stehen.
+6. Oben auf **Connect** klicken (oder *Project Settings → API Keys*) und zwei Werte kopieren:
+   - die **Project URL**, z. B. `https://abcdefgh.supabase.co`
+   - den **anon public** Key (oder den **publishable** Key, beginnt mit `sb_publishable_`)
+7. Die Datei `js/config.js` öffnen und beide Werte eintragen:
+
+   ```js
+   export const SUPABASE_URL = 'https://abcdefgh.supabase.co';
+   export const SUPABASE_ANON_KEY = 'eyJhbGciOi…';
+   ```
+
+   Dieser Key ist für den Browser gedacht und darf öffentlich sein. Die Orte sind trotzdem geschützt:
+   Die Datenbank gibt nur Orte heraus, wenn der geheime Reise-Schlüssel aus dem Link mitgeschickt wird.
+
+   Die Unterkunft „Unser Airbnb“ gehört bewusst **nicht** hierher: `js/config.js` landet mit dem
+   Quellcode auf GitHub und wäre damit für alle einsehbar. Sie wird stattdessen einmal in der App
+   selbst gesetzt (Box „Unterkunft“ → Adresse suchen oder auf der Karte wählen) und landet dann in der
+   Datenbank – geschützt durch den geheimen Reise-Schlüssel wie die Orte auch. Über „Links hinzufügen“
+   lassen sich dort optional noch der Airbnb- und der Google-Maps-Link nachtragen.
+
+> **Gut zu wissen:** Kostenlose Supabase-Projekte werden nach etwa einer Woche ohne Nutzung pausiert.
+> Die Daten bleiben erhalten; im Supabase-Dashboard auf **Restore project** klicken, dann läuft alles wieder.
+
+---
+
+## 3. App auf GitHub Pages veröffentlichen
+
+### Variante A: im Browser (ohne Terminal)
+
+1. Auf <https://github.com> anmelden und unter <https://github.com/new> ein Repository anlegen:
+   - Name: `aperol-sprintz`
+   - Sichtbarkeit: **Public** (GitHub Pages ist für private Repositories kostenpflichtig)
+   - „Create repository“
+2. Auf der leeren Repository-Seite **uploading an existing file** anklicken.
+3. Im Finder den **Inhalt** des Ordners `mallorca-places` markieren (alle Dateien und Ordner, nicht den
+   Ordner selbst) und ins Browserfenster ziehen. Wichtig sind vor allem `index.html`, `manifest.webmanifest`
+   und die Ordner `css`, `js`, `vendor`, `assets`, `data`. Mit **Commit changes** bestätigen.
+4. Im Repository **Settings → Pages** öffnen:
+   - Source: **Deploy from a branch**
+   - Branch: **main**, Ordner **/ (root)** → **Save**
+5. Nach 1–2 Minuten steht oben die Adresse, z. B. `https://deinname.github.io/aperol-sprintz/`.
+
+### Variante B: mit dem Terminal
+
+Repository leer angelegt (noch nichts hochgeladen)? Dann direkt loslegen:
+
+```sh
+cd ~/Documents/Dev/ClaudeProjects/mallorca-places
+git init -b main
+git add .
+git commit -m "Aperol Sprintz"
+git remote add origin https://github.com/DEINNAME/aperol-sprintz.git
+git push -u origin main
+```
+
+Repository schon über den Browser befüllt (z. B. Variante A)? Dann im nächsten Abschnitt (3a) den
+Absatz „Einmalig verbinden“ verwenden – dort mit `--force`, weil GitHub sonst einen bestehenden Commit
+meldet, von dem der lokale Ordner noch nichts weiß.
+
+Danach wie in Variante A, Schritt 4, GitHub Pages einschalten.
+
+**Später etwas geändert?** Am einfachsten mit `./deploy.sh` – siehe nächster Abschnitt.
+
+---
+
+## 3a. Automatisch hochladen mit `./deploy.sh`
+
+Für jede weitere Änderung reicht danach **ein Befehl im Terminal**: `./deploy.sh`. Es erhöht die
+Versionsnummer in `index.html` automatisch, speichert alle Änderungen in Git und lädt sie zu GitHub
+hoch. Nach 1–2 Minuten ist die Online-Seite aktuell.
+
+### Einmalig: dieses Projekt mit dem bestehenden GitHub-Repository verbinden
+
+Hast du dein Repository bereits über den Browser angelegt (z. B. mit Variante A, oder es existiert
+schon von früher), ist dieser Ordner hier noch **kein** Git-Repository und weiß noch nichts von GitHub.
+Das einmalig verbinden:
+
+1. Auf GitHub die Adresse deines Repositorys kopieren (grüner **Code**-Button → **HTTPS**), z. B.
+   `https://github.com/DEINNAME/aperol-sprintz.git`.
+2. Im Terminal:
+
+   ```sh
+   cd ~/Documents/Dev/ClaudeProjects/mallorca-places
+   git init -b main
+   git add -A
+   git commit -m "Aperol Sprintz"
+   git remote add origin https://github.com/CCodeL9876/aperol-sprintz
+   git push -u origin main --force
+   ```
+
+   Das `--force` am Ende überschreibt den Stand auf GitHub einmalig mit dem, was gerade lokal auf
+   deinem Mac liegt. Das ist hier gewollt und unbedenklich: Es ist dein eigenes Ein-Personen-Projekt,
+   niemand sonst arbeitet parallel in diesem Repository, und der lokale Stand ist ohnehin der aktuellere.
+   Ohne `--force` meldet Git sonst einen Konflikt, weil GitHub (durch das Hochladen im Browser) schon
+   einen eigenen ersten Commit hat, von dem dein lokaler Ordner nichts weiß.
+
+3. Beim `push` fragt der Terminal einmalig nach Benutzername und Passwort. GitHub akzeptiert hier
+   **kein normales Passwort mehr**, sondern ein **Personal Access Token**:
+   - Auf GitHub: **Settings → Developer settings → Personal access tokens → Tokens (classic) →
+     Generate new token**.
+   - Ein Ablaufdatum wählen (z. B. 1 Jahr) und das Häkchen bei **repo** setzen.
+   - **Generate token**, den langen Code kopieren (wird nur einmal angezeigt).
+   - Im Terminal beim Passwort-Prompt diesen Code einfügen (nicht das normale GitHub-Passwort).
+
+   Danach merkt sich der Mac das Token in der Schlüsselbund-Verwaltung – du wirst nicht noch einmal
+   gefragt, auch nicht bei künftigen `./deploy.sh`-Aufrufen.
+
+Ab jetzt reicht nach jeder Änderung:
+
+```sh
+./deploy.sh
+```
+
+oder mit eigener Beschreibung, was sich geändert hat:
+
+```sh
+./deploy.sh "Neue Kategorie Weingüter hinzugefügt"
+```
+
+---
+
+## 4. Gemeinsame Reise starten
+
+1. Die GitHub-Pages-Adresse am Mac öffnen.
+2. **Importieren** → die Backup-Datei aus Schritt 1 hineinziehen. Jetzt sind deine Orte auf der Online-Seite.
+3. Oben auf **Teilen** tippen, deinen Namen eintragen und **Gemeinsame Reise starten** wählen.
+   Die Orte werden in die Datenbank hochgeladen.
+4. **Link kopieren** und per WhatsApp, iMessage o. Ä. an die Mitreisenden schicken.
+   Der Link sieht so aus: `https://deinname.github.io/aperol-sprintz/#reise=3f9a…`
+
+Wer den Link öffnet, sieht dieselben Orte und kann Orte importieren, hinzufügen, die Art ändern
+oder löschen. Änderungen der anderen erscheinen spätestens nach 20 Sekunden (oder sofort beim
+Zurückkehren in die App). Der Knopf oben heißt dann **Gemeinsam** und ist grün.
+
+Unterkunft und die Box **Hin- & Rückreise** (Datum/Uhrzeit der Flüge) werden automatisch mitgeteilt –
+dafür ist kein zusätzlicher Schritt nötig.
+
+### Auf dem iPhone wie eine App nutzen
+
+1. Den Reise-Link in **Safari** öffnen.
+2. Teilen-Symbol → **Zum Home-Bildschirm**.
+3. Die App startet danach im Vollbild, direkt in der gemeinsamen Reise.
+
+---
+
+## Sicherheit in einem Satz
+
+Der Reise-Link **ist** der Schlüssel: Wer ihn hat, kann mitplanen – teile ihn also nur mit Leuten, die
+mitmachen sollen. Soll jemand keinen Zugriff mehr haben, starte eine neue gemeinsame Reise
+(Menü **•••** → Backup herunterladen, dann **Teilen → Reise auf diesem Gerät verlassen**, Backup
+importieren und neu teilen).
+
+## Ohne Supabase?
+
+Die App läuft auch ohne Datenbank online. Dann hat aber jede Person und jedes Gerät eine eigene Liste,
+und Orte gehen verloren, wenn Browserdaten gelöscht werden. Zum gemeinsamen Planen ist Supabase nötig.

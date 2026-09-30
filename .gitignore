@@ -1,0 +1,8 @@
+# macOS
+.DS_Store
+
+# Backup-Dateien aus dem Menü „Backup herunterladen“ – enthalten deine echten Orte,
+# gehören nicht in ein öffentliches Repository. Landen sie hier im Projektordner
+# (statt in „Downloads“), bleiben sie lokal auf diesem Mac erhalten, aber ungeteilt.
+aperol-sprintz-backup-*.json
+llocs-backup-*.json

@@ -1,0 +1,10 @@
+{
+  "name": "llocs-mallorca-places",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gespeicherte Google-Maps-Orte, gefiltert nach Art und Entfernung zum Airbnb.",
+  "scripts": {
+    "start": "npx --yes http-server . -p 5173 -c-1 -o",
+    "dev": "python3 serve.py"
+  }
+}
