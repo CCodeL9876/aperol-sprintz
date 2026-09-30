@@ -86,6 +86,7 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets }) {
         <span class="popup-cat" style="${categoryStyle(cat)}">${escapeHtml(cat.label)}</span>
         <strong class="popup-name">${escapeHtml(p.name)}</strong>
         ${p.address ? `<span class="popup-addr">${escapeHtml(p.address)}</span>` : ''}
+        ${p.glutenFree ? `<span class="popup-gf">${icon('wheat-off', { size: 13, stroke: 2 })} Glutenfrei</span>` : ''}
         ${dist}
         <a class="popup-link" href="${escapeHtml(gmaps)}" target="_blank" rel="noopener">In Google Maps öffnen ↗</a>
       </div>`;

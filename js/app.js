@@ -507,7 +507,9 @@ function renderList(visible, total) {
     const dist = p.distance != null
       ? `<span class="place-dist">${distanceHtml(p.distance)}</span>`
       : !hasCoords(p) ? '<span class="place-dist is-missing" title="Kein Standort">ohne Standort</span>' : '';
+    const gf = !!p.glutenFree;
     return `<li class="place${p.id === activeId ? ' is-active' : ''}${i >= PLACES_PREVIEW ? ' is-extra' : ''}" data-id="${p.id}" style="${categoryStyle(c)}">
+      <div class="place-row">
       <button type="button" class="place-main" data-action="select" aria-expanded="${p.id === activeId}">
         <span class="place-icon" aria-hidden="true">${categoryIcon(c, { size: 18, stroke: 1.7 })}</span>
         <span class="place-body">
@@ -516,6 +518,8 @@ function renderList(visible, total) {
         </span>
         ${dist}
       </button>
+      <button type="button" class="gf-toggle" data-action="gluten-free" aria-pressed="${gf}" aria-label="Glutenfrei" title="${gf ? 'Glutenfrei – antippen zum Entfernen' : 'Als glutenfrei markieren'}">${icon('wheat-off', { size: 17, stroke: 1.9 })}<span class="gf-label">GF</span></button>
+      </div>
       <div class="place-details">
         ${p.note ? `<p class="place-note">${escapeHtml(p.note)}</p>` : ''}
         ${p.addedBy ? `<p class="place-by">Hinzugefügt von ${escapeHtml(p.addedBy)}</p>` : ''}
@@ -712,6 +716,17 @@ $('#place-list').addEventListener('click', async (e) => {
   if (!place) return;
 
   if (action === 'select') selectPlace(id);
+  if (action === 'gluten-free') {
+    place.glutenFree = !place.glutenFree;
+    render();
+    const ok = await persist((b) => b.updatePlace(id, { glutenFree: place.glutenFree }), 'Glutenfrei konnte nicht gespeichert werden');
+    if (!ok) {
+      place.glutenFree = !place.glutenFree;
+      render();
+      return;
+    }
+    toast(place.glutenFree ? `„${place.name}“ als glutenfrei markiert` : `Glutenfrei-Markierung entfernt`);
+  }
   if (action === 'delete') {
     if (!confirm(`„${place.name}“ entfernen?`)) return;
     state.places = state.places.filter((p) => p.id !== id);

@@ -50,7 +50,7 @@ export class LocalBackend {
 
 // --- Supabase ------------------------------------------------------------------------
 
-const PATCH_COLUMNS = { name: 'name', address: 'address', lat: 'lat', lng: 'lng', url: 'url', note: 'note', category: 'category', listName: 'list_name' };
+const PATCH_COLUMNS = { name: 'name', address: 'address', lat: 'lat', lng: 'lng', url: 'url', note: 'note', category: 'category', listName: 'list_name', glutenFree: 'gluten_free' };
 
 const toRow = (p, key) => ({
   id: p.id,
@@ -65,6 +65,8 @@ const toRow = (p, key) => ({
   category: p.category,
   added_by: p.addedBy || '',
   created_at: new Date(p.addedAt || Date.now()).toISOString(),
+  // nur mitschicken, wenn gesetzt – so klappt der Import auch, solange die Spalte noch fehlt
+  ...(p.glutenFree ? { gluten_free: true } : {}),
 });
 
 const fromRow = (r) => ({
@@ -77,6 +79,7 @@ const fromRow = (r) => ({
   note: r.note || '',
   listName: r.list_name || '',
   category: r.category,
+  glutenFree: r.gluten_free === true,
   addedBy: r.added_by || '',
   addedAt: Date.parse(r.created_at) || 0,
 });

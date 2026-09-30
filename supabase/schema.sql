@@ -23,6 +23,8 @@ create table if not exists public.places (
 );
 
 create index if not exists places_trip_key_idx on public.places (trip_key);
+-- Nachträglich ergänzt: Markierung „glutenfrei“ pro Ort
+alter table public.places add column if not exists gluten_free boolean not null default false;
 
 -- Routen (z. B. GPX-Rennradstrecken): eigene Tabelle statt lat/lng, weil eine Route aus
 -- vielen aneinandergereihten Punkten besteht (points), nicht aus einem einzelnen Ort.

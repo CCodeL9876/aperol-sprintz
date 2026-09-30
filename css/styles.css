@@ -450,6 +450,21 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 
 .place-list { list-style: none; margin: 6px -10px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .place-list.is-collapsed .place.is-extra { display: none; }
+/* Zeile: Ort-Knopf + Glutenfrei-Schalter daneben (zwei Knöpfe, nicht verschachtelt) */
+.place-row { display: flex; align-items: center; }
+.place-row .place-main { flex: 1; min-width: 0; }
+/* Glutenfrei: aus = blasses, unauffälliges Symbol; an = grünes Abzeichen mit „GF“ */
+.gf-toggle {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+  min-width: 32px; height: 32px; margin-right: 6px; padding: 0 6px;
+  border: 0; border-radius: 999px; background: none; cursor: pointer;
+  color: #BDB6A8; transition: color 0.15s, background 0.15s;
+}
+.gf-toggle:hover { color: var(--muted); }
+.gf-label { display: none; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; }
+.gf-toggle[aria-pressed="true"] { color: var(--green); background: var(--green-tint); }
+.gf-toggle[aria-pressed="true"] .gf-label { display: inline; }
+.popup-gf { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--green); }
 /* „Alle … Orte anzeigen“ / „Weniger anzeigen“ unter der Liste */
 .list-more {
   display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -834,6 +849,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   .route-link-line, .route-link-form { padding-left: 12px; }
   /* Fingergerechte Tippflächen (mind. ~40px) für die kleinen Knöpfe in Orts- und Routenliste */
   .route-action { width: 40px; height: 40px; }
+  .gf-toggle { min-width: 40px; height: 40px; margin-right: 2px; }
   .route-action:last-child { margin-right: 2px; }
   .route-link-line { gap: 16px; margin-top: -4px; }
   .route-link-line .btn-link, .route-link { min-height: 32px; font-size: 13px; }
