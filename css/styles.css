@@ -836,6 +836,22 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   .panel-row .airbnb-details,
   .panel-row .trip-flights { margin-top: 10px; padding-top: 10px; }
   .share-link { flex-direction: column; }
+
+  /* Kopfzeile gestochen scharf: Safari auf dem iPhone rechnet den Pinsel-Filter (SVG) nur in einfacher
+     Auflösung – die Knöpfe wirkten dadurch verschwommen. Hier daher glatte Flächen ohne Filter. */
+  .topbar .btn::before { filter: none; }
+
+  /* Eingabefelder mit 16px: darunter zoomt Safari beim Antippen automatisch in die Seite hinein */
+  input[type="text"], input[type="search"], input[type="date"], input[type="time"], textarea, select { font-size: 16px; }
+
+  /* „Reise teilen“: alles unter „Link kopieren“ (Abgleich-Hinweis, Verlassen, Name) kompakter */
+  #share-dialog .dialog-inner { gap: 12px; }
+  .share-body { gap: 10px; }
+  .share-text { font-size: 14px; line-height: 1.5; }
+  .share-body .hint { font-size: 11.5px; line-height: 1.4; }
+  #btn-leave-trip { font-size: 12px; padding: 0; }
+  #share-dialog .field { gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-soft); }
+  #share-dialog .field input { min-height: 38px; padding: 6px 12px; }
   .dialog-inner { padding: 22px; }
 }
 
