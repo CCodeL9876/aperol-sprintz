@@ -1,7 +1,7 @@
 # Aperol Sprintz – Unsere Orte auf Mallorca
 
 Web-App, die gespeicherte Google-Maps-Orte auf einer Karte und in einer Liste zeigt – filterbar nach Art des Orts
-(Kaffee, Restaurant, Rennrad-Hotspot, …) und nach Entfernung zum Airbnb.
+(Kaffee, Restaurant, Rennrad-Hotspot, …), sortierbar nach Entfernung zum Airbnb.
 Design „Aperol Spritz“ – wie ein handgemaltes Poster: Papierweiß, Aperol-Orange und Flaschengrün, Überschriften in
 Permanent Marker, gemalte Pinselkanten (SVG-Filter) um Karte, Knöpfe und Karten; Text in Instrument Sans.
 
@@ -38,8 +38,7 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
   nie im Quellcode (siehe `js/config.js`).
 - **Hin- & Rückreise**: Datum und Uhrzeit von Hin- und Rückflug eintragen (Box über der Unterkunft),
   wird wie die Unterkunft gespeichert und in einer gemeinsamen Reise mit allen geteilt.
-- **Filter**: Kategorie-Chips (Mehrfachauswahl), Entfernungs-Regler (500 m – alle) mit Radius auf der Karte,
-  Volltextsuche, Sortierung nach Entfernung/Name/Art/Datum.
+- **Filter**: Kategorie-Chips (Mehrfachauswahl), Volltextsuche, Sortierung nach Entfernung/Name/Art/Datum.
 - **Eigene Kategorien** mit Emoji, Farbe und Stichwörtern (Standard-Kategorien nutzen Linien-Symbole) (Menü `•••` → „Kategorien verwalten“).
 - **Gemeinsame Reise**: Über „Teilen“ werden die Orte in eine Supabase-Datenbank hochgeladen; alle mit dem
   geheimen Reise-Link sehen dieselbe Liste und können mitplanen (Abgleich alle 20 s). Einrichtung: [ANLEITUNG.md](ANLEITUNG.md).
@@ -52,7 +51,7 @@ mallorca-places/
 ├── index.html               Grundgerüst: Kopfzeile, Seitenleiste, Karte, Dialoge
 ├── ANLEITUNG.md             Online stellen (GitHub Pages) + gemeinsame Datenbank (Supabase)
 ├── manifest.webmanifest     „Zum Home-Bildschirm“ auf dem iPhone
-├── css/styles.css           Design „Aperol Spritz“, responsive (Handy: Karte oben, Liste darunter)
+├── css/styles.css           Design „Aperol Spritz“, responsive (Desktop: Karte randlos, Seitenleiste schwebt darüber; Handy: Karte oben, Liste darunter)
 ├── js/
 │   ├── app.js               Zustand, Filter, Rendering, Import-Ablauf, Dialoge, Teilen
 │   ├── backend.js           Speicher: lokal im Browser oder gemeinsame Reise in Supabase
@@ -61,7 +60,7 @@ mallorca-places/
 │   ├── icons.js             Linien-Symbole für Kategorien und Bedienelemente
 │   ├── importers.js         Parser für GeoJSON, CSV, KML, GPX, Links; Kategorie-Zuordnung
 │   ├── geo.js               Distanz, Koordinaten aus Maps-Links, Geocoding
-│   ├── map.js               Leaflet-Karte, Marker, Airbnb-Marker, Radius-Kreis, Routen-Linien
+│   ├── map.js               Leaflet-Karte, Marker, Airbnb-Marker, Routen-Linien
 │   └── store.js             localStorage, Backup-Download, IDs und Reise-Schlüssel
 ├── data/sample-places.json  21 Beispielorte im Google-Takeout-Format
 ├── serve.py                 lokaler Testserver ohne Browser-Cache

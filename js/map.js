@@ -37,7 +37,6 @@ export function createMap(el, { onMapClick, onMarkerClick }) {
   const routeLayer = L.layerGroup().addTo(map);
   const markers = new Map();
   let airbnbMarker = null;
-  let radiusCircle = null;
   let activeId = null;
 
   map.on('click', (e) => onMapClick?.(e.latlng));
@@ -85,11 +84,9 @@ export function createMap(el, { onMapClick, onMarkerClick }) {
     }
   }
 
-  function setAirbnb(airbnb, radiusKm) {
+  function setAirbnb(airbnb) {
     if (airbnbMarker) airbnbMarker.remove();
-    if (radiusCircle) radiusCircle.remove();
     airbnbMarker = null;
-    radiusCircle = null;
     if (!airbnb) return;
 
     airbnbMarker = L.marker([airbnb.lat, airbnb.lng], {
@@ -105,20 +102,6 @@ export function createMap(el, { onMapClick, onMarkerClick }) {
     })
       .bindPopup(`<div class="popup"><span class="popup-cat" style="--c:#3F6B34;--ci:#3F6B34">Unser Airbnb</span><strong class="popup-name">${escapeHtml(airbnb.label)}</strong></div>`, { closeButton: false, className: 'llocs-popup' })
       .addTo(map);
-
-    if (Number.isFinite(radiusKm)) {
-      radiusCircle = L.circle([airbnb.lat, airbnb.lng], {
-        radius: radiusKm * 1000,
-        color: '#E8733A',
-        weight: 2.5,
-        opacity: 0.85,
-        dashArray: '2 9',
-        lineCap: 'round',
-        fillColor: '#E8733A',
-        fillOpacity: 0.06,
-        interactive: false,
-      }).addTo(map);
-    }
   }
 
   // Hebt einen Marker hervor, ohne alle Marker neu zu zeichnen (offene Popups bleiben offen).
@@ -144,10 +127,6 @@ export function createMap(el, { onMapClick, onMarkerClick }) {
   function fitTo(places, airbnb) {
     const pts = places.filter(hasCoords).map((p) => [p.lat, p.lng]);
     if (airbnb) pts.push([airbnb.lat, airbnb.lng]);
-    if (radiusCircle) {
-      const b = radiusCircle.getBounds();
-      pts.push([b.getNorth(), b.getEast()], [b.getSouth(), b.getWest()]);
-    }
     if (!pts.length) return map.setView(MALLORCA.center, MALLORCA.zoom);
     if (pts.length === 1) return map.setView(pts[0], 13);
     map.fitBounds(pts, { padding: [40, 40], maxZoom: 14 });

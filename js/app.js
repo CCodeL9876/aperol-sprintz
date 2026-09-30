@@ -10,8 +10,6 @@ import { createMap } from './map.js';
 import { FIXED_AIRBNB } from './config.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
 
-// Stufen des Entfernungs-Reglers in km; die letzte Stufe bedeutet "alle".
-const DIST_STEPS = [0.5, 1, 2, 3, 5, 7.5, 10, 15, 20, 30, Infinity];
 const MALLORCA_CENTER = { lat: 39.62, lng: 2.95 };
 const SYNC_INTERVAL_MS = 20000;
 
@@ -30,7 +28,6 @@ const state = {
   routes: [],
   ui: loadUi(),
 };
-if (state.ui.distanceIdx == null) state.ui.distanceIdx = DIST_STEPS.length - 1;
 
 let backend = new LocalBackend(() => state);
 let activeId = null;
@@ -150,8 +147,6 @@ const mapView = createMap($('#map'), {
 
 // --- Ableitungen -------------------------------------------------------------------
 
-const maxKm = () => (state.airbnb ? DIST_STEPS[state.ui.distanceIdx] : Infinity);
-
 function placesWithDistance() {
   const a = state.airbnb;
   return state.places.map((p) => ({
@@ -162,12 +157,9 @@ function placesWithDistance() {
 
 function filterBase(places) {
   const q = norm(state.ui.search.trim());
-  const limit = maxKm();
-  return places.filter((p) => {
-    if (q && !norm(`${p.name} ${p.address} ${p.note} ${p.listName} ${p.addedBy || ''} ${catOf(p.category).label}`).includes(q)) return false;
-    if (Number.isFinite(limit) && (p.distance == null || p.distance > limit)) return false;
-    return true;
-  });
+  if (!q) return places;
+  return places.filter((p) =>
+    norm(`${p.name} ${p.address} ${p.note} ${p.listName} ${p.addedBy || ''} ${catOf(p.category).label}`).includes(q));
 }
 
 function sortPlaces(list) {
@@ -201,15 +193,13 @@ function render({ fit = false } = {}) {
 
   renderAirbnb();
   renderFlights();
-  renderDistance();
   renderChips(base);
   renderList(visible, all.length);
   renderRoutes();
   renderShareState();
 
-  renderMapPill(visible);
   mapView.setPlaces(visible, catOf, activeId);
-  mapView.setAirbnb(state.airbnb, maxKm());
+  mapView.setAirbnb(state.airbnb);
   mapView.setRoutes(visibleRoutes);
   if (fit) mapView.fitTo(visible, state.airbnb);
 
@@ -286,27 +276,6 @@ function renderRoutes() {
       <button type="button" class="chip-btn chip-btn-icon danger" data-action="delete-route" aria-label="Route entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
     </li>`;
   }).join('');
-}
-
-function renderDistance() {
-  const slider = $('#distance');
-  slider.max = String(DIST_STEPS.length - 1);
-  slider.value = String(state.ui.distanceIdx);
-  slider.disabled = !state.airbnb;
-  const km = DIST_STEPS[state.ui.distanceIdx];
-  $('#distance-out').textContent = !state.airbnb || !Number.isFinite(km) ? 'Alle' : `bis ${formatKm(km)}`;
-  $('#distance-hint').hidden = !!state.airbnb;
-  slider.style.setProperty('--fill', `${(state.ui.distanceIdx / (DIST_STEPS.length - 1)) * 100}%`);
-}
-
-function renderMapPill(visible) {
-  const pill = $('#map-pill');
-  const km = maxKm();
-  const count = visible.filter(hasCoords).length;
-  pill.hidden = !state.places.length;
-  $('#map-pill-text').textContent = Number.isFinite(km)
-    ? `Umkreis ${formatKm(km)} · ${count} ${count === 1 ? 'Ort' : 'Orte'}`
-    : `${count} ${count === 1 ? 'Ort' : 'Orte'} auf der Karte`;
 }
 
 function renderChips(base) {
@@ -517,11 +486,6 @@ $('#search').addEventListener('input', (e) => {
   state.ui.search = e.target.value;
   render();
 });
-$('#distance').addEventListener('input', (e) => {
-  state.ui.distanceIdx = Number(e.target.value);
-  render();
-});
-$('#distance').addEventListener('change', () => mapView.fitTo(lastVisible, state.airbnb));
 $('#sort').addEventListener('change', (e) => {
   state.ui.sort = e.target.value;
   render();
@@ -542,7 +506,6 @@ $('#category-chips').addEventListener('click', (e) => {
 function resetFilters() {
   state.ui.categories = [];
   state.ui.search = '';
-  state.ui.distanceIdx = DIST_STEPS.length - 1;
   $('#search').value = '';
   render({ fit: true });
 }
@@ -1056,7 +1019,6 @@ $('.menu-panel').addEventListener('click', async (e) => {
     state.airbnb = fixedAirbnb;
     state.customCategories = [];
     state.ui.categories = [];
-    state.ui.distanceIdx = DIST_STEPS.length - 1;
     $('#search').value = '';
     state.ui.search = '';
     render({ fit: true });

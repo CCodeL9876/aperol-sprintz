@@ -17,8 +17,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-09-30.1">
-  <link rel="stylesheet" href="css/styles.css?v=2026-09-30.1">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-09-30.6">
+  <link rel="stylesheet" href="css/styles.css?v=2026-09-30.6">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -68,79 +68,6 @@
 
   <main class="layout">
     <aside class="sidebar">
-      <details class="panel trip" id="trip-panel">
-        <summary class="panel-summary">
-          <div class="arch-badge" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10 13"/><path d="M21 3 14 21l-3-8-8-3Z"/></svg></div>
-          <div class="trip-body">
-            <span class="eyebrow">Reise</span>
-            <h2>Hin- &amp; Rückreise</h2>
-          </div>
-          <svg class="icon panel-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        </summary>
-        <div class="trip-flights">
-          <div class="trip-flight">
-            <span class="trip-flight-label"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10 13"/><path d="M21 3 14 21l-3-8-8-3Z"/></svg>Hinflug</span>
-            <div class="trip-flight-inputs">
-              <input id="flight-out-date" type="date" aria-label="Datum Hinflug">
-              <input id="flight-out-time" type="time" aria-label="Uhrzeit Hinflug">
-            </div>
-          </div>
-          <div class="trip-flight">
-            <span class="trip-flight-label"><svg class="icon is-return" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10 13"/><path d="M21 3 14 21l-3-8-8-3Z"/></svg>Rückflug</span>
-            <div class="trip-flight-inputs">
-              <input id="flight-back-date" type="date" aria-label="Datum Rückflug">
-              <input id="flight-back-time" type="time" aria-label="Uhrzeit Rückflug">
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <details class="panel airbnb" id="airbnb-panel">
-        <summary class="panel-summary">
-          <div class="arch-badge" aria-hidden="true"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg></div>
-          <div class="airbnb-body">
-            <span class="eyebrow">Unterkunft</span>
-            <h2>Unser Airbnb</h2>
-          </div>
-          <svg class="icon panel-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        </summary>
-        <div class="airbnb-details">
-          <p id="airbnb-label" class="airbnb-label">Noch nicht festgelegt</p>
-          <form id="airbnb-form" class="inline-form" autocomplete="off">
-            <input id="airbnb-input" type="text" placeholder="Adresse, Maps-Link oder „39.77, 2.71“" aria-label="Airbnb-Adresse">
-            <button class="btn btn-small" type="submit">Suchen</button>
-          </form>
-          <ul id="airbnb-results" class="search-results" hidden></ul>
-          <div class="link-row">
-            <button id="btn-pick" class="btn-link" type="button">Auf der Karte wählen</button>
-            <a id="airbnb-link" class="btn-link" href="#" target="_blank" rel="noopener" hidden>Inserat auf Airbnb ↗</a>
-            <a id="airbnb-maps-link" class="btn-link" href="#" target="_blank" rel="noopener" hidden>In Google Maps öffnen ↗</a>
-            <button id="btn-airbnb-links" class="btn-link" type="button" hidden>Links hinzufügen</button>
-            <button id="btn-airbnb-clear" class="btn-link muted" type="button" hidden>Entfernen</button>
-          </div>
-          <form id="airbnb-links-form" class="airbnb-links-form" autocomplete="off" hidden>
-            <input id="airbnb-link-input" type="text" placeholder="Link zum Airbnb-Inserat (optional)" aria-label="Link zum Airbnb-Inserat">
-            <input id="airbnb-mapslink-input" type="text" placeholder="Google-Maps-Link (optional)" aria-label="Google-Maps-Link">
-            <button class="btn btn-small" type="submit">Speichern</button>
-          </form>
-        </div>
-      </details>
-
-      <details class="panel routes" id="routes-panel">
-        <summary class="panel-summary">
-          <div class="arch-badge" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/></svg></div>
-          <div class="routes-body">
-            <span class="eyebrow">Strecken</span>
-            <h2>Rennrad-Routen</h2>
-          </div>
-          <svg class="icon panel-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        </summary>
-        <div class="routes-details">
-          <p id="route-empty" class="hint" hidden>Noch keine Route importiert – über „Importieren“ eine GPX-Datei hinzufügen.</p>
-          <ul id="route-list" class="route-list"></ul>
-        </div>
-      </details>
-
       <section class="panel filters" aria-label="Filter">
         <div class="search-field">
           <input id="search" type="search" placeholder="Orte durchsuchen" aria-label="Orte durchsuchen">
@@ -149,16 +76,6 @@
         <div class="filter-block">
           <div class="filter-label">Art</div>
           <div id="category-chips" class="chips" role="group" aria-label="Kategorien"></div>
-        </div>
-
-        <div class="filter-block">
-          <label class="filter-label" for="distance">
-            Entfernung zur Unterkunft
-            <output id="distance-out" for="distance">Alle</output>
-          </label>
-          <input id="distance" type="range" min="0" max="10" step="1" value="10">
-          <div class="range-scale" aria-hidden="true"><span>500 m</span><span>alle</span></div>
-          <p id="distance-hint" class="hint">Lege zuerst unser Airbnb fest, um nach Entfernung zu filtern.</p>
         </div>
       </section>
 
@@ -180,9 +97,83 @@
       </section>
     </aside>
 
+    <div class="panel-row">
+        <details class="panel trip" id="trip-panel">
+          <summary class="panel-summary">
+            <div class="arch-badge" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10 13"/><path d="M21 3 14 21l-3-8-8-3Z"/></svg></div>
+            <div class="trip-body">
+              <span class="eyebrow">Reise</span>
+              <h2>Hin- &amp; Rückreise</h2>
+            </div>
+            <svg class="icon panel-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </summary>
+          <div class="trip-flights">
+            <div class="trip-flight">
+              <span class="trip-flight-label"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10 13"/><path d="M21 3 14 21l-3-8-8-3Z"/></svg>Hinflug</span>
+              <div class="trip-flight-inputs">
+                <input id="flight-out-date" type="date" aria-label="Datum Hinflug">
+                <input id="flight-out-time" type="time" aria-label="Uhrzeit Hinflug">
+              </div>
+            </div>
+            <div class="trip-flight">
+              <span class="trip-flight-label"><svg class="icon is-return" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10 13"/><path d="M21 3 14 21l-3-8-8-3Z"/></svg>Rückflug</span>
+              <div class="trip-flight-inputs">
+                <input id="flight-back-date" type="date" aria-label="Datum Rückflug">
+                <input id="flight-back-time" type="time" aria-label="Uhrzeit Rückflug">
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="panel airbnb" id="airbnb-panel">
+          <summary class="panel-summary">
+            <div class="arch-badge" aria-hidden="true"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg></div>
+            <div class="airbnb-body">
+              <span class="eyebrow">Unterkunft</span>
+              <h2>Unser Airbnb</h2>
+            </div>
+            <svg class="icon panel-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </summary>
+          <div class="airbnb-details">
+            <p id="airbnb-label" class="airbnb-label">Noch nicht festgelegt</p>
+            <form id="airbnb-form" class="inline-form" autocomplete="off">
+              <input id="airbnb-input" type="text" placeholder="Adresse, Maps-Link oder „39.77, 2.71“" aria-label="Airbnb-Adresse">
+              <button class="btn btn-small" type="submit">Suchen</button>
+            </form>
+            <ul id="airbnb-results" class="search-results" hidden></ul>
+            <div class="link-row">
+              <button id="btn-pick" class="btn-link" type="button">Auf der Karte wählen</button>
+              <a id="airbnb-link" class="btn-link" href="#" target="_blank" rel="noopener" hidden>Inserat auf Airbnb ↗</a>
+              <a id="airbnb-maps-link" class="btn-link" href="#" target="_blank" rel="noopener" hidden>In Google Maps öffnen ↗</a>
+              <button id="btn-airbnb-links" class="btn-link" type="button" hidden>Links hinzufügen</button>
+              <button id="btn-airbnb-clear" class="btn-link muted" type="button" hidden>Entfernen</button>
+            </div>
+            <form id="airbnb-links-form" class="airbnb-links-form" autocomplete="off" hidden>
+              <input id="airbnb-link-input" type="text" placeholder="Link zum Airbnb-Inserat (optional)" aria-label="Link zum Airbnb-Inserat">
+              <input id="airbnb-mapslink-input" type="text" placeholder="Google-Maps-Link (optional)" aria-label="Google-Maps-Link">
+              <button class="btn btn-small" type="submit">Speichern</button>
+            </form>
+          </div>
+        </details>
+
+        <details class="panel routes" id="routes-panel">
+          <summary class="panel-summary">
+            <div class="arch-badge" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/></svg></div>
+            <div class="routes-body">
+              <span class="eyebrow">Strecken</span>
+              <h2>Rennrad-Routen</h2>
+            </div>
+            <svg class="icon panel-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </summary>
+          <div class="routes-details">
+            <p id="route-empty" class="hint" hidden>Noch keine Route importiert – über „Importieren“ eine GPX-Datei hinzufügen.</p>
+            <ul id="route-list" class="route-list"></ul>
+          </div>
+        </details>
+    </div>
+
     <section class="map-wrap" aria-label="Karte">
       <div id="map"></div>
-      <div id="map-pill" class="map-pill" hidden><span class="dot" aria-hidden="true"></span><span id="map-pill-text"></span></div>
       <div id="pick-banner" class="pick-banner" hidden>
         <span>Tippe auf die Karte, um unser Airbnb zu setzen</span>
         <button id="btn-pick-cancel" class="btn btn-small btn-ghost" type="button">Abbrechen</button>
@@ -298,23 +289,23 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-09-30.1"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-09-30.6"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-09-30.1",
-      "./js/backend.js": "./js/backend.js?v=2026-09-30.1",
-      "./js/categories.js": "./js/categories.js?v=2026-09-30.1",
-      "./js/config.js": "./js/config.js?v=2026-09-30.1",
-      "./js/geo.js": "./js/geo.js?v=2026-09-30.1",
-      "./js/icons.js": "./js/icons.js?v=2026-09-30.1",
-      "./js/importers.js": "./js/importers.js?v=2026-09-30.1",
-      "./js/map.js": "./js/map.js?v=2026-09-30.1",
-      "./js/store.js": "./js/store.js?v=2026-09-30.1"
+      "./js/app.js": "./js/app.js?v=2026-09-30.6",
+      "./js/backend.js": "./js/backend.js?v=2026-09-30.6",
+      "./js/categories.js": "./js/categories.js?v=2026-09-30.6",
+      "./js/config.js": "./js/config.js?v=2026-09-30.6",
+      "./js/geo.js": "./js/geo.js?v=2026-09-30.6",
+      "./js/icons.js": "./js/icons.js?v=2026-09-30.6",
+      "./js/importers.js": "./js/importers.js?v=2026-09-30.6",
+      "./js/map.js": "./js/map.js?v=2026-09-30.6",
+      "./js/store.js": "./js/store.js?v=2026-09-30.6"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-09-30.1"></script>
+  <script type="module" src="js/app.js?v=2026-09-30.6"></script>
 </body>
 </html>

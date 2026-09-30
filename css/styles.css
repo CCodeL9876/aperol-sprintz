@@ -227,6 +227,15 @@ select {
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
 }
+
+/* Reise/Unterkunft/Strecken: auf dem Handy zugeklappt unter der Liste (eigene, engere Gruppe mit
+   Trennlinie). Ab Desktop-Breite (siehe Media Query weiter unten) eine eigene schwebende Zeile
+   rechts neben der Suchleisten-Box, nebeneinander statt gestapelt. */
+.panel-row {
+  display: flex; flex-direction: column; gap: 10px;
+  padding-top: 18px; border-top: 2px dashed var(--line);
+  margin: 0 20px 0 24px;
+}
 .map-wrap { position: relative; padding: 8px 26px 26px 8px; }
 #map {
   height: 100%;
@@ -241,6 +250,43 @@ select {
   filter: url(#brush); pointer-events: none;
 }
 #map.is-picking, #map.is-picking .leaflet-grab { cursor: crosshair; }
+
+/* Ab Desktop-Breite: Karte über die ganze Fläche, Kopfzeile bleibt ein normaler Balken darüber,
+   die Seitenleiste schwebt als eigene Karte über der Karte (wie bei Google Maps). Unter 900px
+   bleibt die separate Handy-Ansicht weiter unten (Karte fixiert oben, Liste darunter) unverändert. */
+@media (min-width: 900px) {
+  .layout { position: relative; }
+  .map-wrap { position: absolute; inset: 0; padding: 0; z-index: 1; }
+  .map-wrap::after { content: none; }
+  #map { border-radius: 0; }
+
+  .sidebar {
+    position: absolute; z-index: 950;
+    top: 16px; left: 16px; bottom: 16px;
+    width: var(--sidebar-w); max-width: calc(100% - 32px);
+    padding: 20px;
+    border-radius: var(--radius-xl);
+    /* leicht durchscheinend, damit die Karte dahinter erkennbar bleibt; Weichzeichner hält den
+       Inhalt trotzdem lesbar, unabhängig davon, was gerade unter der Seitenleiste liegt */
+    background: rgba(247, 244, 238, 0.86);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Reise/Unterkunft/Strecken: statt gestapelt unter der Liste jetzt eine eigene schwebende Zeile
+     rechts neben der Suchleisten-Box, Boxen nebeneinander statt untereinander. Jede Box behält ihre
+     eigene gemalte Karte; passt eine Zeile nicht (schmales Fenster), scrollt sie seitwärts. */
+  .panel-row {
+    position: absolute; z-index: 950;
+    top: 16px; left: calc(16px + var(--sidebar-w) + 16px); right: 16px;
+    margin: 0;
+    flex-direction: row; align-items: flex-start; gap: 12px;
+    padding-top: 0; border-top: 0;
+    overflow-x: auto; overflow-y: hidden;
+  }
+  .panel-row > .panel { flex: none; }
+}
 .map-error {
   height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   padding: 24px; text-align: center; color: var(--text-soft); font-size: 14px;
@@ -416,30 +462,6 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .chip-all[aria-pressed="true"] .chip-count { color: #FFFFFF; opacity: 0.8; }
 .chip.is-empty:not([aria-pressed="true"]) { opacity: 0.5; }
 
-input[type="range"] {
-  --fill: 100%;
-  -webkit-appearance: none; appearance: none;
-  width: 100%; height: 26px; margin: 0; background: transparent; cursor: pointer;
-  border: 0;
-}
-input[type="range"]::-webkit-slider-runnable-track {
-  height: 6px; border-radius: 999px;
-  background: linear-gradient(90deg, var(--orange) var(--fill), var(--line) var(--fill));
-}
-input[type="range"]::-moz-range-track { height: 6px; border-radius: 999px; background: var(--line); }
-input[type="range"]::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--orange); }
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 22px; height: 22px; margin-top: -8px;
-  border-radius: 50%; background: var(--card); border: 4px solid var(--green);
-}
-input[type="range"]::-moz-range-thumb {
-  width: 14px; height: 14px; border-radius: 50%;
-  background: var(--card); border: 4px solid var(--green);
-}
-input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
-input[type="range"]:focus { box-shadow: none; }
-.range-scale { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11.5px; color: var(--muted); }
-
 /* --- Liste ------------------------------------------------------------------------ */
 
 .list-head {
@@ -593,16 +615,6 @@ input[type="range"]:focus { box-shadow: none; }
 .leaflet-control-attribution { background: rgba(255, 255, 255, 0.85) !important; color: var(--muted) !important; border-radius: 8px 0 0 0; }
 .leaflet-control-attribution a { color: var(--green) !important; }
 .leaflet-container .leaflet-control-zoom { margin: 0 16px 16px 0; }
-
-.map-pill {
-  position: absolute; left: 24px; top: 24px; z-index: 960;
-  height: 36px; padding: 0 14px;
-  display: flex; align-items: center; gap: 8px;
-  border-radius: 999px; background: var(--card); box-shadow: var(--shadow);
-  font-size: 13px; font-weight: 600; pointer-events: none;
-  font-variant-numeric: tabular-nums;
-}
-.map-pill .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--orange); }
 
 .pick-banner {
   position: absolute; left: 50%; top: 24px; transform: translateX(-50%);
@@ -762,7 +774,6 @@ input[type="range"]:focus { box-shadow: none; }
   }
   .map-wrap::after { inset: 0 10px 10px 10px; border-width: 3.5px; border-radius: 24px; }
   #map { border-radius: 18px; }
-  .map-pill { left: 26px; top: 16px; height: 32px; font-size: 12px; }
   .pick-banner { top: 16px; font-size: 13px; }
   .sidebar { overflow: visible; padding: 6px 16px calc(40px + env(safe-area-inset-bottom, 0px)); gap: 18px; }
   .place-list { margin: 0 -8px; }
