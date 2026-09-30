@@ -17,8 +17,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-09-30.12">
-  <link rel="stylesheet" href="css/styles.css?v=2026-09-30.12">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-09-30.13">
+  <link rel="stylesheet" href="css/styles.css?v=2026-09-30.13">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -190,11 +190,11 @@
       </header>
 
       <div class="tabs" role="tablist">
-        <button class="tab is-active" type="button" role="tab" data-tab="file" aria-selected="true">Datei</button>
-        <button class="tab" type="button" role="tab" data-tab="links" aria-selected="false">Links einfügen</button>
+        <button class="tab" type="button" role="tab" data-tab="file" aria-selected="false">Datei</button>
+        <button class="tab is-active" type="button" role="tab" data-tab="links" aria-selected="true">Links einfügen</button>
       </div>
 
-      <div class="tab-panel" data-panel="file" role="tabpanel">
+      <div class="tab-panel" data-panel="file" role="tabpanel" hidden>
         <label id="dropzone" class="dropzone">
           <input id="file-input" type="file" multiple accept=".json,.geojson,.csv,.tsv,.kml,.gpx,.txt">
           <span class="dropzone-arch" aria-hidden="true"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span>
@@ -204,7 +204,7 @@
         </label>
       </div>
 
-      <div class="tab-panel" data-panel="links" role="tabpanel" hidden>
+      <div class="tab-panel" data-panel="links" role="tabpanel">
         <textarea id="links-input" rows="6" placeholder="Ein Eintrag pro Zeile, z. B.&#10;https://www.google.com/maps/place/…/@39.8506,2.8070,15z&#10;Coll dels Reis | 39.8283, 2.8303&#10;Ca'n Joan de s'Aigo, Palma"></textarea>
         <p class="hint">Kurzlinks (maps.app.goo.gl) enthalten keine Koordinaten – öffne sie einmal im Browser und kopiere den langen Link. Einträge ohne Koordinaten werden per Name gesucht.</p>
         <button id="btn-parse-links" class="btn btn-primary" type="button">Übernehmen</button>
@@ -286,23 +286,23 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-09-30.12"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-09-30.13"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-09-30.12",
-      "./js/backend.js": "./js/backend.js?v=2026-09-30.12",
-      "./js/categories.js": "./js/categories.js?v=2026-09-30.12",
-      "./js/config.js": "./js/config.js?v=2026-09-30.12",
-      "./js/geo.js": "./js/geo.js?v=2026-09-30.12",
-      "./js/icons.js": "./js/icons.js?v=2026-09-30.12",
-      "./js/importers.js": "./js/importers.js?v=2026-09-30.12",
-      "./js/map.js": "./js/map.js?v=2026-09-30.12",
-      "./js/store.js": "./js/store.js?v=2026-09-30.12"
+      "./js/app.js": "./js/app.js?v=2026-09-30.13",
+      "./js/backend.js": "./js/backend.js?v=2026-09-30.13",
+      "./js/categories.js": "./js/categories.js?v=2026-09-30.13",
+      "./js/config.js": "./js/config.js?v=2026-09-30.13",
+      "./js/geo.js": "./js/geo.js?v=2026-09-30.13",
+      "./js/icons.js": "./js/icons.js?v=2026-09-30.13",
+      "./js/importers.js": "./js/importers.js?v=2026-09-30.13",
+      "./js/map.js": "./js/map.js?v=2026-09-30.13",
+      "./js/store.js": "./js/store.js?v=2026-09-30.13"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-09-30.12"></script>
+  <script type="module" src="js/app.js?v=2026-09-30.13"></script>
 </body>
 </html>

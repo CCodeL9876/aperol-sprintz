@@ -718,6 +718,7 @@ function openImport() {
     '<option value="auto">Automatisch erkennen</option>' +
     displayCategories().map((c) => `<option value="${c.id}">${optionLabel(c)}</option>`).join('');
   $('#import-log').innerHTML = '';
+  selectImportTab('links'); // Start immer auf „Links einfügen“ – der häufigste Weg, Orte hinzuzufügen
   importDialog.showModal();
 }
 
@@ -937,14 +938,15 @@ $('#btn-parse-links').addEventListener('click', async () => {
   finishImport(added, missing);
 });
 
-$$('.tab', importDialog).forEach((tab) =>
-  tab.addEventListener('click', () => {
-    $$('.tab', importDialog).forEach((t) => {
-      t.classList.toggle('is-active', t === tab);
-      t.setAttribute('aria-selected', String(t === tab));
-    });
-    $$('.tab-panel', importDialog).forEach((p) => (p.hidden = p.dataset.panel !== tab.dataset.tab));
-  }));
+function selectImportTab(name) {
+  $$('.tab', importDialog).forEach((t) => {
+    t.classList.toggle('is-active', t.dataset.tab === name);
+    t.setAttribute('aria-selected', String(t.dataset.tab === name));
+  });
+  $$('.tab-panel', importDialog).forEach((p) => (p.hidden = p.dataset.panel !== name));
+}
+
+$$('.tab', importDialog).forEach((tab) => tab.addEventListener('click', () => selectImportTab(tab.dataset.tab)));
 
 // Dialoge: Schließen-Buttons + Klick auf den Hintergrund
 $$('dialog').forEach((dlg) => {
