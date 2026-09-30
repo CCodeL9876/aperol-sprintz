@@ -785,7 +785,7 @@ async function restoreRoutes(routes) {
 }
 
 async function importRaw(raws, sourceLabel) {
-  const override = $('#import-category').value || 'auto';
+  const override = $('#import-category-field').hidden ? 'auto' : $('#import-category').value || 'auto';
   const { added, dupes } = await addPlaces(raws, override);
   const missing = added.filter((p) => !hasCoords(p));
   log(
@@ -944,6 +944,10 @@ function selectImportTab(name) {
     t.setAttribute('aria-selected', String(t.dataset.tab === name));
   });
   $$('.tab-panel', importDialog).forEach((p) => (p.hidden = p.dataset.panel !== name));
+  // Kategorie-Auswahl und GPX-Hinweis nur bei Dateien: Links werden automatisch zugeordnet,
+  // die Kategorie lässt sich danach in der Liste pro Ort ändern.
+  $('#import-category-field').hidden = name !== 'file';
+  $('#import-gpx-hint').hidden = name !== 'file';
 }
 
 $$('.tab', importDialog).forEach((tab) => tab.addEventListener('click', () => selectImportTab(tab.dataset.tab)));

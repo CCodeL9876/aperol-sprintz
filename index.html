@@ -17,8 +17,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-09-30.13">
-  <link rel="stylesheet" href="css/styles.css?v=2026-09-30.13">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-09-30.14">
+  <link rel="stylesheet" href="css/styles.css?v=2026-09-30.14">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -211,7 +211,7 @@
       </div>
 
       <div class="import-options">
-        <label class="field">
+        <label class="field" id="import-category-field">
           <span>Kategorie für diesen Import</span>
           <select id="import-category"></select>
         </label>
@@ -219,8 +219,8 @@
           <input id="import-geocode" type="checkbox" checked>
           <span>Fehlende Standorte über OpenStreetMap suchen</span>
         </label>
-        <p class="hint">GPX-Dateien werden automatisch als Rennrad-Route erkannt (unabhängig von der Kategorie oben) und
-          erscheinen in der Box „Rennrad-Routen“ – standardmäßig ausgeblendet, bis du sie dort antippst.</p>
+        <p class="hint" id="import-gpx-hint">GPX-Dateien werden automatisch als Rennrad-Route erkannt (unabhängig von der Kategorie oben) und
+          erscheinen in der Liste unter „Rennrad-Routen“ – standardmäßig ausgeblendet, bis du sie dort einschaltest.</p>
       </div>
 
       <div id="import-log" class="import-log" aria-live="polite"></div>
@@ -286,23 +286,23 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-09-30.13"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-09-30.14"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-09-30.13",
-      "./js/backend.js": "./js/backend.js?v=2026-09-30.13",
-      "./js/categories.js": "./js/categories.js?v=2026-09-30.13",
-      "./js/config.js": "./js/config.js?v=2026-09-30.13",
-      "./js/geo.js": "./js/geo.js?v=2026-09-30.13",
-      "./js/icons.js": "./js/icons.js?v=2026-09-30.13",
-      "./js/importers.js": "./js/importers.js?v=2026-09-30.13",
-      "./js/map.js": "./js/map.js?v=2026-09-30.13",
-      "./js/store.js": "./js/store.js?v=2026-09-30.13"
+      "./js/app.js": "./js/app.js?v=2026-09-30.14",
+      "./js/backend.js": "./js/backend.js?v=2026-09-30.14",
+      "./js/categories.js": "./js/categories.js?v=2026-09-30.14",
+      "./js/config.js": "./js/config.js?v=2026-09-30.14",
+      "./js/geo.js": "./js/geo.js?v=2026-09-30.14",
+      "./js/icons.js": "./js/icons.js?v=2026-09-30.14",
+      "./js/importers.js": "./js/importers.js?v=2026-09-30.14",
+      "./js/map.js": "./js/map.js?v=2026-09-30.14",
+      "./js/store.js": "./js/store.js?v=2026-09-30.14"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-09-30.13"></script>
+  <script type="module" src="js/app.js?v=2026-09-30.14"></script>
 </body>
 </html>
