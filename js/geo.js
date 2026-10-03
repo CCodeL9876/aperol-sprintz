@@ -1,5 +1,37 @@
 // Distanzberechnung, Koordinaten aus Google-Maps-Links lesen und Geocoding über OpenStreetMap.
 
+// Reservierung { date: 'JJJJ-MM-TT', time: 'HH:MM' } → „Sa 3.10., 19:10 Uhr“. Beides ist optional;
+// ohne Angaben bleibt nur „Reserviert“.
+export function formatReservation(r) {
+  if (!r) return '';
+  const parts = [];
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(r.date || '');
+  if (m) {
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    parts.push(`${['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}.`);
+  }
+  if (/^\d{2}:\d{2}$/.test(r.time || '')) parts.push(`${r.time} Uhr`);
+  return parts.length ? `Reserviert · ${parts.join(', ')}` : 'Reserviert';
+}
+
+// Google-Maps-Route zum Ort. Ohne „origin“ startet Google beim aktuellen Standort des Geräts
+// (in der Maps-App bzw. im Browser nach Freigabe). Ziel: Name + Adresse ergibt einen sauber
+// benannten Ort; ohne Adresse die Koordinaten, notfalls nur der Name.
+export function routeUrl(p) {
+  const destination = p.address ? `${p.name}, ${p.address}` : hasCoords(p) ? `${p.lat},${p.lng}` : p.name;
+  return `https://www.google.com/maps/dir/?${new URLSearchParams({ api: '1', destination })}`;
+}
+
+// Route zur Unterkunft. Die Bezeichnung hat oft die Form „Name · Adresse“ – die Adresse (Teil nach dem
+// letzten „·“) trifft die Hausnummer genauer als die Koordinaten aus der Adresssuche. Bei einem auf der
+// Karte gewählten Punkt („Gewählter Punkt (…)“) oder reinen Koordinaten zählen die Koordinaten.
+export function homeRouteUrl(a) {
+  const text = String(a.label || '').split(' · ').pop().trim();
+  const useCoords = !/[a-zäöü]{3}/i.test(text) || /^Gewählter Punkt/.test(text);
+  const destination = useCoords && hasCoords(a) ? `${a.lat},${a.lng}` : text || `${a.lat},${a.lng}`;
+  return `https://www.google.com/maps/dir/?${new URLSearchParams({ api: '1', destination })}`;
+}
+
 export function haversineKm(lat1, lng1, lat2, lng2) {
   const toRad = (d) => (d * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);

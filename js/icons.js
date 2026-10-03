@@ -27,6 +27,24 @@ const PATHS = {
   glass: '<path d="M6.5 3h11c.3 3.2.1 6.4-1.4 8.4A5.4 5.4 0 0 1 12 13.4a5.4 5.4 0 0 1-4.1-2C6.4 9.4 6.2 6.2 6.5 3Z"/><path d="M12 13.4V20"/><path d="M8 21c1-.9 7-.9 8 0"/>',
   leaf: '<path d="M11 20A7 7 0 0 1 4 13c0-6 7-10 16-10 0 9-4 16-10 16Z"/><path d="M4 21c3-5 6-8 11-11"/>',
   'trending-up': '<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  // Kalender mit Häkchen (nach Lucide „calendar-check“, ISC-Lizenz)
+  'calendar-check': '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/>',
+  // Stern für Favoriten (nach Lucide „star“, ISC-Lizenz)
+  star: '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+  // Häkchen für „besucht“ (nach Lucide „check“, ISC-Lizenz)
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  // Navigationspfeil für „Route“ (nach Lucide „navigation“, ISC-Lizenz)
+  navigation: '<path d="M3 11 22 2l-9 19-2-8Z"/>',
+  // Ebenen für „Viertel ein/aus“ (nach Lucide „layers“, ISC-Lizenz)
+  layers: '<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+  // Fadenkreuz für „Mein Standort“ (nach Lucide „locate-fixed“, ISC-Lizenz)
+  locate: '<path d="M2 12h3M19 12h3M12 2v3M12 19v3"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/>',
+  // Geldbörse und Stift (nach Lucide „wallet“ / „pencil“, ISC-Lizenz)
+  wallet: '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
+  pencil: '<path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/>',
+  'arrow-right': '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  // Eistüte (nach Lucide „ice-cream-cone“, ISC-Lizenz)
+  'ice-cream': '<path d="m7 11 4.08 10.35a1 1 0 0 0 1.84 0L17 11"/><path d="M17 7A5 5 0 0 0 7 7"/><path d="M17 7a2 2 0 0 1 0 4H7a2 2 0 0 1 0-4"/>',
   route: '<circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/>',
 };
 

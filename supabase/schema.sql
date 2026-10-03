@@ -25,6 +25,12 @@ create table if not exists public.places (
 create index if not exists places_trip_key_idx on public.places (trip_key);
 -- Nachträglich ergänzt: Markierung „glutenfrei“ pro Ort
 alter table public.places add column if not exists gluten_free boolean not null default false;
+-- Nachträglich ergänzt: Reservierung { date, time } pro Restaurant (null = nicht reserviert)
+alter table public.places add column if not exists reservation jsonb;
+-- Nachträglich ergänzt: Ort besucht (gilt für die ganze Reise); bewusst ohne „not null“
+alter table public.places add column if not exists visited boolean default false;
+-- Nachträglich ergänzt: Favorit (Stern), gilt für die ganze Reise; bewusst ohne „not null“
+alter table public.places add column if not exists starred boolean default false;
 
 -- Routen (z. B. GPX-Rennradstrecken): eigene Tabelle statt lat/lng, weil eine Route aus
 -- vielen aneinandergereihten Punkten besteht (points), nicht aus einem einzelnen Ort.
@@ -70,6 +76,24 @@ create table if not exists public.trip_settings (
 -- Für ein schon bestehendes Projekt (vor der Hin-/Rückreise-Box angelegt): Spalte nachrüsten.
 alter table public.trip_settings add column if not exists flights jsonb not null default '{}'::jsonb;
 
+-- Reisekasse: Teilnehmende (Namen) pro Reise und erfasste Rechnungen
+alter table public.trip_settings add column if not exists participants jsonb not null default '[]'::jsonb;
+
+create table if not exists public.expenses (
+  id            uuid primary key default gen_random_uuid(),
+  trip_key      text not null check (char_length(trip_key) between 32 and 128),
+  title         text not null default '' check (char_length(title) <= 200),
+  amount_cents  integer not null check (amount_cents > 0 and amount_cents <= 100000000),
+  paid_by       text not null check (char_length(paid_by) <= 80),
+  shared_with   jsonb not null default '[]'::jsonb,
+  spent_on      date,
+  added_by      text not null default '' check (char_length(added_by) <= 80),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+create index if not exists expenses_trip_key_idx on public.expenses (trip_key);
+
 -- Schlüssel aus dem Anfrage-Header lesen (leer → null → kein Zugriff)
 create or replace function public.request_trip_key()
 returns text
@@ -84,6 +108,7 @@ alter table public.places enable row level security;
 alter table public.routes enable row level security;
 alter table public.route_files enable row level security;
 alter table public.trip_settings enable row level security;
+alter table public.expenses enable row level security;
 
 drop policy if exists "Nur mit Reise-Schlüssel" on public.places;
 create policy "Nur mit Reise-Schlüssel" on public.places
@@ -109,4 +134,10 @@ create policy "Nur mit Reise-Schlüssel" on public.trip_settings
   using (trip_key = public.request_trip_key())
   with check (trip_key = public.request_trip_key());
 
-grant select, insert, update, delete on public.places, public.routes, public.route_files, public.trip_settings to anon, authenticated;
+drop policy if exists "Nur mit Reise-Schlüssel" on public.expenses;
+create policy "Nur mit Reise-Schlüssel" on public.expenses
+  for all to anon, authenticated
+  using (trip_key = public.request_trip_key())
+  with check (trip_key = public.request_trip_key());
+
+grant select, insert, update, delete on public.places, public.routes, public.route_files, public.trip_settings, public.expenses to anon, authenticated;

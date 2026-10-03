@@ -1,5 +1,5 @@
 import { DEFAULT_CATEGORIES, FALLBACK_CATEGORY, ROUTE_CATEGORY, routeColor } from './categories.js';
-import { haversineKm, hasCoords, parseCoords, formatKm, geocode } from './geo.js';
+import { haversineKm, hasCoords, parseCoords, formatKm, geocode, formatReservation, routeUrl, homeRouteUrl } from './geo.js';
 import { parseFile, parseGeoJSON, parseLinks, assignCategory, buildGpx } from './importers.js';
 import { loadUi, saveUi, readPref, writePref, downloadBackup, newId, newTripKey, loadLocalBackup, clearLocalBackup } from './store.js';
 import {
@@ -7,8 +7,9 @@ import {
   rememberedTripKey, rememberTripKey, forgetTripKey, shareUrl,
 } from './backend.js';
 import { createMap } from './map.js';
-import { FIXED_AIRBNB } from './config.js';
+import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './config.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
+import { formatEuro, formatChf, toRappen, cachedRate, loadRate, parseAmount, computeBalances, settle, sanitizeParticipants, sanitizeExpense } from './cash.js';
 
 const MALLORCA_CENTER = { lat: 39.62, lng: 2.95 };
 const SYNC_INTERVAL_MS = 20000;
@@ -22,10 +23,12 @@ const state = {
   places: [],
   airbnb: fixedAirbnb,
   customCategories: [],
-  // Hin- & Rückflug: { outDate, outTime, backDate, backTime }, alle Felder optional.
-  flights: {},
   // Importierte GPX-Strecken (Linien statt Punkte) – separat von places, siehe renderRoutes().
   routes: [],
+  // Reisekasse: [{ id, name }] und Rechnungen (siehe js/cash.js)
+  participants: [],
+  expenses: [],
+  cashMissing: false, // gemeinsame Reise, aber Tabelle/Spalte in Supabase fehlt noch
   ui: loadUi(),
 };
 
@@ -85,7 +88,9 @@ function applyData(data) {
   state.routes = Array.isArray(data.routes) ? data.routes : [];
   state.airbnb = fixedAirbnb || data.airbnb || null;
   state.customCategories = (data.customCategories || []).map(sanitizeCategory);
-  state.flights = data.flights && typeof data.flights === 'object' ? data.flights : {};
+  state.participants = sanitizeParticipants(data.participants);
+  state.expenses = (data.expenses || []).map(sanitizeExpense).filter(Boolean);
+  state.cashMissing = Boolean(data.cashMissing);
 }
 
 // Führt eine Speicher-Operation aus. Schlägt sie in einer gemeinsamen Reise fehl,
@@ -96,21 +101,29 @@ async function persist(op, failMsg = 'Änderung konnte nicht gespeichert werden'
     return false;
   }
   pendingWrites++;
+  let failed = false;
   try {
     await op(backend);
     lastSync = new Date();
     return true;
   } catch (err) {
     toast(`${failMsg}: ${err.message}`);
-    if (backend.kind === 'shared') await refresh();
+    failed = true;
     return false;
   } finally {
     pendingWrites--;
+    // Erst nach dem Herunterzählen neu laden – vorher bricht refresh() wegen des laufenden Schreibvorgangs ab.
+    // Signatur leeren, damit der Serverstand auch dann übernommen wird, wenn er sich nicht geändert hat.
+    // Läuft absichtlich ohne await: Die Aufrufer setzen ihre Änderung zuerst zurück, danach gilt der Server.
+    if (failed && backend.kind === 'shared') {
+      lastSignature = '';
+      refresh();
+    }
   }
 }
 
 const persistSettings = () =>
-  persist((b) => b.saveSettings({ airbnb: state.airbnb, customCategories: state.customCategories, flights: state.flights }));
+  persist((b) => b.saveSettings({ airbnb: state.airbnb, customCategories: state.customCategories }));
 
 let lastSignature = '';
 
@@ -136,24 +149,84 @@ async function refresh({ fit = false } = {}) {
 
 // --- Karte -------------------------------------------------------------------------
 
-const mapView = createMap($('#map'), {
+const mapOptions = {
+  // true = Klick verarbeitet (die Google-Variante zeigt sonst Details zu angetippten Google-Orten)
   onMapClick: (latlng) => {
-    if (!pickMode) return;
+    if (!pickMode) return false;
     setPickMode(false);
     setAirbnb({ label: `Gewählter Punkt (${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)})`, lat: latlng.lat, lng: latlng.lng });
+    return true;
   },
   onMarkerClick: (id) => selectPlace(id, { fly: false, scrollList: true }),
+  onLocateMessage: (kind, detail) => locateProblem(kind, detail),
   getInsets: mapInsets,
-});
+};
+
+// Kartenvariante: Standard OpenStreetMap (Leaflet). Google Maps nur als Test – per ?karte=google|osm in der
+// Adresse (wird gemerkt) oder über das Menü. Ohne API-Schlüssel in config.js immer OpenStreetMap.
+const MAP_VARIANTS = ['osm', 'google'];
+const mapParam = new URLSearchParams(location.search).get('karte');
+if (MAP_VARIANTS.includes(mapParam)) writePref('map', mapParam);
+const wantedMap = MAP_VARIANTS.includes(mapParam) ? mapParam : readPref('map') || 'osm';
+const mapVariant = wantedMap === 'google' && GOOGLE_MAPS_API_KEY ? 'google' : 'osm';
+
+const mapView = mapVariant === 'google' ? createGoogleMapView($('#map')) : createMap($('#map'), mapOptions);
+
+// Google lädt asynchron: bis dahin nimmt ein Platzhalter alle Aufrufe an, danach wird neu gezeichnet.
+// Scheitert Google (Schlüssel, Netz, Zeitüberschreitung), übernimmt automatisch OpenStreetMap.
+function createGoogleMapView(el) {
+  let impl = null;
+  const view = { map: { getZoom: () => impl?.map.getZoom() ?? 9 } };
+  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'invalidate']) {
+    view[k] = (...args) => impl?.[k](...args);
+  }
+  const ready = (m) => {
+    impl = m;
+    view.map = m.map;
+    render({ fit: true });
+  };
+  import('./map-google.js')
+    .then(({ createGoogleMap, categoryFromGoogleTypes }) => createGoogleMap(el, {
+      ...mapOptions,
+      apiKey: GOOGLE_MAPS_API_KEY,
+      mapId: GOOGLE_MAPS_MAP_ID,
+      onAddPlace: (g) => addGooglePlace(g, categoryFromGoogleTypes(g.types)),
+      onError: (msg) => toast(msg, { sticky: true }),
+    }))
+    .then(ready)
+    .catch((err) => {
+      console.error(err);
+      toast(`Google Maps nicht verfügbar (${err.message}) – OpenStreetMap wird angezeigt.`);
+      el.innerHTML = '';
+      ready(createMap(el, mapOptions));
+    });
+  return view;
+}
+
+// Aus dem Google-Detailfenster: Ort in die eigene Liste übernehmen. Rückgabe steuert den Knopftext.
+async function addGooglePlace(g, categoryId) {
+  const { added, dupes } = await addPlaces([{ name: g.name, address: g.address, lat: g.lat, lng: g.lng, url: g.url }], categoryId || 'auto');
+  if (added.length) {
+    toast(`„${added[0].name}“ hinzugefügt (${catOf(added[0].category).label})`);
+    return 'added';
+  }
+  if (dupes) {
+    toast('Dieser Ort ist schon in eurer Liste.');
+    return 'dupe';
+  }
+  return 'error';
+}
 
 // --- Handy: Liste als Blatt über der Karte ------------------------------------------------
 // Unter 900px liegt die Seitenleiste als Blatt unten über der randlosen Karte (wie auf dem Desktop
-// schwebend, nur von unten). Drei Höhen: „peek“ (nur Suche), „half“ (Standard), „full“ (ganze Liste).
+// schwebend, nur von unten). Höhen: „hidden“ (ganz eingeklappt, nur Knopf „Orte & Filter“), „peek“ (nur Suche),
+// „half“ (Standard), „full“ (ganze Liste).
 // Die Höhen selbst stehen in styles.css (--sheet-h); hier wird nur umgeschaltet.
 
 const isMobile = () => window.matchMedia('(max-width: 899px)').matches;
-const SHEET_STATES = ['peek', 'half', 'full'];
+const SHEET_STATES = ['hidden', 'peek', 'half', 'full'];
 const SHEET_PEEK_PX = 150; // muss zu --sheet-h bei [data-sheet="peek"] in styles.css passen
+const SHEET_HIDDEN_PX = 66; // Platz für den Knopf „Orte & Filter“, siehe [data-sheet="hidden"] in styles.css
 
 function sheetState() {
   return $('.layout').dataset.sheet || 'half';
@@ -175,7 +248,7 @@ function mapInsets() {
   let top = row.height ? Math.max(0, row.bottom - m.top) : 0;
   if (isMobile()) {
     const state = sheetState();
-    const bottom = state === 'peek' ? SHEET_PEEK_PX : state === 'half' ? m.height * 0.5 : m.height;
+    const bottom = state === 'hidden' ? SHEET_HIDDEN_PX : state === 'peek' ? SHEET_PEEK_PX : state === 'half' ? m.height * 0.5 : m.height;
     if (m.height - bottom - top < 120) top = 0; // offene Box: nicht auf einen Streifen quetschen
     return { top, bottom: Math.min(bottom, m.height - 40) };
   }
@@ -199,10 +272,14 @@ function mapInsets() {
     const dy = e.changedTouches[0].clientY - startY;
     startY = null;
     if (Math.abs(dy) < 30) return; // kurzer Tipp → normales click
-    e.preventDefault(); // kein zusätzliches click nach dem Wischen
+    if (e.cancelable) e.preventDefault(); // kein zusätzliches click nach dem Wischen (nur wenn der Browser es zulässt)
+    // Langer Wisch nach unten klappt direkt ganz ein; sonst eine Stufe weiter
+    const step = dy > 220 ? -SHEET_STATES.length : dy < 0 ? 1 : -1;
     const i = SHEET_STATES.indexOf(sheetState());
-    setSheet(SHEET_STATES[Math.max(0, Math.min(SHEET_STATES.length - 1, i + (dy < 0 ? 1 : -1)))]);
+    setSheet(SHEET_STATES[Math.max(0, Math.min(SHEET_STATES.length - 1, i + step))]);
   });
+  // Eingeklappt: ein Tipp auf „Orte & Filter“ holt das Blatt auf halbe Höhe zurück
+  $('#sheet-open').addEventListener('click', () => setSheet('half'));
   // Suchen braucht Platz für Tastatur und Treffer
   $('#search').addEventListener('focus', () => { if (isMobile()) setSheet('full'); });
 })();
@@ -221,7 +298,13 @@ function filterBase(places) {
   const q = norm(state.ui.search.trim());
   if (!q) return places;
   return places.filter((p) =>
-    norm(`${p.name} ${p.address} ${p.note} ${p.listName} ${p.addedBy || ''} ${catOf(p.category).label}`).includes(q));
+    norm(`${p.name} ${p.address} ${p.note} ${p.listName} ${p.addedBy || ''} ${catOf(p.category).label} ${p.reservation ? 'reserviert' : ''} ${p.starred ? 'favorit' : ''}`).includes(q));
+}
+
+// Nächster Termin zuerst; Reservierungen ohne Datum/Uhrzeit ans Ende, darunter nach Name
+function sortByReservation(list) {
+  const key = (p) => `${p.reservation?.date || '9999-99-99'}T${p.reservation?.time || '99:99'}`;
+  return list.sort((a, b) => key(a).localeCompare(key(b)) || a.name.localeCompare(b.name, 'de'));
 }
 
 function sortPlaces(list) {
@@ -245,7 +328,13 @@ function render({ fit = false } = {}) {
   const all = placesWithDistance();
   const base = filterBase(all);
   const selected = new Set(state.ui.categories);
-  const visible = sortPlaces(selected.size ? base.filter((p) => selected.has(p.category)) : base);
+  // Filter „Reserviert“ lässt sich mit den Kategorien kombinieren und sortiert nach Termin statt nach Entfernung
+  if (state.ui.reserved && !state.places.some((p) => p.reservation)) state.ui.reserved = false;
+  if (state.ui.starred && !state.places.some((p) => p.starred)) state.ui.starred = false;
+  // „Reserviert“ und „Favoriten“ lassen sich kombinieren (beides muss zutreffen)
+  const pool = base.filter((p) => (!state.ui.reserved || p.reservation) && (!state.ui.starred || p.starred));
+  const filtered = selected.size ? pool.filter((p) => selected.has(p.category)) : pool;
+  const visible = state.ui.reserved ? sortByReservation(filtered) : sortPlaces(filtered);
   lastVisible = visible;
 
   if (activeId && !visible.some((p) => p.id === activeId)) activeId = null;
@@ -258,11 +347,12 @@ function render({ fit = false } = {}) {
     .map((i) => ({ ...state.routes[i], color: routeColor(i).ink }));
 
   renderAirbnb();
-  renderFlights();
-  renderChips(base);
+  renderChips(base, pool);
   renderList(visible, all.length);
   renderRoutes();
   renderShareState();
+  renderCash();
+  $('#sheet-open-count').textContent = visible.length;
 
   mapView.setPlaces(visible, catOf, activeId);
   mapView.setAirbnb(state.airbnb);
@@ -290,6 +380,11 @@ function renderAirbnb() {
     link.hidden = !links?.url;
     if (links?.url) link.href = links.url;
   }
+  const route = $('#airbnb-route');
+  if (route) {
+    route.hidden = !a;
+    if (a) route.href = homeRouteUrl(a);
+  }
   const mapsLink = $('#airbnb-maps-link');
   if (mapsLink) {
     mapsLink.hidden = !links?.mapsUrl;
@@ -299,20 +394,6 @@ function renderAirbnb() {
   const linksBtn = $('#btn-airbnb-links');
   if (linksBtn) linksBtn.hidden = !a || !!fixedAirbnb;
   $('.airbnb .link-row')?.classList.toggle('is-stacked', !!fixedAirbnb);
-}
-
-// Trägt Datum/Uhrzeit von Hin- und Rückflug in die Felder ein. Ein Feld, das gerade
-// bearbeitet wird, bleibt unangetastet, sonst würde ein Abgleich während des Tippens stören.
-function renderFlights() {
-  const f = state.flights || {};
-  const setVal = (id, value) => {
-    const el = $(`#${id}`);
-    if (el && document.activeElement !== el) el.value = value || '';
-  };
-  setVal('flight-out-date', f.outDate);
-  setVal('flight-out-time', f.outTime);
-  setVal('flight-back-date', f.backDate);
-  setVal('flight-back-time', f.backTime);
 }
 
 // Rennrad-Routen: eigener Abschnitt unter den Orten, gleicher Aufbau wie die Ortsliste, aber jede
@@ -425,9 +506,9 @@ function formatHm(m) {
   return Number.isFinite(m) ? `${Math.round(m).toLocaleString('de-DE')} Hm` : '';
 }
 
-function renderChips(base) {
+function renderChips(base, pool) {
   const counts = new Map();
-  for (const p of base) counts.set(p.category, (counts.get(p.category) || 0) + 1);
+  for (const p of pool) counts.set(p.category, (counts.get(p.category) || 0) + 1);
   const selected = new Set(state.ui.categories);
   const used = new Set(state.places.map((p) => p.category));
 
@@ -440,9 +521,24 @@ function renderChips(base) {
       </button>`;
     });
 
+  // „Reserviert“ erscheint, sobald mindestens ein Ort reserviert ist
+  const reservedCount = base.filter((p) => p.reservation).length;
+  // „Favoriten“ ebenso, sobald mindestens ein Ort einen Stern hat
+  const starredCount = base.filter((p) => p.starred).length;
+  const starredChip = starredCount || state.ui.starred
+    ? `<button type="button" class="chip chip-starred" data-filter="starred" aria-pressed="${!!state.ui.starred}">
+        <span class="chip-icon">${icon('star', { size: 15, stroke: 2 })}</span>Favoriten<span class="chip-count">${starredCount}</span>
+      </button>`
+    : '';
+  const reservedChip = reservedCount || state.ui.reserved
+    ? `<button type="button" class="chip chip-reserved" data-filter="reserved" aria-pressed="${!!state.ui.reserved}">
+        <span class="chip-icon">${icon('calendar-check', { size: 15, stroke: 2 })}</span>Reserviert<span class="chip-count">${reservedCount}</span>
+      </button>`
+    : '';
+
   $('#category-chips').innerHTML =
-    `<button type="button" class="chip chip-all" data-cat="" aria-pressed="${!selected.size}">Alle<span class="chip-count">${base.length}</span></button>` +
-    chips.join('');
+    `<button type="button" class="chip chip-all" data-cat="" aria-pressed="${!selected.size}">Alle<span class="chip-count">${pool.length}</span></button>` +
+    starredChip + reservedChip + chips.join('');
 }
 
 // Startansicht: nur die ersten PLACES_PREVIEW Orte, der Rest ist über „Alle … anzeigen“ aufklappbar.
@@ -477,8 +573,10 @@ function renderList(visible, total) {
   const empty = $('#empty-state');
   renderPlaceMore(visible.length);
   $('#result-count').innerHTML = total
-    ? `<strong>${visible.length} ${visible.length === 1 ? 'Ort' : 'Orte'}</strong> von ${total}`
+    ? `<strong>${visible.length} ${visible.length === 1 ? 'Ort' : 'Orte'}</strong> von ${total}${state.ui.reserved ? ' · nach Termin' : ''}`
     : '';
+  // Beim Filter „Reserviert“ gilt die Termin-Reihenfolge – die Sortier-Auswahl würde nur verwirren
+  $('.sort').hidden = !!state.ui.reserved;
 
   if (!visible.length) {
     list.innerHTML = '';
@@ -503,26 +601,33 @@ function renderList(visible, total) {
   const cats = displayCategories();
   list.innerHTML = visible.map((p, i) => {
     const c = catOf(p.category);
-    const gmaps = p.url || (hasCoords(p) ? `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}`);
     const dist = p.distance != null
       ? `<span class="place-dist">${distanceHtml(p.distance)}</span>`
       : !hasCoords(p) ? '<span class="place-dist is-missing" title="Kein Standort">ohne Standort</span>' : '';
     const gf = !!p.glutenFree;
-    return `<li class="place${p.id === activeId ? ' is-active' : ''}${i >= PLACES_PREVIEW ? ' is-extra' : ''}" data-id="${p.id}" style="${categoryStyle(c)}">
+    const visited = !!p.visited;
+    const res = p.reservation;
+    // Reservieren nur bei Restaurants – eine bestehende Reservierung bleibt sichtbar, auch wenn die Kategorie wechselt
+    const canReserve = p.category === RESERVABLE_CATEGORY || !!res;
+    return `<li class="place${visited ? ' is-visited' : ''}${p.id === activeId ? ' is-active' : ''}${i >= PLACES_PREVIEW ? ' is-extra' : ''}" data-id="${p.id}" style="${categoryStyle(c)}">
       <div class="place-row">
+      <button type="button" class="visit-toggle" data-action="visited" aria-pressed="${visited}" aria-label="${escapeHtml(p.name)} besucht" title="${visited ? 'Besucht – antippen zum Entfernen' : 'Als besucht markieren'}">${icon('check', { size: 16, stroke: 3 })}</button>
       <button type="button" class="place-main" data-action="select" aria-expanded="${p.id === activeId}">
         <span class="place-icon" aria-hidden="true">${categoryIcon(c, { size: 18, stroke: 1.7 })}</span>
         <span class="place-body">
           <span class="place-name">${escapeHtml(p.name)}</span>
           <span class="place-meta">${escapeHtml(c.label)}${p.address ? ` · ${escapeHtml(p.address)}` : ''}</span>
+          ${res ? `<span class="place-res">${icon('calendar-check', { size: 13, stroke: 2.2 })}${escapeHtml(formatReservation(res))}</span>` : ''}
         </span>
         ${dist}
       </button>
+      <button type="button" class="star-toggle" data-action="starred" aria-pressed="${!!p.starred}" aria-label="${escapeHtml(p.name)} als Favorit" title="${p.starred ? 'Favorit – antippen zum Entfernen' : 'Als Favorit markieren'}">${icon('star', { size: 18, stroke: 2 })}</button>
       <button type="button" class="gf-toggle" data-action="gluten-free" aria-pressed="${gf}" aria-label="Glutenfrei" title="${gf ? 'Glutenfrei – antippen zum Entfernen' : 'Als glutenfrei markieren'}">${icon('wheat-off', { size: 17, stroke: 1.9 })}<span class="gf-label">GF</span></button>
       </div>
       <div class="place-details">
         ${p.note ? `<p class="place-note">${escapeHtml(p.note)}</p>` : ''}
         ${p.addedBy ? `<p class="place-by">Hinzugefügt von ${escapeHtml(p.addedBy)}</p>` : ''}
+        ${canReserve ? reservationHtml(res) : ''}
         <div class="place-actions">
           <label class="cat-select-wrap">
             <span class="visually-hidden">Kategorie</span>
@@ -531,12 +636,54 @@ function renderList(visible, total) {
             </select>
           </label>
           ${!hasCoords(p) ? '<button type="button" class="chip-btn" data-action="geocode">Standort suchen</button>' : ''}
-          <a class="chip-btn" href="${escapeHtml(gmaps)}" target="_blank" rel="noopener">Google Maps ${icon('external', { size: 12, stroke: 2.2 })}</a>
+          <a class="chip-btn route-btn" href="${escapeHtml(routeUrl(p))}" target="_blank" rel="noopener" title="Route von deinem Standort in Google Maps">${icon('navigation', { size: 14, stroke: 2.2 })}Route</a>
           <button type="button" class="chip-btn chip-btn-icon danger" data-action="delete" aria-label="Entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
         </div>
       </div>
     </li>`;
   }).join('');
+}
+
+// --- Reservierung (nur Restaurants) ----------------------------------------------------
+// place.reservation = { date: 'JJJJ-MM-TT', time: 'HH:MM' } (beide optional) oder nicht gesetzt.
+
+const RESERVABLE_CATEGORY = 'restaurant';
+
+function cleanReservation(r) {
+  if (!r || typeof r !== 'object') return null;
+  return {
+    date: /^\d{4}-\d{2}-\d{2}$/.test(r.date || '') ? r.date : '',
+    time: /^\d{2}:\d{2}$/.test(r.time || '') ? r.time : '',
+  };
+}
+
+function reservationHtml(res) {
+  if (!res) {
+    return `<button type="button" class="chip-btn res-mark" data-action="reserve">${icon('calendar-check', { size: 15, stroke: 2 })}Als reserviert markieren</button>`;
+  }
+  return `<div class="res-edit">
+      <span class="res-title">${icon('calendar-check', { size: 15, stroke: 2.2 })}Reserviert</span>
+      <div class="res-fields">
+        <input type="date" data-action="res-date" value="${escapeHtml(res.date || '')}" aria-label="Datum der Reservierung">
+        <input type="time" data-action="res-time" value="${escapeHtml(res.time || '')}" aria-label="Uhrzeit der Reservierung">
+      </div>
+      <button type="button" class="btn-link muted" data-action="unreserve">Reservierung entfernen</button>
+    </div>`;
+}
+
+async function saveReservation(place, next, message) {
+  const before = place.reservation || null;
+  const value = next ? cleanReservation(next) : null;
+  if (value) place.reservation = value; else delete place.reservation;
+  render();
+  const ok = await persist((b) => b.updatePlace(place.id, { reservation: value }),
+    'Reservierung konnte nicht gespeichert werden (Spalte „reservation“ in Supabase angelegt?)');
+  if (!ok) {
+    if (before) place.reservation = before; else delete place.reservation;
+    render();
+    return;
+  }
+  toast(message);
 }
 
 // --- Auswahl ------------------------------------------------------------------------
@@ -656,22 +803,6 @@ $('#airbnb-links-form')?.addEventListener('submit', (e) => {
   toast('Links gespeichert');
 });
 
-// --- Hin- & Rückreise --------------------------------------------------------------------
-
-// id="flight-out-date" → state.flights.outDate, usw.
-const FLIGHT_FIELDS = {
-  'flight-out-date': 'outDate',
-  'flight-out-time': 'outTime',
-  'flight-back-date': 'backDate',
-  'flight-back-time': 'backTime',
-};
-for (const [id, key] of Object.entries(FLIGHT_FIELDS)) {
-  $(`#${id}`)?.addEventListener('change', async (e) => {
-    state.flights = { ...state.flights, [key]: e.target.value };
-    if (await persistSettings()) toast('Flugzeiten gespeichert');
-  });
-}
-
 // --- Filter ------------------------------------------------------------------------------
 
 $('#search').value = state.ui.search;
@@ -688,6 +819,16 @@ $('#sort').addEventListener('change', (e) => {
 $('#category-chips').addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
   if (!chip) return;
+  if (chip.dataset.filter === 'starred') {
+    state.ui.starred = !state.ui.starred;
+    render();
+    return;
+  }
+  if (chip.dataset.filter === 'reserved') {
+    state.ui.reserved = !state.ui.reserved;
+    render();
+    return;
+  }
   const id = chip.dataset.cat;
   if (!id) state.ui.categories = [];
   else {
@@ -700,10 +841,355 @@ $('#category-chips').addEventListener('click', (e) => {
 
 function resetFilters() {
   state.ui.categories = [];
+  state.ui.reserved = false;
+  state.ui.starred = false;
   state.ui.search = '';
   $('#search').value = '';
   render({ fit: true });
 }
+
+// --- Reisekasse -------------------------------------------------------------------------------
+// Teilnehmende als feste Namensliste (state.participants), Rechnungen in state.expenses.
+// Gerechnet wird in js/cash.js (Cent-Beträge, gleichmässige Aufteilung, Ausgleich).
+
+const cashDialog = $('#cash-dialog');
+// Auswahl im Formular – bleibt beim Neuzeichnen (z. B. Abgleich alle 20 s) erhalten
+const cashForm = { editingId: null, payer: null, shared: new Set() };
+const todayIso = () => new Date().toLocaleDateString('sv-SE'); // JJJJ-MM-TT in Ortszeit
+const personName = (id) => state.participants.find((p) => p.id === id)?.name || 'Unbekannt';
+const cashBlocked = () => backend.kind === 'shared' && state.cashMissing;
+// Ausgleich in Franken: Tageskurs (siehe loadRate) und Klappzustand, der beim Neuzeichnen erhalten bleibt
+let fx = cachedRate();
+let fxLoading = false;
+let cashSettleOpen = false;
+const longDate = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${Number(m[3])}.${Number(m[2])}.${m[1]}` : iso; };
+
+// „2026-10-01“ → „Do 1.10.“
+function shortDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if (!m) return '';
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return `${['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}.`;
+}
+
+function renderCash() {
+  const total = state.expenses.reduce((sum, e) => sum + e.amountCents, 0);
+  $('#cash-total').textContent = formatEuro(total);
+  if (cashDialog.open) renderCashDialog();
+}
+
+function resetCashForm() {
+  cashForm.editingId = null;
+  const me = state.participants.find((p) => norm(p.name) === norm(memberName()));
+  cashForm.payer = (me || state.participants[0])?.id || null;
+  cashForm.shared = new Set(state.participants.map((p) => p.id));
+  $('#cash-amount').value = '';
+  $('#cash-what').value = '';
+  $('#cash-date').value = todayIso();
+  $('#cash-error').textContent = '';
+  $('#cash-form-title').textContent = 'Rechnung erfassen';
+  $('#cash-submit').textContent = 'Rechnung speichern';
+  $('#cash-cancel').hidden = true;
+}
+
+function renderCashDialog() {
+  const people = state.participants;
+  // Personen, die inzwischen entfernt wurden (z. B. von Mitreisenden), aus der Auswahl nehmen
+  if (cashForm.payer && !people.some((p) => p.id === cashForm.payer)) cashForm.payer = null;
+  for (const id of [...cashForm.shared]) if (!people.some((p) => p.id === id)) cashForm.shared.delete(id);
+
+  $('#cash-missing').hidden = !cashBlocked();
+  const used = new Set(state.expenses.flatMap((e) => [e.paidBy, ...e.sharedWith]));
+  $('#cash-people').innerHTML = people.length
+    ? people.map((p) => `<span class="cash-person">${escapeHtml(p.name)}<button type="button" class="cash-person-x" data-remove-person="${escapeHtml(p.id)}" aria-label="${escapeHtml(p.name)} entfernen" title="${used.has(p.id) ? 'Kommt in Rechnungen vor' : 'Entfernen'}">${icon('close', { size: 12, stroke: 2.6 })}</button></span>`).join('')
+    : '<p class="hint">Noch niemand eingetragen.</p>';
+
+  $('#cash-people-count').textContent = people.length ? `· ${people.length}` : '';
+  $('#cash-list-count').textContent = state.expenses.length ? `· ${state.expenses.length}` : '';
+  $('#cash-list-empty').hidden = state.expenses.length > 0;
+  $('#cash-form').hidden = !people.length;
+  $('#cash-form-hint').hidden = !!people.length;
+  const chip = (p, on, attr) => `<button type="button" class="cash-chip" ${attr}="${escapeHtml(p.id)}" aria-pressed="${on}">${escapeHtml(p.name)}</button>`;
+  $('#cash-payer').innerHTML = people.map((p) => chip(p, cashForm.payer === p.id, 'data-payer')).join('');
+  $('#cash-shared').innerHTML = people.map((p) => chip(p, cashForm.shared.has(p.id), 'data-shared')).join('');
+  renderCashPreview();
+  renderCashSummary();
+  renderCashList();
+}
+
+function renderCashPreview() {
+  const cents = parseAmount($('#cash-amount').value);
+  const n = cashForm.shared.size;
+  $('#cash-preview').textContent = cents && n
+    ? `${n === 1 ? 'Ganz für 1 Person' : `Je ${formatEuro(Math.floor(cents / n))}${cents % n ? ' (±1 Cent)' : ''} für ${n} Personen`}`
+    : '';
+}
+
+function renderCashSummary() {
+  const box = $('#cash-summary');
+  if (!state.expenses.length) {
+    box.innerHTML = '<p class="hint">Noch keine Rechnungen erfasst.</p>';
+    return;
+  }
+  const balances = computeBalances(state.expenses, state.participants);
+  const total = state.expenses.reduce((sum, e) => sum + e.amountCents, 0);
+  const saldo = (c) => c > 0
+    ? `<span class="cash-pos">+${formatEuro(c)}</span>`
+    : c < 0 ? `<span class="cash-neg">−${formatEuro(-c)}</span>` : '<span class="muted">±0</span>';
+  const transfers = settle(balances);
+  box.innerHTML = `
+    <div class="cash-table-wrap">
+      <table class="cash-table">
+        <thead><tr><th scope="col">Person</th><th scope="col">Bezahlt</th><th scope="col">Anteil</th><th scope="col">Saldo</th></tr></thead>
+        <tbody>${balances.map((b) => `<tr><th scope="row">${escapeHtml(b.name)}</th><td>${formatEuro(b.paid)}</td><td>${formatEuro(b.share)}</td><td>${saldo(b.balance)}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><th scope="row">Total</th><td>${formatEuro(total)}</td><td>${formatEuro(total)}</td><td></td></tr></tfoot>
+      </table>
+    </div>
+    <p class="hint cash-legend">Anteil = was die Person verbraucht hat. Plus = bekommt Geld zurück, Minus = schuldet Geld.</p>
+    <details class="cash-settle cash-fold" id="cash-settle-fold"${cashSettleOpen ? ' open' : ''}>
+      <summary class="cash-fold-head">
+        <h4>Ausgleich <span class="cash-fold-count">· ${transfers.length ? `${transfers.length} ${transfers.length === 1 ? 'Zahlung' : 'Zahlungen'}` : 'alles ausgeglichen'}</span></h4>
+        ${icon('chevron-down', { size: 18, stroke: 2.2, cls: 'cash-fold-chevron' })}
+      </summary>
+      <div class="cash-fold-body">
+        ${transfers.length
+          ? `<ul>${transfers.map((t) => `<li>
+              <span class="cash-settle-who"><strong>${escapeHtml(personName(t.from))}</strong> ${icon('arrow-right', { size: 14, stroke: 2.4 })} <strong>${escapeHtml(personName(t.to))}</strong></span>
+              <span class="cash-settle-amount">${fx ? formatChf(toRappen(t.cents, fx.rate)) : formatEuro(t.cents)}</span>
+              ${fx ? `<span class="cash-eur">
+                <button type="button" class="cash-eur-btn" aria-expanded="false" aria-label="Betrag in Euro anzeigen" title="In Euro">€</button>
+                <span class="cash-eur-pop" hidden>${formatEuro(t.cents)}</span>
+              </span>` : ''}
+            </li>`).join('')}</ul>`
+          : '<p class="hint">Alles ausgeglichen – niemand schuldet jemandem etwas.</p>'}
+        <p class="hint cash-fx">${fx
+          ? `In Franken zum EZB-Referenzkurs vom ${longDate(fx.date)}: 1 € = ${fx.rate.toFixed(4)} CHF.${fx.fetched === todayIso() ? '' : fxLoading ? ' Tageskurs wird aktualisiert …' : ' Gerade kein Internet – letzter bekannter Kurs.'} Mit € den Euro-Betrag anzeigen.`
+          : fxLoading ? 'Wechselkurs wird geladen …' : 'Wechselkurs gerade nicht abrufbar – Beträge in Euro.'}</p>
+      </div>
+    </details>`;
+}
+
+function renderCashList() {
+  const list = $('#cash-list');
+  if (!state.expenses.length) {
+    list.innerHTML = '';
+    return;
+  }
+  const allIds = state.participants.map((p) => p.id);
+  const sorted = [...state.expenses].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.addedAt - a.addedAt);
+  list.innerHTML = sorted.map((e) => {
+    const forAll = allIds.length > 1 && allIds.every((id) => e.sharedWith.includes(id)) && e.sharedWith.length === allIds.length;
+    const each = Math.floor(e.amountCents / e.sharedWith.length);
+    const who = forAll ? 'alle' : e.sharedWith.map(personName).join(', ');
+    const meta = [
+      shortDate(e.date),
+      `bezahlt von ${escapeHtml(personName(e.paidBy))}`,
+      `für ${escapeHtml(who)}${e.sharedWith.length > 1 ? ` (je ${formatEuro(each)})` : ''}`,
+    ].filter(Boolean).join(' · ');
+    return `<li class="cash-item${cashForm.editingId === e.id ? ' is-editing' : ''}">
+      <div class="cash-item-main">
+        <span class="cash-item-title">${escapeHtml(e.title || 'Rechnung')}</span>
+        <span class="cash-item-meta">${meta}</span>
+      </div>
+      <span class="cash-item-amount">${formatEuro(e.amountCents)}</span>
+      <span class="cash-item-actions">
+        <button type="button" class="cash-icon-btn" data-edit-expense="${escapeHtml(e.id)}" aria-label="Rechnung bearbeiten" title="Bearbeiten">${icon('pencil', { size: 15, stroke: 2 })}</button>
+        <button type="button" class="cash-icon-btn is-danger" data-delete-expense="${escapeHtml(e.id)}" aria-label="Rechnung löschen" title="Löschen">${icon('trash', { size: 15, stroke: 2 })}</button>
+      </span>
+    </li>`;
+  }).join('');
+}
+
+function openCash() {
+  resetCashForm();
+  cashSettleOpen = false;
+  // Tageskurs holen (höchstens einmal pro Tag), danach die Abrechnung in Franken neu zeichnen
+  fxLoading = fx?.fetched !== todayIso();
+  loadRate().then((v) => {
+    fxLoading = false;
+    if (v) fx = v;
+    if (cashDialog.open) renderCashSummary();
+  });
+  $('#cash-people-fold').open = !state.participants.length;
+  $('#cash-form-fold').open = true;
+  $('#cash-summary-fold').open = false;
+  $('#cash-list-fold').open = false;
+  renderCashDialog();
+  cashDialog.showModal();
+}
+
+$('#cash-panel').addEventListener('click', openCash);
+
+$('#cash-person-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = $('#cash-person-input');
+  const name = input.value.trim().slice(0, 30);
+  if (!name) return;
+  if (cashBlocked()) return toast('Die Ausgaben sind in der Datenbank noch nicht eingerichtet (siehe Hinweis oben).');
+  if (state.participants.some((p) => norm(p.name) === norm(name))) return toast(`„${name}“ ist schon eingetragen`);
+  const person = { id: newId(), name };
+  state.participants.push(person);
+  // Neue Person beim gerade offenen Formular gleich mit auswählen
+  if (!cashForm.editingId) cashForm.shared.add(person.id);
+  if (!cashForm.payer) cashForm.payer = person.id;
+  input.value = '';
+  render();
+  let merged = null;
+  const ok = await persist(async (b) => { merged = await b.changeParticipants({ add: person }); }, 'Person konnte nicht gespeichert werden');
+  if (!ok) {
+    state.participants = state.participants.filter((p) => p.id !== person.id);
+    render();
+    return;
+  }
+  // Gemeinsame Reise: Liste vom Server übernehmen (enthält auch gleichzeitig hinzugefügte Personen)
+  if (merged) {
+    state.participants = sanitizeParticipants(merged);
+    render();
+  }
+});
+
+// Klappzustand „Ausgleich“ merken („toggle“ steigt nicht auf, daher in der Capture-Phase)
+cashDialog.addEventListener('toggle', (e) => {
+  if (e.target.id === 'cash-settle-fold') cashSettleOpen = e.target.open;
+}, true);
+
+cashDialog.addEventListener('click', async (e) => {
+  // Euro-Sprechblase: € zeigt/versteckt sie, jeder andere Klick schliesst offene Blasen
+  const eurBtn = e.target.closest('.cash-eur-btn');
+  $$('.cash-eur-btn', cashDialog).forEach((b) => {
+    const open = b === eurBtn && b.getAttribute('aria-expanded') !== 'true';
+    b.setAttribute('aria-expanded', String(open));
+    b.nextElementSibling.hidden = !open;
+  });
+  if (eurBtn) return;
+  const btn = e.target.closest('button');
+  if (!btn) return;
+
+  if (btn.dataset.removePerson) {
+    const person = state.participants.find((p) => p.id === btn.dataset.removePerson);
+    if (!person) return;
+    if (state.expenses.some((x) => x.paidBy === person.id || x.sharedWith.includes(person.id))) {
+      return toast(`„${person.name}“ kommt in Rechnungen vor – zuerst diese Rechnungen ändern oder löschen.`);
+    }
+    if (!confirm(`„${person.name}“ aus den Ausgaben entfernen?`)) return;
+    const index = state.participants.findIndex((p) => p.id === person.id);
+    state.participants = state.participants.filter((p) => p.id !== person.id);
+    render();
+    let merged = null;
+    const ok = await persist(async (b) => { merged = await b.changeParticipants({ removeId: person.id }); }, `„${person.name}“ konnte nicht entfernt werden`);
+    if (!ok) {
+      if (!state.participants.some((p) => p.id === person.id)) state.participants.splice(Math.max(0, index), 0, person);
+      render();
+      return;
+    }
+    if (merged) {
+      state.participants = sanitizeParticipants(merged);
+      render();
+    }
+    return;
+  }
+  if (btn.dataset.payer) {
+    cashForm.payer = btn.dataset.payer;
+    renderCashDialog();
+    return;
+  }
+  if (btn.dataset.shared) {
+    const id = btn.dataset.shared;
+    cashForm.shared.has(id) ? cashForm.shared.delete(id) : cashForm.shared.add(id);
+    renderCashDialog();
+    return;
+  }
+  if (btn.id === 'cash-all') {
+    cashForm.shared = new Set(state.participants.map((p) => p.id));
+    renderCashDialog();
+    return;
+  }
+  if (btn.id === 'cash-cancel') {
+    resetCashForm();
+    renderCashDialog();
+    return;
+  }
+  if (btn.dataset.editExpense) {
+    const exp = state.expenses.find((x) => x.id === btn.dataset.editExpense);
+    if (!exp) return;
+    cashForm.editingId = exp.id;
+    cashForm.payer = exp.paidBy;
+    cashForm.shared = new Set(exp.sharedWith);
+    $('#cash-amount').value = (exp.amountCents / 100).toFixed(2).replace('.', ',');
+    $('#cash-what').value = exp.title;
+    $('#cash-date').value = exp.date;
+    $('#cash-error').textContent = '';
+    $('#cash-form-title').textContent = 'Rechnung bearbeiten';
+    $('#cash-submit').textContent = 'Änderungen speichern';
+    $('#cash-cancel').hidden = false;
+    renderCashDialog();
+    $('#cash-form-fold').open = true; // falls zugeklappt: Formular zum Bearbeiten zeigen
+    $('#cash-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  if (btn.dataset.deleteExpense) {
+    const exp = state.expenses.find((x) => x.id === btn.dataset.deleteExpense);
+    if (!exp) return;
+    if (!confirm(`Rechnung „${exp.title || 'Rechnung'}“ über ${formatEuro(exp.amountCents)} löschen?`)) return;
+    state.expenses = state.expenses.filter((x) => x.id !== exp.id);
+    if (cashForm.editingId === exp.id) resetCashForm();
+    render();
+    const ok = await persist((b) => b.deleteExpense(exp.id), 'Rechnung konnte nicht gelöscht werden');
+    if (!ok) { if (!state.expenses.some((x) => x.id === exp.id)) state.expenses.push(exp); render(); return; }
+    toast('Rechnung gelöscht');
+  }
+});
+
+$('#cash-amount').addEventListener('input', renderCashPreview);
+
+$('#cash-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const error = $('#cash-error');
+  const amountCents = parseAmount($('#cash-amount').value);
+  const sharedWith = state.participants.map((p) => p.id).filter((id) => cashForm.shared.has(id));
+  error.textContent = cashBlocked() ? 'Die Ausgaben sind in der Datenbank noch nicht eingerichtet (siehe Hinweis oben).'
+    : !amountCents ? 'Bitte einen gültigen Betrag eingeben, z. B. 24,50.'
+    : !cashForm.payer ? 'Bitte auswählen, wer bezahlt hat.'
+    : !sharedWith.length ? 'Bitte bei „Für wen“ mindestens eine Person auswählen.'
+    : '';
+  if (error.textContent) return;
+
+  const data = {
+    title: $('#cash-what').value.trim().slice(0, 120),
+    amountCents,
+    paidBy: cashForm.payer,
+    sharedWith,
+    date: $('#cash-date').value || '',
+  };
+  const editing = state.expenses.find((x) => x.id === cashForm.editingId);
+  if (cashForm.editingId && !editing) {
+    // Inzwischen von jemand anderem gelöscht – nicht stillschweigend als neue Rechnung anlegen
+    error.textContent = 'Diese Rechnung wurde inzwischen gelöscht. Bitte bei Bedarf neu erfassen.';
+    cashForm.editingId = null;
+    $('#cash-form-title').textContent = 'Rechnung erfassen';
+    $('#cash-submit').textContent = 'Rechnung speichern';
+    $('#cash-cancel').hidden = true;
+    renderCashDialog();
+    return;
+  }
+  if (editing) {
+    const before = { ...editing };
+    Object.assign(editing, data);
+    resetCashForm();
+    render();
+    const ok = await persist((b) => b.updateExpense(editing.id, editing), 'Rechnung konnte nicht gespeichert werden');
+    if (!ok) { Object.assign(editing, before); render(); return; }
+    toast('Rechnung geändert');
+    return;
+  }
+  const exp = { id: newId(), ...data, addedBy: memberName(), addedAt: Date.now() };
+  state.expenses.push(exp);
+  resetCashForm();
+  render();
+  const ok = await persist((b) => b.addExpenses([exp]), 'Rechnung konnte nicht gespeichert werden');
+  if (!ok) { state.expenses = state.expenses.filter((x) => x.id !== exp.id); render(); return; }
+  toast(`Rechnung gespeichert: ${formatEuro(exp.amountCents)}`);
+});
 
 // --- Liste ---------------------------------------------------------------------------------
 
@@ -727,6 +1213,32 @@ $('#place-list').addEventListener('click', async (e) => {
     }
     toast(place.glutenFree ? `„${place.name}“ als glutenfrei markiert` : `Glutenfrei-Markierung entfernt`);
   }
+  if (action === 'starred') {
+    place.starred = !place.starred;
+    render();
+    const ok = await persist((b) => b.updatePlace(id, { starred: place.starred }),
+      'Favorit konnte nicht gespeichert werden (Spalte „starred“ in Supabase angelegt?)');
+    if (!ok) {
+      place.starred = !place.starred;
+      render();
+      return;
+    }
+    toast(place.starred ? `„${place.name}“ als Favorit markiert` : 'Favorit entfernt');
+  }
+  if (action === 'visited') {
+    place.visited = !place.visited;
+    render();
+    const ok = await persist((b) => b.updatePlace(id, { visited: place.visited }),
+      'Besucht konnte nicht gespeichert werden (Spalte „visited“ in Supabase angelegt?)');
+    if (!ok) {
+      place.visited = !place.visited;
+      render();
+      return;
+    }
+    toast(place.visited ? `„${place.name}“ als besucht markiert` : 'Markierung „besucht“ entfernt');
+  }
+  if (action === 'reserve') await saveReservation(place, { date: '', time: '' }, 'Als reserviert markiert');
+  if (action === 'unreserve') await saveReservation(place, null, 'Reservierung entfernt');
   if (action === 'delete') {
     if (!confirm(`„${place.name}“ entfernen?`)) return;
     state.places = state.places.filter((p) => p.id !== id);
@@ -740,6 +1252,12 @@ $('#place-list').addEventListener('click', async (e) => {
 });
 
 $('#place-list').addEventListener('change', (e) => {
+  const field = { 'res-date': 'date', 'res-time': 'time' }[e.target.dataset.action];
+  if (field) {
+    const place = state.places.find((p) => p.id === e.target.closest('.place').dataset.id);
+    if (place) saveReservation(place, { ...place.reservation, [field]: e.target.value }, 'Reservierung gespeichert');
+    return;
+  }
   if (e.target.dataset.action !== 'category') return;
   const id = e.target.closest('.place').dataset.id;
   const place = state.places.find((p) => p.id === id);
@@ -883,6 +1401,10 @@ async function addPlaces(raws, override = 'auto') {
       listName: String(raw.listName || '').slice(0, 200),
       addedBy: String(raw.addedBy || by).slice(0, 80),
       addedAt: raw.addedAt || Date.now(),
+      ...(raw.glutenFree ? { glutenFree: true } : {}),
+      ...(raw.visited ? { visited: true } : {}),
+      ...(raw.starred ? { starred: true } : {}),
+      ...(cleanReservation(raw.reservation) ? { reservation: cleanReservation(raw.reservation) } : {}),
     };
     if ((place.url && urls.has(place.url)) || keys.has(coordKey(place))) {
       dupes++;
@@ -969,6 +1491,20 @@ async function handleFiles(files) {
         await persistSettings();
         const restoredRoutes = await restoreRoutes(b.routes);
         if (restoredRoutes) log(`${file.name}: ${restoredRoutes} Route(n) aus dem Backup übernommen.`, 'ok');
+        if (!state.participants.length && b.participants?.length) {
+          state.participants = sanitizeParticipants(b.participants);
+          await persist((be) => be.saveParticipants(state.participants), 'Teilnehmende konnten nicht übernommen werden');
+        }
+        // Rechnungen nur übernehmen, wenn alle beteiligten Personen hier bekannt sind
+        const people = new Set(state.participants.map((p) => p.id));
+        const knownExp = new Set(state.expenses.map((x) => x.id));
+        const newExp = (b.expenses || []).map(sanitizeExpense)
+          .filter((x) => x && !knownExp.has(x.id) && people.has(x.paidBy) && x.sharedWith.every((id) => people.has(id)));
+        if (newExp.length) {
+          state.expenses.push(...newExp);
+          await persist((be) => be.addExpenses(newExp), 'Rechnungen konnten nicht übernommen werden');
+          log(`${file.name}: ${newExp.length} Rechnung(en) für die Ausgaben übernommen.`, 'ok');
+        }
       }
       const { added, missing } = await importRaw(result.places, file.name);
       allAdded.push(...added);
@@ -1147,6 +1683,13 @@ async function startTrip() {
     const places = state.places.map((p) => ({ ...p, addedBy: p.addedBy || by }));
     await shared.saveSettings({ airbnb: state.airbnb, customCategories: state.customCategories });
     if (places.length) await shared.addPlaces(places);
+    // Kasse mitnehmen; fehlt die Tabelle in Supabase noch, startet die Reise trotzdem
+    try {
+      if (state.participants.length) await shared.saveParticipants(state.participants);
+      if (state.expenses.length) await shared.addExpenses(state.expenses.map((x) => ({ ...x, addedBy: x.addedBy || by })));
+    } catch (err) {
+      toast(`Ausgaben wurden nicht hochgeladen: ${err.message}`);
+    }
     switchTo(shared);
     toast('Gemeinsame Reise gestartet – jetzt den Link teilen');
     await refresh({ fit: true });
@@ -1254,12 +1797,25 @@ $('.menu-panel').addEventListener('click', async (e) => {
   const what = e.target.closest('[data-menu]')?.dataset.menu;
   if (!what) return;
   $('.menu').open = false;
+  if (what === 'intro') openIntro();
   if (what === 'categories') {
     renderCategoryManager();
     categoryDialog.showModal();
   }
   if (what === 'backup') downloadBackup(state);
   if (what === 'fit') mapView.fitTo(lastVisible, state.airbnb);
+  if (what === 'map-variant') {
+    const next = mapVariant === 'google' ? 'osm' : 'google';
+    if (next === 'google' && !GOOGLE_MAPS_API_KEY) {
+      toast('Für Google Maps fehlt noch der API-Schlüssel in js/config.js (siehe ANLEITUNG.md).', { sticky: true });
+      return;
+    }
+    writePref('map', next);
+    // ?karte=… aus der Adresse entfernen, sonst würde es die neue Wahl beim Neuladen überschreiben
+    const url = new URL(location.href);
+    url.searchParams.delete('karte');
+    location.replace(url.href);
+  }
   if (what === 'reset') {
     const where = backend.kind === 'shared' ? ' – für alle in dieser gemeinsamen Reise' : '';
     if (!confirm(`Wirklich alle Orte, das Airbnb und eigene Kategorien löschen${where}?`)) return;
@@ -1285,13 +1841,44 @@ document.addEventListener('keydown', (e) => {
 // --- Toast ------------------------------------------------------------------------------------
 
 let toastTimer;
+// Standort klappt nicht: bei „verweigert“ Schritt-für-Schritt-Hilfe, sonst kurze Meldung
+function locateProblem(kind, detail = '') {
+  if (kind === 'denied') {
+    const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+    // Technische Angabe für die Fehlersuche: Fehlermeldung des Geräts, Erlaubnis-Status, Art der Anzeige
+    const tech = $('#locate-tech');
+    const show = (state) => {
+      tech.textContent = `Technische Angabe: ${detail || 'keine Meldung'} · Erlaubnis: ${state} · ${standalone ? 'Home-Bildschirm-App' : 'Browser'} · ${location.protocol}`;
+    };
+    show('unbekannt');
+    navigator.permissions?.query({ name: 'geolocation' }).then((p) => show(p.state)).catch(() => {});
+    $('#locate-lead').textContent = standalone
+      ? 'Dein iPhone hat den Standort für die App auf dem Home-Bildschirm blockiert. So gibst du ihn frei:'
+      : 'Dein Browser hat den Standort für diese Seite blockiert. Auf dem iPhone gibst du ihn so frei:';
+    $('#locate-dialog').showModal();
+    return;
+  }
+  if (kind === 'heading-denied') {
+    toast('Standort läuft – für die Blickrichtung „Bewegung und Ausrichtung“ erlauben: Seite neu laden und beim Fadenkreuz „Erlauben“ wählen.');
+    return;
+  }
+  toast(kind === 'unsupported'
+    ? 'Dieser Browser kann den Standort nicht bestimmen.'
+    : 'Standort konnte gerade nicht bestimmt werden – am besten draussen oder mit WLAN eingeschaltet noch einmal versuchen.');
+}
+$('#locate-retry').addEventListener('click', () => {
+  $('#locate-dialog').close();
+  mapView.locate?.();
+});
+
 function toast(msg, { sticky = false } = {}) {
   const el = $('#toast');
   el.textContent = msg;
   el.hidden = false;
   requestAnimationFrame(() => el.classList.add('is-visible'));
   clearTimeout(toastTimer);
-  if (!sticky) toastTimer = setTimeout(() => el.classList.remove('is-visible'), 3200);
+  // Lesezeit: mindestens gut 3 s, bei langen Texten länger (max. 9 s)
+  if (!sticky) toastTimer = setTimeout(() => el.classList.remove('is-visible'), Math.min(9000, Math.max(3200, msg.length * 60)));
 }
 
 // --- Start ------------------------------------------------------------------------------------
@@ -1329,8 +1916,19 @@ async function boot() {
   });
 }
 
+// --- Willkommen -----------------------------------------------------------------------------
+// Kurze Übersicht beim Öffnen der Seite; „Nicht mehr anzeigen“ merkt sich jedes Gerät selbst.
+const introDialog = $('#intro-dialog');
+function openIntro() {
+  $('#intro-hide').checked = Boolean(readPref('introHidden'));
+  introDialog.showModal();
+}
+introDialog.addEventListener('close', () => writePref('introHidden', $('#intro-hide').checked || null));
+if (!readPref('introHidden')) openIntro();
+
 // Welche Version läuft gerade? (Zahl aus index.html, von deploy.sh erhöht) – hilft zu erkennen,
 // ob z. B. die App auf dem Home-Bildschirm noch einen alten Stand zeigt.
+$('#map-variant-label').textContent = mapVariant === 'google' ? 'Zurück zu OpenStreetMap' : 'Google Maps testen';
 $('#app-version').textContent = `Version ${document.querySelector('link[href*="styles.css"]')?.href.match(/v=([\d.-]+)/)?.[1] || '–'}`;
 
 boot();

@@ -7,18 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-03.14" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-03.14">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-09-30.19">
-  <link rel="stylesheet" href="css/styles.css?v=2026-09-30.19">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-03.14">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-03.14">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-03.14">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -56,9 +54,11 @@
       <details class="menu">
         <summary class="btn btn-ghost btn-icon" aria-label="Weitere Aktionen"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="19" cy="12" r="1.2" fill="currentColor"/></svg></summary>
         <div class="menu-panel">
+          <button type="button" data-menu="intro">So funktioniert's</button>
           <button type="button" data-menu="categories">Kategorien verwalten</button>
           <button type="button" data-menu="backup">Backup herunterladen</button>
           <button type="button" data-menu="fit">Alle Orte zeigen</button>
+          <button type="button" data-menu="map-variant" id="map-variant-label">Google Maps testen</button>
           <hr>
           <button type="button" data-menu="reset" class="danger">Alle Orte löschen</button>
           <p id="app-version" class="menu-version"></p>
@@ -109,34 +109,13 @@
       </section>
     </aside>
 
-    <div class="panel-row">
-        <details class="panel trip" id="trip-panel">
-          <summary class="panel-summary">
-            <div class="arch-badge" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10 13"/><path d="M21 3 14 21l-3-8-8-3Z"/></svg></div>
-            <div class="trip-body">
-              <span class="eyebrow">Reise</span>
-              <h2>Hin- &amp; Rückreise</h2>
-            </div>
-            <svg class="icon panel-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-          </summary>
-          <div class="trip-flights">
-            <div class="trip-flight">
-              <span class="trip-flight-label"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10 13"/><path d="M21 3 14 21l-3-8-8-3Z"/></svg>Hinflug</span>
-              <div class="trip-flight-inputs">
-                <input id="flight-out-date" type="date" aria-label="Datum Hinflug">
-                <input id="flight-out-time" type="time" aria-label="Uhrzeit Hinflug">
-              </div>
-            </div>
-            <div class="trip-flight">
-              <span class="trip-flight-label"><svg class="icon is-return" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10 13"/><path d="M21 3 14 21l-3-8-8-3Z"/></svg>Rückflug</span>
-              <div class="trip-flight-inputs">
-                <input id="flight-back-date" type="date" aria-label="Datum Rückflug">
-                <input id="flight-back-time" type="time" aria-label="Uhrzeit Rückflug">
-              </div>
-            </div>
-          </div>
-        </details>
+    <!-- Handy: erscheint, wenn das Blatt ganz eingeklappt ist; ein Tipp holt es zurück -->
+    <button id="sheet-open" class="sheet-open" type="button" aria-label="Orte und Filter einblenden">
+      <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      Orte &amp; Filter <span class="sheet-open-count" id="sheet-open-count"></span>
+    </button>
 
+    <div class="panel-row">
         <details class="panel airbnb" id="airbnb-panel">
           <summary class="panel-summary">
             <div class="arch-badge" aria-hidden="true"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg></div>
@@ -148,6 +127,7 @@
           </summary>
           <div class="airbnb-details">
             <p id="airbnb-label" class="airbnb-label">Noch nicht festgelegt</p>
+            <a id="airbnb-route" class="chip-btn route-btn airbnb-route" href="#" target="_blank" rel="noopener" title="Route von deinem Standort in Google Maps" hidden><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 22 2l-9 19-2-8Z"/></svg>Route zur Unterkunft</a>
             <form id="airbnb-form" class="inline-form" autocomplete="off">
               <input id="airbnb-input" type="text" placeholder="Adresse, Maps-Link oder „39.77, 2.71“" aria-label="Airbnb-Adresse">
               <button class="btn btn-small" type="submit">Suchen</button>
@@ -167,6 +147,16 @@
             </form>
           </div>
         </details>
+
+        <!-- Ausgaben (Reisekasse): öffnet das Fenster #cash-dialog -->
+        <button type="button" class="panel cash" id="cash-panel" aria-haspopup="dialog">
+          <span class="arch-badge" aria-hidden="true"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg></span>
+          <span class="cash-body">
+            <span class="eyebrow">Ausgaben</span>
+            <span class="cash-total" id="cash-total">0,00 €</span>
+          </span>
+          <svg class="icon panel-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+        </button>
 
     </div>
 
@@ -244,6 +234,191 @@
   </dialog>
 
   <!-- Teilen-Dialog -->
+  <!-- Willkommen: erscheint beim Öffnen der Seite, bis „Nicht mehr anzeigen“ angehakt ist (Menü ••• öffnet es wieder) -->
+  <dialog id="intro-dialog" class="dialog" aria-labelledby="intro-title">
+    <div class="dialog-inner">
+      <header class="dialog-head">
+        <div>
+          <span class="eyebrow">Benvinguts!</span>
+          <h2 id="intro-title">Das kannst du hier tun</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="Schließen"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </header>
+      <div class="intro-groups">
+        <section class="intro-group">
+          <h3 class="intro-group-title">Entdecken</h3>
+          <ul class="intro-list">
+            <li class="intro-item">
+              <span class="intro-badge" style="--b:var(--pink)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></span>
+              <span class="intro-text"><strong class="intro-name">Karte &amp; Liste</strong><span>Alle Orte auf einen Blick, die nächsten zuerst. Nach Art filtern oder suchen.</span></span>
+            </li>
+            <li class="intro-item">
+              <span class="intro-badge" style="--b:var(--sky)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 22 2l-9 19-2-8Z"/></svg></span>
+              <span class="intro-text"><strong class="intro-name">Unterwegs</strong><span>Der <strong>Standort-Knopf</strong> zeigt, wo du bist und wohin du schaust. <strong>„Route“</strong> führt dich mit Google Maps zum Ort oder zur Unterkunft.</span></span>
+            </li>
+            <li class="intro-item">
+              <span class="intro-badge" style="--b:var(--mint)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/></svg></span>
+              <span class="intro-text"><strong class="intro-name">Rennrad-Routen</strong><span>GPX-Dateien über <strong>„+ Importieren“</strong> hinzufügen. Unter „Rennrad-Routen“ jede Strecke per Schalter auf der Karte einblenden, als GPX herunterladen oder mit Strava/Komoot verlinken.</span></span>
+            </li>
+          </ul>
+        </section>
+        <section class="intro-group">
+          <h3 class="intro-group-title">Merken</h3>
+          <ul class="intro-list">
+            <li class="intro-item">
+              <span class="intro-badge" style="--b:var(--yellow)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg></span>
+              <span class="intro-text"><strong class="intro-name">Favoriten &amp; Besucht</strong><span>Der <strong>Stern</strong> markiert Favoriten, das <strong>Häkchen</strong> Orte, an denen ihr schon wart – sie werden dann blass.</span></span>
+            </li>
+            <li class="intro-item">
+              <span class="intro-badge" style="--b:var(--lilac)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/></svg></span>
+              <span class="intro-text"><strong class="intro-name">Reservierungen</strong><span>Beim Ort <strong>„Als reserviert markieren“</strong>, Datum und Uhrzeit eintragen. Der Filter <strong>„Reserviert“</strong> zeigt alle Termine.</span></span>
+            </li>
+            <li class="intro-item">
+              <span class="intro-badge" style="--b:var(--mint)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>
+              <span class="intro-text"><strong class="intro-name">Neue Orte</strong><span>Über <strong>„+ Importieren“</strong> Google-Maps-Links einfügen oder gespeicherte Orte hochladen.</span></span>
+            </li>
+          </ul>
+        </section>
+        <section class="intro-group">
+          <h3 class="intro-group-title">Gemeinsam</h3>
+          <ul class="intro-list">
+            <li class="intro-item">
+              <span class="intro-badge" style="--b:var(--orange)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg></span>
+              <span class="intro-text"><strong class="intro-name">Ausgaben teilen</strong><span>Unter <strong>„Ausgaben“</strong> erfassen, wer was für wen bezahlt hat. Die Abrechnung zeigt, wer wem wie viel schuldet.</span></span>
+            </li>
+            <li class="intro-item">
+              <span class="intro-badge" style="--b:var(--pink)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+              <span class="intro-text"><strong class="intro-name">Zusammen planen</strong><span>Mit dem Reise-Link unter <strong>„Teilen“</strong> sehen und ändern alle dieselben Orte und Ausgaben. Nur an Mitreisende weitergeben.</span></span>
+            </li>
+          </ul>
+        </section>
+      </div>
+      <p class="hint intro-note">Diese Übersicht findest du jederzeit wieder im Menü oben rechts (drei Punkte) unter <strong>„So funktioniert's“</strong>.</p>
+      <footer class="dialog-foot">
+        <label class="check intro-hide"><input id="intro-hide" type="checkbox"><span>Nicht mehr anzeigen</span></label>
+        <button class="btn btn-primary" type="button" data-close>Los geht's</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- Hilfe, wenn der Standort verweigert wurde (v. a. iPhone, App auf dem Home-Bildschirm) -->
+  <dialog id="locate-dialog" class="dialog" aria-labelledby="locate-title">
+    <div class="dialog-inner">
+      <header class="dialog-head">
+        <div>
+          <span class="eyebrow">Live-Standort</span>
+          <h2 id="locate-title">Standort freigeben</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="Schließen"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </header>
+      <p class="locate-lead" id="locate-lead">Dein iPhone hat den Standort für diese Seite blockiert. So gibst du ihn frei:</p>
+      <ol class="locate-steps">
+        <li><strong>Einstellungen → Datenschutz &amp; Sicherheit → Ortungsdienste</strong>: ganz oben eingeschaltet.</li>
+        <li>In derselben Liste unten <strong>„Safari-Websites“</strong> antippen → <strong>„Beim Verwenden der App“</strong> wählen und <strong>„Genauer Standort“</strong> einschalten. Apps auf dem Home-Bildschirm nutzen genau diese Einstellung.</li>
+        <li><strong>Erlaubnis für diese Website</strong> (wird oft übersehen): Reise-Link in <strong>Safari</strong> öffnen → links in der Adressleiste auf <strong>„aA“</strong> bzw. das Seiten-Symbol tippen → <strong>Website-Einstellungen → Standort → „Erlauben“</strong>. Dann in Safari einmal auf das Fadenkreuz tippen und prüfen, ob dein Standort erscheint.</li>
+        <li><strong>Einstellungen → Apps → Safari → Standort</strong> (bis iOS 17: Einstellungen → Safari → Standort) auf <strong>„Fragen“</strong> oder <strong>„Erlauben“</strong> stellen.</li>
+        <li>Hast du die Abfrage in der Home-Bildschirm-App einmal mit „Nicht erlauben“ beantwortet, merkt sich iOS das. Dann das Symbol vom Home-Bildschirm löschen, den Reise-Link in Safari öffnen und über <strong>Teilen → Zum Home-Bildschirm</strong> neu hinzufügen. Beim nächsten Tipp auf das Fadenkreuz <strong>„Erlauben“</strong> wählen.</li>
+      </ol>
+      <p class="hint locate-note">Dein Standort bleibt auf deinem Gerät und wird nicht gespeichert oder geteilt.</p>
+      <p class="locate-tech" id="locate-tech"></p>
+      <footer class="dialog-foot">
+        <button class="btn btn-ghost" type="button" data-close>Schließen</button>
+        <button class="btn btn-primary" type="button" id="locate-retry">Nochmals versuchen</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <dialog id="cash-dialog" class="dialog" aria-labelledby="cash-title">
+    <div class="dialog-inner">
+      <header class="dialog-head">
+        <div>
+          <span class="eyebrow">Gemeinsame Kosten</span>
+          <h2 id="cash-title">Ausgaben</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="Schließen"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </header>
+
+      <p id="cash-missing" class="cash-warn" hidden>Die Ausgaben sind in der Datenbank noch nicht eingerichtet. Bitte das SQL aus
+        <code>supabase/schema.sql</code> (Abschnitt „Reisekasse“) im Supabase SQL Editor ausführen.</p>
+
+      <!-- Klappbar: beim Öffnen nur „Rechnung erfassen“ aufgeklappt, „Teilnehmende“ solange niemand eingetragen ist (siehe openCash in app.js) -->
+      <details class="cash-section cash-fold" id="cash-people-fold">
+        <summary class="cash-fold-head">
+          <h3 id="cash-people-title">Teilnehmende <span class="cash-fold-count" id="cash-people-count"></span></h3>
+          <svg class="icon cash-fold-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+        <div class="cash-fold-body">
+          <div id="cash-people" class="cash-people"></div>
+          <form id="cash-person-form" class="inline-form" autocomplete="off">
+            <input id="cash-person-input" type="text" maxlength="30" placeholder="Name, z. B. Anna" aria-label="Name einer teilnehmenden Person">
+            <button class="btn btn-small" type="submit">Hinzufügen</button>
+          </form>
+        </div>
+      </details>
+
+      <details class="cash-section cash-fold" id="cash-form-fold" open>
+        <summary class="cash-fold-head">
+          <h3 id="cash-form-title">Rechnung erfassen</h3>
+          <svg class="icon cash-fold-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+        <div class="cash-fold-body">
+          <p id="cash-form-hint" class="hint" hidden>Zuerst oben bei „Teilnehmende“ die Namen eintragen.</p>
+          <form id="cash-form" class="cash-form" autocomplete="off" novalidate>
+            <div class="cash-row">
+              <label class="field">
+                <span>Betrag in €</span>
+                <input id="cash-amount" type="text" inputmode="decimal" placeholder="0,00">
+              </label>
+              <label class="field">
+                <span>Datum</span>
+                <input id="cash-date" type="date">
+              </label>
+            </div>
+            <label class="field">
+              <span>Wofür</span>
+              <input id="cash-what" type="text" maxlength="120" placeholder="z. B. Abendessen, Taxi, Museum">
+            </label>
+            <div class="field">
+              <span>Bezahlt von</span>
+              <div id="cash-payer" class="cash-pick" role="group" aria-label="Bezahlt von"></div>
+            </div>
+            <div class="field">
+              <span class="cash-label-row">Für wen <button type="button" class="btn-link" id="cash-all">alle auswählen</button></span>
+              <div id="cash-shared" class="cash-pick" role="group" aria-label="Für wen"></div>
+            </div>
+            <p id="cash-preview" class="cash-preview"></p>
+            <p id="cash-error" class="cash-error" role="alert"></p>
+            <div class="cash-actions">
+              <button class="btn btn-primary" type="submit" id="cash-submit">Rechnung speichern</button>
+              <button class="btn-link muted" type="button" id="cash-cancel" hidden>Abbrechen</button>
+            </div>
+          </form>
+        </div>
+      </details>
+
+      <details class="cash-section cash-fold" id="cash-summary-fold">
+        <summary class="cash-fold-head">
+          <h3 id="cash-summary-title">Abrechnung</h3>
+          <svg class="icon cash-fold-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+        <div class="cash-fold-body">
+          <div id="cash-summary"></div>
+        </div>
+      </details>
+
+      <details class="cash-section cash-fold" id="cash-list-fold">
+        <summary class="cash-fold-head">
+          <h3 id="cash-list-title">Rechnungen <span class="cash-fold-count" id="cash-list-count"></span></h3>
+          <svg class="icon cash-fold-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+        <div class="cash-fold-body">
+          <p id="cash-list-empty" class="hint">Noch keine Rechnungen erfasst.</p>
+          <ul id="cash-list" class="cash-list"></ul>
+        </div>
+      </details>
+    </div>
+  </dialog>
+
   <dialog id="share-dialog" class="dialog" aria-labelledby="share-title">
     <div class="dialog-inner">
       <header class="dialog-head">
@@ -287,23 +462,25 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-09-30.19"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-03.14"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-09-30.19",
-      "./js/backend.js": "./js/backend.js?v=2026-09-30.19",
-      "./js/categories.js": "./js/categories.js?v=2026-09-30.19",
-      "./js/config.js": "./js/config.js?v=2026-09-30.19",
-      "./js/geo.js": "./js/geo.js?v=2026-09-30.19",
-      "./js/icons.js": "./js/icons.js?v=2026-09-30.19",
-      "./js/importers.js": "./js/importers.js?v=2026-09-30.19",
-      "./js/map.js": "./js/map.js?v=2026-09-30.19",
-      "./js/store.js": "./js/store.js?v=2026-09-30.19"
+      "./js/app.js": "./js/app.js?v=2026-10-03.14",
+      "./js/backend.js": "./js/backend.js?v=2026-10-03.14",
+      "./js/cash.js": "./js/cash.js?v=2026-10-03.14",
+      "./js/categories.js": "./js/categories.js?v=2026-10-03.14",
+      "./js/config.js": "./js/config.js?v=2026-10-03.14",
+      "./js/geo.js": "./js/geo.js?v=2026-10-03.14",
+      "./js/icons.js": "./js/icons.js?v=2026-10-03.14",
+      "./js/importers.js": "./js/importers.js?v=2026-10-03.14",
+      "./js/map.js": "./js/map.js?v=2026-10-03.14",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-03.14",
+      "./js/store.js": "./js/store.js?v=2026-10-03.14"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-09-30.19"></script>
+  <script type="module" src="js/app.js?v=2026-10-03.14"></script>
 </body>
 </html>

@@ -8,8 +8,26 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { loadLocalData, saveLocalData, readPref, writePref } from './store.js';
 
-const SUPABASE_ESM = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+// Supabase-Bibliothek als feste Version im Projekt (statt „neueste 2.x“ vom CDN): So kann keine fremd
+// veränderte Datei den Reise-Schlüssel mitlesen. Aktualisieren = neue Datei aus dist/umd/ ablegen, Pfad anpassen.
+const SUPABASE_JS = new URL('../vendor/supabase/supabase-2.117.2.js', import.meta.url).href;
 const TRIP_HASH = /(?:^#|&)reise=([a-f0-9]{32,128})/i;
+
+// Klassisches Skript (UMD) – stellt window.supabase bereit; wird erst geladen, wenn eine Reise geteilt ist
+let supabaseLib = null;
+function loadSupabase() {
+  supabaseLib ??= new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = SUPABASE_JS;
+    script.onload = () => (window.supabase?.createClient ? resolve(window.supabase) : reject(new Error('Supabase-Bibliothek unvollständig')));
+    script.onerror = () => {
+      supabaseLib = null; // beim nächsten Versuch erneut laden
+      reject(new Error('Supabase-Bibliothek nicht ladbar'));
+    };
+    document.head.append(script);
+  });
+  return supabaseLib;
+}
 
 export const sharingConfigured = () => Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
@@ -46,11 +64,16 @@ export class LocalBackend {
   async deleteRoute() { this.#save(); }
   async deleteAllRoutes() { this.#save(); }
   async saveSettings() { this.#save(); }
+  async saveParticipants() { this.#save(); }
+  async changeParticipants() { this.#save(); return null; }
+  async addExpenses() { this.#save(); }
+  async updateExpense() { this.#save(); }
+  async deleteExpense() { this.#save(); }
 }
 
 // --- Supabase ------------------------------------------------------------------------
 
-const PATCH_COLUMNS = { name: 'name', address: 'address', lat: 'lat', lng: 'lng', url: 'url', note: 'note', category: 'category', listName: 'list_name', glutenFree: 'gluten_free' };
+const PATCH_COLUMNS = { name: 'name', address: 'address', lat: 'lat', lng: 'lng', url: 'url', note: 'note', category: 'category', listName: 'list_name', glutenFree: 'gluten_free', reservation: 'reservation', visited: 'visited', starred: 'starred' };
 
 const toRow = (p, key) => ({
   id: p.id,
@@ -65,8 +88,14 @@ const toRow = (p, key) => ({
   category: p.category,
   added_by: p.addedBy || '',
   created_at: new Date(p.addedAt || Date.now()).toISOString(),
-  // nur mitschicken, wenn gesetzt – so klappt der Import auch, solange die Spalte noch fehlt
-  ...(p.glutenFree ? { gluten_free: true } : {}),
+  // Immer mitschicken: Bei einem Sammel-Insert füllt Supabase fehlende Felder einzelner Zeilen mit null
+  // statt mit dem Standardwert – das verletzt „not null“, sobald nur manche Orte glutenfrei sind.
+  gluten_free: !!p.glutenFree,
+  // nur mitschicken, wenn gesetzt: die Spalte ist optional (null = nicht reserviert)
+  ...(p.reservation ? { reservation: p.reservation } : {}),
+  // nur wenn besucht – die Spalte ist bewusst ohne „not null“, fehlende Werte gelten als nicht besucht
+  ...(p.visited ? { visited: true } : {}),
+  ...(p.starred ? { starred: true } : {}),
 });
 
 const fromRow = (r) => ({
@@ -80,6 +109,33 @@ const fromRow = (r) => ({
   listName: r.list_name || '',
   category: r.category,
   glutenFree: r.gluten_free === true,
+  visited: r.visited === true,
+  starred: r.starred === true,
+  reservation: r.reservation && typeof r.reservation === 'object' ? r.reservation : null,
+  addedBy: r.added_by || '',
+  addedAt: Date.parse(r.created_at) || 0,
+});
+
+// Reisekasse: Beträge in Cent, Personen über ihre ID (Namen stehen in trip_settings.participants)
+const toExpenseRow = (e, key) => ({
+  id: e.id,
+  trip_key: key,
+  title: e.title || '',
+  amount_cents: e.amountCents,
+  paid_by: e.paidBy,
+  shared_with: e.sharedWith,
+  spent_on: e.date || null,
+  added_by: e.addedBy || '',
+  created_at: new Date(e.addedAt || Date.now()).toISOString(),
+});
+
+const fromExpenseRow = (r) => ({
+  id: r.id,
+  title: r.title || '',
+  amountCents: r.amount_cents,
+  paidBy: r.paid_by,
+  sharedWith: Array.isArray(r.shared_with) ? r.shared_with : [],
+  date: r.spent_on || '',
   addedBy: r.added_by || '',
   addedAt: Date.parse(r.created_at) || 0,
 });
@@ -121,7 +177,7 @@ export class SharedBackend {
 
   static async connect(key) {
     if (!sharingConfigured()) throw new Error('Gemeinsame Reisen sind noch nicht eingerichtet (js/config.js).');
-    const { createClient } = await import(SUPABASE_ESM);
+    const { createClient } = await loadSupabase();
     const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { 'x-trip-key': key } },
@@ -137,20 +193,25 @@ export class SharedBackend {
   }
 
   async load() {
-    const [places, routes, settings] = await Promise.all([
+    const [places, routes, settings, expenses] = await Promise.all([
       this.db.from('places').select('*').eq('trip_key', this.key).order('created_at'),
       this.db.from('routes').select('*').eq('trip_key', this.key).order('created_at'),
       this.db.from('trip_settings').select('*').eq('trip_key', this.key).maybeSingle(),
+      this.db.from('expenses').select('*').eq('trip_key', this.key).order('created_at'),
     ]);
     check(places);
     check(routes);
     check(settings);
+    // Fehlt die Tabelle „expenses“ noch (SQL nicht ausgeführt), läuft der Rest der App trotzdem weiter.
+    if (expenses.error) console.warn('Ausgaben nicht verfügbar (supabase/schema.sql ausgeführt?):', expenses.error.message);
     return {
       places: places.data.map(fromRow),
       routes: routes.data.map(fromRouteRow),
       airbnb: settings.data?.airbnb ?? null,
       customCategories: settings.data?.custom_categories ?? [],
-      flights: settings.data?.flights ?? {},
+      participants: settings.data?.participants ?? [],
+      expenses: expenses.error ? [] : expenses.data.map(fromExpenseRow),
+      cashMissing: Boolean(expenses.error) || !(settings.data == null || 'participants' in settings.data),
     };
   }
 
@@ -209,9 +270,60 @@ export class SharedBackend {
     check(await this.db.from('routes').delete().eq('trip_key', this.key));
   }
 
-  async saveSettings({ airbnb, customCategories, flights }) {
+  // Eine Person hinzufügen oder entfernen, ohne gleichzeitige Änderungen anderer zu überschreiben:
+  // aktuelle Liste aus der Datenbank lesen, nur die eigene Änderung anwenden, zurückschreiben.
+  // Beim Entfernen wird geprüft, ob die Person (auch in Rechnungen anderer) noch vorkommt.
+  // Rückgabe: die neue Liste vom Server.
+  async changeParticipants({ add = null, removeId = null }) {
+    if (removeId) {
+      const [paid, shared] = await Promise.all([
+        this.db.from('expenses').select('id', { count: 'exact', head: true }).eq('trip_key', this.key).eq('paid_by', removeId),
+        this.db.from('expenses').select('id', { count: 'exact', head: true }).eq('trip_key', this.key).contains('shared_with', JSON.stringify([removeId])), // jsonb: als JSON-Liste übergeben
+      ]);
+      check(paid);
+      check(shared);
+      if (paid.count || shared.count) throw new Error('die Person kommt in Rechnungen vor');
+    }
+    const current = await this.db.from('trip_settings').select('participants').eq('trip_key', this.key).maybeSingle();
+    check(current);
+    let list = Array.isArray(current.data?.participants) ? current.data.participants : [];
+    if (add && !list.some((p) => p.id === add.id)) list = [...list, add];
+    if (removeId) list = list.filter((p) => p.id !== removeId);
+    await this.saveParticipants(list);
+    return list;
+  }
+
+  // Ganze Liste setzen (Reise starten, Backup übernehmen) – Unterkunft und Kategorien bleiben unberührt
+  async saveParticipants(participants) {
     check(await this.db.from('trip_settings').upsert(
-      { trip_key: this.key, airbnb, custom_categories: customCategories, flights, updated_at: new Date().toISOString() },
+      { trip_key: this.key, participants, updated_at: new Date().toISOString() },
+      { onConflict: 'trip_key' },
+    ));
+  }
+
+  async addExpenses(expenses) {
+    for (let i = 0; i < expenses.length; i += 500) {
+      check(await this.db.from('expenses').insert(expenses.slice(i, i + 500).map((e) => toExpenseRow(e, this.key))));
+    }
+  }
+
+  async updateExpense(id, e) {
+    const { title, amount_cents, paid_by, shared_with, spent_on } = toExpenseRow(e, this.key);
+    const res = await this.db.from('expenses')
+      .update({ title, amount_cents, paid_by, shared_with, spent_on, updated_at: new Date().toISOString() })
+      .eq('id', id).eq('trip_key', this.key)
+      .select('id');
+    check(res);
+    if (!res.data?.length) throw new Error('die Rechnung wurde inzwischen gelöscht');
+  }
+
+  async deleteExpense(id) {
+    check(await this.db.from('expenses').delete().eq('id', id).eq('trip_key', this.key));
+  }
+
+  async saveSettings({ airbnb, customCategories }) {
+    check(await this.db.from('trip_settings').upsert(
+      { trip_key: this.key, airbnb, custom_categories: customCategories, updated_at: new Date().toISOString() },
       { onConflict: 'trip_key' },
     ));
   }

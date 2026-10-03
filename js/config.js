@@ -16,3 +16,12 @@ export const SUPABASE_ANON_KEY = 'sb_publishable_G925wSaWBj-DIK_xWYjQOw_PCCPwZQy
 // sichtbar nur mit dem geheimen Reise-Schlüssel, nicht im Quellcode. Über „Links hinzufügen“ lassen sich
 // dort zusätzlich der Airbnb- und der Google-Maps-Link nachtragen.
 export const FIXED_AIRBNB = null;
+
+// Test-Variante mit Google Maps (Standard bleibt OpenStreetMap). Aktivieren über das Menü „•••“ →
+// „Google Maps testen“ oder mit ?karte=google in der Adresse. Der Schlüssel ist – wie der Supabase-Key –
+// für den Browser gedacht und öffentlich sichtbar. Deshalb in der Google Cloud Console UNBEDINGT auf die
+// eigenen Website-Adressen einschränken (siehe ANLEITUNG.md, Abschnitt „Google Maps testen“).
+// Leer lassen = Google-Variante nicht verfügbar.
+export const GOOGLE_MAPS_API_KEY = '';
+// Optional: eigene Map-ID aus der Google Cloud Console (für eigene Kartenstile). Leer = Googles Test-ID.
+export const GOOGLE_MAPS_MAP_ID = '';

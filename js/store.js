@@ -7,7 +7,7 @@ const DATA_KEY = 'llocs.v1';
 const UI_KEY = 'llocs.ui';
 const BACKUP_KEY = 'llocs.v1.backup';
 
-const DEFAULT_UI = { categories: [], search: '', sort: 'distance', visibleRoutes: [] };
+const DEFAULT_UI = { categories: [], search: '', sort: 'distance', reserved: false, starred: false, visibleRoutes: [] };
 
 function read(key) {
   try {
@@ -35,16 +35,17 @@ export function loadLocalData() {
     routes: Array.isArray(saved.routes) ? saved.routes : [],
     airbnb: saved.airbnb || null,
     customCategories: Array.isArray(saved.customCategories) ? saved.customCategories : [],
-    flights: saved.flights && typeof saved.flights === 'object' ? saved.flights : {},
+    participants: Array.isArray(saved.participants) ? saved.participants : [],
+    expenses: Array.isArray(saved.expenses) ? saved.expenses : [],
   };
 }
 
 // Schrumpft die Liste, wird der bisherige Stand vorher als Sicherung abgelegt (siehe loadLocalBackup).
-export function saveLocalData({ places, routes, airbnb, customCategories, flights }) {
+export function saveLocalData({ places, routes, airbnb, customCategories, participants, expenses }) {
   const previous = read(DATA_KEY);
   const prevCount = Array.isArray(previous?.places) ? previous.places.length : 0;
   if (prevCount > places.length) write(BACKUP_KEY, { ...previous, savedAt: new Date().toISOString() });
-  return write(DATA_KEY, { places, routes, airbnb, customCategories, flights });
+  return write(DATA_KEY, { places, routes, airbnb, customCategories, participants, expenses });
 }
 
 export function loadLocalBackup() {
@@ -72,9 +73,10 @@ export function downloadBackup(state) {
     exportedAt: new Date().toISOString(),
     airbnb: state.airbnb,
     customCategories: state.customCategories,
-    flights: state.flights,
     places: state.places,
     routes: state.routes,
+    participants: state.participants,
+    expenses: state.expenses,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');

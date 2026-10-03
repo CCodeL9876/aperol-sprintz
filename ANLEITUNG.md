@@ -59,6 +59,15 @@ Die Datei importierst du in Schritt 4 auf der Online-Seite.
 
 ---
 
+## 2a. Datenbank aktualisieren (nach neuen Funktionen)
+
+Ausgaben, Reservierungen, „besucht“ und Favoriten brauchen zusätzliche Spalten und die Tabelle `expenses`.
+Dafür im Supabase-Dashboard → **SQL Editor** → **New query** den kompletten Inhalt von `supabase/schema.sql`
+einfügen und auf **Run** klicken. Das Skript ergänzt nur, was fehlt (`if not exists`) – bestehende Orte,
+Routen und Einstellungen bleiben unverändert. Es darf beliebig oft ausgeführt werden.
+
+Solange das nicht passiert ist, läuft die App trotzdem; im Fenster „Ausgaben“ erscheint dann ein Hinweis.
+
 ## 3. App auf GitHub Pages veröffentlichen
 
 ### Variante A: im Browser (ohne Terminal)
@@ -178,6 +187,32 @@ dafür ist kein zusätzlicher Schritt nötig.
 3. Die App startet danach im Vollbild, direkt in der gemeinsamen Reise.
 
 ---
+
+## 5. Google Maps testen (optional)
+
+Standard bleibt die OpenStreetMap-Karte. Die Google-Variante lässt sich zusätzlich zum Ausprobieren einschalten
+und bietet: Google-Kartenbild, Satellit, Radwege-Ebene, antippbare Restaurants/Cafés mit Bewertung und
+Öffnungszeiten sowie „Zu unseren Orten hinzufügen“.
+
+**Einmalig einrichten (ca. 15 Minuten):**
+
+1. <https://console.cloud.google.com> öffnen, oben **Projekt auswählen → Neues Projekt**, z. B. „Aperol Sprintz“.
+2. **Abrechnung** mit dem Projekt verknüpfen (Kreditkarte nötig). Google gewährt monatliche Gratis-Kontingente –
+   für eine kleine Reisegruppe fallen nach aktuellem Stand keine Kosten an; aktuelle Bedingungen bei Google prüfen.
+3. **APIs & Dienste → Bibliothek**: **„Maps JavaScript API“** und **„Places API (New)“** aktivieren.
+4. **APIs & Dienste → Anmeldedaten → Anmeldedaten erstellen → API-Schlüssel**. Danach den Schlüssel **einschränken**:
+   - *Anwendungseinschränkungen*: **Websites**, dann beide Adressen eintragen:
+     `https://ccodel9876.github.io/aperol-sprintz/*` und `http://localhost:5173/*`
+   - *API-Einschränkungen*: **Schlüssel einschränken** → nur „Maps JavaScript API“ und „Places API (New)“.
+5. Empfohlen: **Abrechnung → Budgets & Benachrichtigungen** → Budget z. B. 5 € mit E-Mail-Warnung anlegen.
+6. Den Schlüssel in `js/config.js` bei `GOOGLE_MAPS_API_KEY = '…'` eintragen und `./deploy.sh` ausführen.
+
+Der Schlüssel steht danach öffentlich im Quellcode – das ist bei Google Maps so vorgesehen. Durch die
+Einschränkung in Schritt 4 funktioniert er nur auf deiner Seite und nur für diese beiden Dienste.
+
+**Umschalten:** Menü **„•••“ → „Google Maps testen“**, zurück mit **„Zurück zu OpenStreetMap“**. Die Wahl merkt sich
+jedes Gerät bzw. jeder Browser selbst; andere sehen weiterhin OpenStreetMap, bis sie selbst umschalten.
+Alternativ direkt per Adresse: `…/aperol-sprintz/?karte=google` bzw. `?karte=osm` (der `#reise=…`-Teil bleibt dahinter).
 
 ## Sicherheit in einem Satz
 
