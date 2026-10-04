@@ -90,6 +90,23 @@ an, gibt nur die lange Google-Maps-Adresse zurück und speichert nichts.
 
 Ist die Funktion (noch) nicht eingerichtet, sucht die App solche Orte über den Namen und weist im Import darauf hin.
 
+## 2c. Zugangscode für die Reise (optional)
+
+Zusätzlich zum geheimen Reise-Link lässt sich ein Code festlegen. Dann liefert die Datenbank nur noch mit
+dem richtigen Code Daten – auch wer den Link bekommt, sieht ohne Code nur die Code-Abfrage. Gespeichert wird
+nur eine bcrypt-Prüfsumme in der Tabelle `trip_access`, nie der Code selbst.
+
+1. Den kompletten Inhalt von `supabase/schema.sql` im Supabase SQL Editor ausführen (ergänzt die Tabelle,
+   die Prüffunktionen und erweitert die Zugriffsregeln – bestehende Daten bleiben unverändert).
+2. Die aktuelle App-Version hochladen (`./deploy.sh`) und auf allen Handys einmal neu laden.
+3. In der App: **Teilen → Zugangscode festlegen**, Code zweimal eingeben (mind. 6 Zeichen, z. B. ein Wort mit Zahl).
+4. Den Code den Mitreisenden **getrennt vom Link** sagen. Jede Person gibt ihn einmal pro Gerät ein.
+
+Ändern oder entfernen geht unter **Teilen → Zugangscode ändern**; danach fragt die App bei allen anderen den
+neuen Code ab. „Auf diesem Gerät abmelden“ löscht den gespeicherten Code auf dem eigenen Handy.
+Wichtig: Wer den Code vergisst, kann ihn bei einer Mitreisenden erfragen oder im Supabase-Dashboard die Zeile
+der Reise in `trip_access` löschen – dann reicht wieder der Link.
+
 ## 3. App auf GitHub Pages veröffentlichen
 
 ### Variante A: im Browser (ohne Terminal)

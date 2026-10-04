@@ -109,40 +109,138 @@ as $$
   select nullif(current_setting('request.headers', true)::json ->> 'x-trip-key', '')
 $$;
 
+-- Zugangscode pro Reise (optional): Ist für eine Reise ein Code gesetzt, liefert die Datenbank nur noch
+-- Daten, wenn die App zusätzlich zum Reise-Schlüssel den richtigen Code mitschickt (Header "x-trip-code").
+-- Gespeichert wird nur eine bcrypt-Prüfsumme, nie der Code selbst. Ohne Code gilt wie bisher der Reise-Schlüssel.
+create extension if not exists pgcrypto with schema extensions;
+
+create table if not exists public.trip_access (
+  trip_key    text primary key check (char_length(trip_key) between 32 and 128),
+  code_hash   text not null,
+  updated_at  timestamptz not null default now()
+);
+alter table public.trip_access enable row level security;
+-- Keine Policies und keine Rechte: nur über die Funktionen unten erreichbar
+revoke all on public.trip_access from anon, authenticated;
+
+create or replace function public.request_trip_code()
+returns text
+language sql
+stable
+set search_path = ''
+as $$
+  select nullif(current_setting('request.headers', true)::json ->> 'x-trip-code', '')
+$$;
+
+-- true, wenn für die Reise kein Code gesetzt ist oder der mitgeschickte Code stimmt.
+-- Ein falscher Code verzögert die Antwort, damit sich Codes nicht schnell durchprobieren lassen.
+create or replace function public.trip_code_ok()
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  stored text;
+begin
+  select code_hash into stored from public.trip_access where trip_key = public.request_trip_key();
+  if stored is null then
+    return true;
+  end if;
+  if extensions.crypt(coalesce(public.request_trip_code(), ''), stored) = stored then
+    return true;
+  end if;
+  perform pg_sleep(0.5);
+  return false;
+end
+$$;
+
+-- Für die App: 'none' (kein Code gesetzt), 'ok' (Code stimmt) oder 'wrong' (Code fehlt/falsch)
+create or replace function public.trip_code_status()
+returns text
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  if public.request_trip_key() is null
+     or not exists (select 1 from public.trip_access where trip_key = public.request_trip_key()) then
+    return 'none';
+  end if;
+  return case when public.trip_code_ok() then 'ok' else 'wrong' end;
+end
+$$;
+
+-- Code setzen, ändern (alter Code nötig) oder mit leerem Text entfernen
+create or replace function public.set_trip_code(new_code text)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  k text := public.request_trip_key();
+begin
+  if k is null or char_length(k) < 32 then
+    raise exception 'kein gültiger Reise-Schlüssel';
+  end if;
+  if not public.trip_code_ok() then
+    raise exception 'der bisherige Zugangscode stimmt nicht';
+  end if;
+  if coalesce(new_code, '') = '' then
+    delete from public.trip_access where trip_key = k;
+    return true;
+  end if;
+  if char_length(new_code) < 6 or char_length(new_code) > 64 then
+    raise exception 'der Code muss 6 bis 64 Zeichen lang sein';
+  end if;
+  insert into public.trip_access (trip_key, code_hash, updated_at)
+  values (k, extensions.crypt(new_code, extensions.gen_salt('bf', 8)), now())
+  on conflict (trip_key) do update set code_hash = excluded.code_hash, updated_at = now();
+  return true;
+end
+$$;
+
+grant execute on function public.trip_code_status(), public.set_trip_code(text) to anon, authenticated;
+
 alter table public.places enable row level security;
 alter table public.routes enable row level security;
 alter table public.route_files enable row level security;
 alter table public.trip_settings enable row level security;
 alter table public.expenses enable row level security;
 
+-- Zugriff nur mit Reise-Schlüssel – und, falls für die Reise gesetzt, mit dem richtigen Zugangscode
 drop policy if exists "Nur mit Reise-Schlüssel" on public.places;
 create policy "Nur mit Reise-Schlüssel" on public.places
   for all to anon, authenticated
-  using (trip_key = public.request_trip_key())
-  with check (trip_key = public.request_trip_key());
+  using (trip_key = (select public.request_trip_key()) and (select public.trip_code_ok()))
+  with check (trip_key = (select public.request_trip_key()) and (select public.trip_code_ok()));
 
 drop policy if exists "Nur mit Reise-Schlüssel" on public.routes;
 create policy "Nur mit Reise-Schlüssel" on public.routes
   for all to anon, authenticated
-  using (trip_key = public.request_trip_key())
-  with check (trip_key = public.request_trip_key());
+  using (trip_key = (select public.request_trip_key()) and (select public.trip_code_ok()))
+  with check (trip_key = (select public.request_trip_key()) and (select public.trip_code_ok()));
 
 drop policy if exists "Nur mit Reise-Schlüssel" on public.route_files;
 create policy "Nur mit Reise-Schlüssel" on public.route_files
   for all to anon, authenticated
-  using (trip_key = public.request_trip_key())
-  with check (trip_key = public.request_trip_key());
+  using (trip_key = (select public.request_trip_key()) and (select public.trip_code_ok()))
+  with check (trip_key = (select public.request_trip_key()) and (select public.trip_code_ok()));
 
 drop policy if exists "Nur mit Reise-Schlüssel" on public.trip_settings;
 create policy "Nur mit Reise-Schlüssel" on public.trip_settings
   for all to anon, authenticated
-  using (trip_key = public.request_trip_key())
-  with check (trip_key = public.request_trip_key());
+  using (trip_key = (select public.request_trip_key()) and (select public.trip_code_ok()))
+  with check (trip_key = (select public.request_trip_key()) and (select public.trip_code_ok()));
 
 drop policy if exists "Nur mit Reise-Schlüssel" on public.expenses;
 create policy "Nur mit Reise-Schlüssel" on public.expenses
   for all to anon, authenticated
-  using (trip_key = public.request_trip_key())
-  with check (trip_key = public.request_trip_key());
+  using (trip_key = (select public.request_trip_key()) and (select public.trip_code_ok()))
+  with check (trip_key = (select public.request_trip_key()) and (select public.trip_code_ok()));
 
 grant select, insert, update, delete on public.places, public.routes, public.route_files, public.trip_settings, public.expenses to anon, authenticated;

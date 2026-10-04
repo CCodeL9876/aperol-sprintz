@@ -39,6 +39,19 @@ export const rememberedTripKey = () => readPref('trip');
 export const rememberTripKey = (key) => writePref('trip', key);
 export const forgetTripKey = () => writePref('trip', null);
 export const shareUrl = (key) => `${location.origin}${location.pathname}#reise=${key}`;
+// Zugangscode der Reise: bleibt auf diesem Gerät gespeichert, bis man sich abmeldet
+export const rememberedTripCode = () => readPref('tripCode') || '';
+export const rememberTripCode = (code) => writePref('tripCode', code || null);
+export const forgetTripCode = () => writePref('tripCode', null);
+
+// Die Reise ist mit einem Zugangscode geschützt und der Code fehlt oder ist falsch
+export class CodeRequiredError extends Error {
+  constructor(wrong) {
+    super(wrong ? 'Zugangscode stimmt nicht' : 'Zugangscode nötig');
+    this.code = 'CODE_REQUIRED';
+    this.wrong = wrong;
+  }
+}
 
 // Google-Maps-Kurzlinks (maps.app.goo.gl – aus „Teilen → Kopieren“ in der Google-Maps-App) enthalten weder
 // Name noch Koordinaten. Die Supabase-Funktion „resolve-maps-link“ (supabase/functions/) holt die lange
@@ -223,16 +236,27 @@ function check({ error }) {
 export class SharedBackend {
   kind = 'shared';
 
-  static async connect(key) {
+  // code: Zugangscode, falls die Reise geschützt ist – wird bei jeder Anfrage als „x-trip-code“ mitgeschickt
+  // und von der Datenbank geprüft (supabase/schema.sql, trip_code_ok)
+  static async connect(key, code = rememberedTripCode()) {
     if (!sharingConfigured()) throw new Error('Gemeinsame Reisen sind noch nicht eingerichtet (js/config.js).');
     const { createClient } = await loadSupabase();
     const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { 'x-trip-key': key } },
+      global: { headers: { 'x-trip-key': key, ...(code ? { 'x-trip-code': code } : {}) } },
     });
     const backend = new SharedBackend(db, key);
-    await backend.load(); // prüft Verbindung und Schlüssel
+    backend.code = code || '';
+    await backend.load(); // prüft Verbindung, Schlüssel und Zugangscode
     return backend;
+  }
+
+  // Zugangscode setzen/ändern; leerer Text entfernt ihn. Danach neu verbinden (der Code steckt im Header).
+  async setCode(newCode) {
+    const { error } = await this.db.rpc('set_trip_code', { new_code: newCode || '' });
+    if (error) throw new Error(/function|schema cache/i.test(error.message)
+      ? 'Zugangscode in der Datenbank noch nicht eingerichtet (supabase/schema.sql ausführen)'
+      : error.message);
   }
 
   constructor(db, key) {
@@ -241,6 +265,12 @@ export class SharedBackend {
   }
 
   async load() {
+    // Zuerst klären, ob ein Zugangscode nötig ist: bei falschem Code liefert die Datenbank sonst einfach
+    // leere Listen, und die Reise sähe leer aus. Fehlt die Funktion (SQL noch nicht ausgeführt): kein Schutz.
+    const access = await this.db.rpc('trip_code_status');
+    const status = access.error ? 'none' : access.data;
+    if (status === 'wrong') throw new CodeRequiredError(Boolean(this.code));
+    this.codeProtected = status === 'ok';
     const [places, routes, settings, expenses] = await Promise.all([
       this.db.from('places').select('*').eq('trip_key', this.key).order('created_at'),
       this.db.from('routes').select('*').eq('trip_key', this.key).order('created_at'),

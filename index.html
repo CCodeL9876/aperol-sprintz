@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-04.13" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-04.13">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-04.14" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-04.14">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-04.13">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-04.13">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-04.13">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-04.14">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-04.14">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-04.14">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -515,27 +515,78 @@
     </div>
   </dialog>
 
+  <!-- Zugangscode: erscheint beim Öffnen einer geschützten Reise; lässt sich nicht wegklicken -->
+  <dialog id="code-dialog" class="dialog code-dialog" aria-labelledby="code-title" data-locked>
+    <form id="code-form" class="dialog-inner" autocomplete="off" novalidate>
+      <header class="dialog-head">
+        <div>
+          <span class="eyebrow">Gemeinsame Reise</span>
+          <h2 id="code-title">Zugangscode</h2>
+        </div>
+      </header>
+      <p class="code-lead">Diese Reise ist geschützt. Gib den Code ein, den du von deinen Mitreisenden bekommen hast – dein Gerät merkt ihn sich.</p>
+      <label class="field">
+        <span>Code</span>
+        <input id="code-input" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" maxlength="64">
+      </label>
+      <label class="check"><input id="code-show" type="checkbox"><span>Code anzeigen</span></label>
+      <p id="code-error" class="code-error" role="alert"></p>
+      <footer class="dialog-foot">
+        <button class="btn btn-primary" type="submit" id="code-submit">Öffnen</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Zugangscode festlegen, ändern oder entfernen (aus dem Fenster „Teilen“) -->
+  <dialog id="code-manage-dialog" class="dialog" aria-labelledby="code-manage-title">
+    <form id="code-manage-form" class="dialog-inner" autocomplete="off" novalidate>
+      <header class="dialog-head">
+        <div>
+          <span class="eyebrow">Gemeinsame Reise</span>
+          <h2 id="code-manage-title">Zugangscode</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="Schließen"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </header>
+      <p id="code-manage-status" class="code-lead"></p>
+      <label class="field">
+        <span>Neuer Code <span class="field-opt">(mind. 6 Zeichen, z. B. ein Wort mit Zahl)</span></span>
+        <input id="code-new" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="64">
+      </label>
+      <label class="field">
+        <span>Code wiederholen</span>
+        <input id="code-repeat" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="64">
+      </label>
+      <label class="check"><input id="code-manage-show" type="checkbox"><span>Code anzeigen</span></label>
+      <p id="code-manage-error" class="code-error" role="alert"></p>
+      <footer class="dialog-foot code-manage-foot">
+        <button class="btn-link muted" type="button" id="code-remove" hidden>Code entfernen</button>
+        <button class="btn btn-primary" type="submit" id="code-save">Code speichern</button>
+      </footer>
+      <button class="btn-link muted code-logout" type="button" id="code-logout" hidden>Auf diesem Gerät abmelden</button>
+    </form>
+  </dialog>
+
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-04.13"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-04.14"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-04.13",
-      "./js/backend.js": "./js/backend.js?v=2026-10-04.13",
-      "./js/cash.js": "./js/cash.js?v=2026-10-04.13",
-      "./js/categories.js": "./js/categories.js?v=2026-10-04.13",
-      "./js/config.js": "./js/config.js?v=2026-10-04.13",
-      "./js/geo.js": "./js/geo.js?v=2026-10-04.13",
-      "./js/icons.js": "./js/icons.js?v=2026-10-04.13",
-      "./js/importers.js": "./js/importers.js?v=2026-10-04.13",
-      "./js/map.js": "./js/map.js?v=2026-10-04.13",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-04.13",
-      "./js/store.js": "./js/store.js?v=2026-10-04.13"
+      "./js/app.js": "./js/app.js?v=2026-10-04.14",
+      "./js/backend.js": "./js/backend.js?v=2026-10-04.14",
+      "./js/cash.js": "./js/cash.js?v=2026-10-04.14",
+      "./js/categories.js": "./js/categories.js?v=2026-10-04.14",
+      "./js/config.js": "./js/config.js?v=2026-10-04.14",
+      "./js/geo.js": "./js/geo.js?v=2026-10-04.14",
+      "./js/icons.js": "./js/icons.js?v=2026-10-04.14",
+      "./js/importers.js": "./js/importers.js?v=2026-10-04.14",
+      "./js/map.js": "./js/map.js?v=2026-10-04.14",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-04.14",
+      "./js/store.js": "./js/store.js?v=2026-10-04.14"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-04.13"></script>
+  <script type="module" src="js/app.js?v=2026-10-04.14"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@ import { parseFile, parseGeoJSON, parseLinks, assignCategory, buildGpx } from '.
 import { loadUi, saveUi, readPref, writePref, downloadBackup, newId, newTripKey, loadLocalBackup, clearLocalBackup } from './store.js';
 import { expandMapsLinks, hasShortMapsLinks,
   LocalBackend, SharedBackend, sharingConfigured, tripKeyFromUrl,
-  rememberedTripKey, rememberTripKey, forgetTripKey, shareUrl,
+  rememberedTripKey, rememberTripKey, forgetTripKey, shareUrl, rememberTripCode, forgetTripCode,
 } from './backend.js';
 import { createMap } from './map.js';
 import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './config.js';
@@ -132,6 +132,7 @@ let lastSignature = '';
 
 async function refresh({ fit = false } = {}) {
   if (pendingWrites > 0 && !fit) return;
+  if (document.getElementById('code-dialog').open) return; // Zugangscode wird gerade abgefragt
   try {
     const data = await backend.load();
     lastSync = new Date();
@@ -145,6 +146,8 @@ async function refresh({ fit = false } = {}) {
     dataLoaded = true;
     render({ fit });
   } catch (err) {
+    // Zugangscode inzwischen geändert (oder auf diesem Gerät nie eingegeben): neu abfragen
+    if (err.code === 'CODE_REQUIRED') return showCodeLogin(backend.key, true);
     if (backend.kind === 'shared') setSyncStatus(`Keine Verbindung (${err.message})`);
     else toast(`Orte konnten nicht geladen werden: ${err.message}`);
   }
@@ -1870,6 +1873,7 @@ $$('.tab', importDialog).forEach((tab) => tab.addEventListener('click', () => se
 // Dialoge: Schließen-Buttons + Klick auf den Hintergrund
 $$('dialog').forEach((dlg) => {
   dlg.addEventListener('click', (e) => {
+    if (dlg.hasAttribute('data-locked')) return;
     if (e.target === dlg || e.target.closest('[data-close]')) dlg.close();
   });
 });
@@ -1902,6 +1906,12 @@ function renderShareDialog() {
         <button id="btn-copy-link" class="btn btn-primary" type="button">Link kopieren</button>
       </div>
       <p class="hint" id="sync-status">Zuletzt abgeglichen um ${time} · aktualisiert sich alle 20 Sekunden</p>
+      <div class="share-code">
+        <p class="share-text">${backend.codeProtected
+          ? '<strong>Mit Zugangscode geschützt:</strong> Der Link allein reicht nicht. Sag den Code deinen Mitreisenden getrennt vom Link, z. B. mündlich.'
+          : '<strong>Kein Zugangscode:</strong> Wer den Link hat, sieht alles. Mit einem Code braucht man zusätzlich den Code.'}</p>
+        <button id="btn-code-manage" class="btn-link" type="button">${backend.codeProtected ? 'Zugangscode ändern' : 'Zugangscode festlegen'}</button>
+      </div>
       <button id="btn-leave-trip" class="btn-link muted" type="button">Reise auf diesem Gerät verlassen</button>`;
   } else if (sharingConfigured()) {
     const n = state.places.length;
@@ -1963,6 +1973,7 @@ function switchTo(next) {
 
 async function leaveTrip() {
   if (!confirm('Reise auf diesem Gerät verlassen? Die gemeinsamen Orte bleiben erhalten – du kommst über den Link jederzeit zurück.')) return;
+  forgetTripCode();
   switchTo(new LocalBackend(() => state));
   await refresh({ fit: true });
   toast('Du siehst wieder deine lokalen Orte');
@@ -1985,6 +1996,119 @@ $('#share-body').addEventListener('click', (e) => {
   if (id === 'btn-start-trip') startTrip();
   if (id === 'btn-copy-link') copyLink();
   if (id === 'btn-leave-trip') leaveTrip();
+  if (id === 'btn-code-manage') openCodeManage();
+});
+
+// --- Zugangscode ------------------------------------------------------------------------------
+// Optionaler Schutz einer gemeinsamen Reise: Ist ein Code gesetzt, liefert die Datenbank nur mit dem
+// richtigen Code Daten (geprüft in Supabase, siehe supabase/schema.sql). Die Abfrage lässt sich nicht
+// wegklicken; nach dem richtigen Code merkt sich das Gerät ihn, bis man sich abmeldet.
+
+const codeDialog = $('#code-dialog');
+let codeTripKey = null;
+codeDialog.addEventListener('cancel', (e) => e.preventDefault()); // Esc schliesst die Abfrage nicht
+
+function showCodeLogin(key, wrong = false) {
+  codeTripKey = key;
+  $$('dialog[open]').forEach((d) => { if (d !== codeDialog) d.close(); });
+  $('#code-error').textContent = wrong ? 'Der Code auf diesem Gerät stimmt nicht (mehr) – bitte den aktuellen Code eingeben.' : '';
+  $('#code-input').value = '';
+  if (!codeDialog.open) codeDialog.showModal();
+  setTimeout(() => $('#code-input').focus(), 60);
+}
+
+const toggleCodeVisible = (checkbox, inputs) => checkbox.addEventListener('change', () => {
+  inputs.forEach((sel) => { $(sel).type = checkbox.checked ? 'text' : 'password'; });
+});
+toggleCodeVisible($('#code-show'), ['#code-input']);
+
+$('#code-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const code = $('#code-input').value.trim();
+  if (!code) return;
+  const btn = $('#code-submit');
+  btn.disabled = true;
+  btn.textContent = 'Prüfe …';
+  try {
+    const shared = await SharedBackend.connect(codeTripKey, code);
+    rememberTripCode(code);
+    switchTo(shared);
+    codeDialog.close();
+    lastSignature = '';
+    await refresh({ fit: true });
+  } catch (err) {
+    $('#code-error').textContent = err.code === 'CODE_REQUIRED' ? 'Dieser Code stimmt nicht.' : `Keine Verbindung: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Öffnen';
+  }
+});
+
+const codeManageDialog = $('#code-manage-dialog');
+toggleCodeVisible($('#code-manage-show'), ['#code-new', '#code-repeat']);
+
+function openCodeManage() {
+  if (backend.kind !== 'shared') return;
+  const on = Boolean(backend.codeProtected);
+  $('#code-manage-status').textContent = on
+    ? 'Diese Reise ist mit einem Zugangscode geschützt. Hier kannst du ihn ändern oder entfernen. Nach einer Änderung müssen alle anderen den neuen Code einmal eingeben.'
+    : 'Noch kein Zugangscode: Wer den Reise-Link hat, sieht alles. Mit einem Code braucht man zusätzlich den Code – teile ihn getrennt vom Link.';
+  $('#code-remove').hidden = !on;
+  $('#code-logout').hidden = !on;
+  $('#code-save').textContent = on ? 'Code ändern' : 'Code speichern';
+  $('#code-new').value = '';
+  $('#code-repeat').value = '';
+  $('#code-manage-error').textContent = '';
+  codeManageDialog.showModal();
+}
+
+// Code in der Datenbank setzen (leer = entfernen), auf diesem Gerät merken und neu verbinden
+async function applyTripCode(newCode) {
+  await backend.setCode(newCode);
+  if (newCode) rememberTripCode(newCode); else forgetTripCode();
+  switchTo(await SharedBackend.connect(backend.key, newCode));
+  lastSignature = '';
+  await refresh();
+  renderShareDialog();
+}
+
+$('#code-manage-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const error = $('#code-manage-error');
+  const code = $('#code-new').value.trim();
+  error.textContent = code.length < 6 ? 'Der Code braucht mindestens 6 Zeichen – z. B. ein Wort mit Zahl.'
+    : code.length > 64 ? 'Der Code darf höchstens 64 Zeichen lang sein.'
+    : code !== $('#code-repeat').value.trim() ? 'Die beiden Eingaben stimmen nicht überein.'
+    : '';
+  if (error.textContent) return;
+  const btn = $('#code-save');
+  btn.disabled = true;
+  try {
+    await applyTripCode(code);
+    codeManageDialog.close();
+    toast('Zugangscode gespeichert – sag ihn deinen Mitreisenden, am besten nicht im selben Chat wie den Link.');
+  } catch (err) {
+    error.textContent = `Code konnte nicht gespeichert werden: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$('#code-remove').addEventListener('click', async () => {
+  if (!confirm('Zugangscode entfernen? Danach reicht wieder der Reise-Link allein.')) return;
+  try {
+    await applyTripCode('');
+    codeManageDialog.close();
+    toast('Zugangscode entfernt');
+  } catch (err) {
+    $('#code-manage-error').textContent = `Code konnte nicht entfernt werden: ${err.message}`;
+  }
+});
+
+$('#code-logout').addEventListener('click', () => {
+  if (!confirm('Auf diesem Gerät abmelden? Beim nächsten Öffnen wird der Zugangscode wieder abgefragt.')) return;
+  forgetTripCode();
+  location.reload();
 });
 $('#member-name').addEventListener('input', (e) => writePref('name', e.target.value.trim().slice(0, 40)));
 
@@ -2150,11 +2274,12 @@ async function boot() {
       try {
         switchTo(await SharedBackend.connect(key));
       } catch (err) {
-        toast(`Gemeinsame Reise nicht erreichbar: ${err.message}`);
+        if (err.code === 'CODE_REQUIRED') showCodeLogin(key, err.wrong);
+        else toast(`Gemeinsame Reise nicht erreichbar: ${err.message}`);
       }
     }
   }
-  await refresh({ fit: true });
+  if (!codeDialog.open) await refresh({ fit: true });
 
   // Gemeinsame Reise: regelmäßig und beim Zurückkehren in die App abgleichen.
   setInterval(() => {
