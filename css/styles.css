@@ -370,10 +370,16 @@ select {
 .link-row { display: flex; gap: 18px; margin-top: 4px; flex-wrap: wrap; }
 .link-row.is-stacked { flex-direction: column; align-items: flex-start; gap: 0; margin-top: 0; }
 
-/* Optionale Links (Airbnb-Inserat, Google Maps) zur selbst gesetzten Unterkunft nachtragen */
-.airbnb-links-form { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-.airbnb-links-form input { background: var(--bg); }
-.airbnb-links-form .btn { align-self: flex-start; }
+/* Unterkunft: Bezeichnung + Adresse, darunter Route; Bearbeiten öffnet das Formular mit zwei Feldern */
+.airbnb-view { display: flex; flex-direction: column; gap: 4px; }
+.airbnb-name { margin: 0; font-weight: 700; font-size: 15px; color: var(--text); overflow-wrap: anywhere; }
+.airbnb-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; }
+.airbnb-actions .airbnb-route { align-self: auto; }
+.airbnb-form { display: flex; flex-direction: column; gap: 10px; }
+.airbnb-form input { background: var(--bg); }
+.airbnb-form-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+.airbnb-error { margin: 0; font-size: 13px; color: var(--orange-ink); }
+.airbnb-error:empty { display: none; }
 
 .panel-summary {
   display: flex; gap: 14px; align-items: flex-start;

@@ -22,13 +22,16 @@ export function routeUrl(p) {
   return `https://www.google.com/maps/dir/?${new URLSearchParams({ api: '1', destination })}`;
 }
 
-// Route zur Unterkunft. Die Bezeichnung hat oft die Form „Name · Adresse“ – die Adresse (Teil nach dem
-// letzten „·“) trifft die Hausnummer genauer als die Koordinaten aus der Adresssuche. Bei einem auf der
-// Karte gewählten Punkt („Gewählter Punkt (…)“) oder reinen Koordinaten zählen die Koordinaten.
+// Route zur Unterkunft: Ziel ist die eingetragene Adresse – die findet Google Maps zuverlässig samt Hausnummer.
+// Ältere Einträge ohne Adressfeld: Bezeichnung „Name · Adresse“ → Teil nach dem letzten „·“; bei reinen
+// Koordinaten, einem auf der Karte gewählten Punkt oder einem eingefügten Maps-Link („Pin (…)“) die Koordinaten.
 export function homeRouteUrl(a) {
-  const text = String(a.label || '').split(' · ').pop().trim();
-  const useCoords = !/[a-zäöü]{3}/i.test(text) || /^Gewählter Punkt/.test(text);
-  const destination = useCoords && hasCoords(a) ? `${a.lat},${a.lng}` : text || `${a.lat},${a.lng}`;
+  let destination = String(a.address || '').trim();
+  if (!destination) {
+    const text = String(a.label || '').split(' · ').pop().trim();
+    const useCoords = !/[a-zäöü]{3}/i.test(text) || /^(Gewählter Punkt|Pin)\b/.test(text);
+    destination = useCoords && hasCoords(a) ? `${a.lat},${a.lng}` : text || `${a.lat},${a.lng}`;
+  }
   return `https://www.google.com/maps/dir/?${new URLSearchParams({ api: '1', destination })}`;
 }
 

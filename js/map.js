@@ -33,8 +33,9 @@ export function pinHtml(cat, active, { reserved, visited, starred } = {}) {
 export function airbnbPopupHtml(airbnb) {
   return `
     <div class="popup">
-      <span class="popup-cat" style="--c:#FFD23F;--ci:#16131A">Unser Airbnb</span>
-      <strong class="popup-name">${escapeHtml(airbnb.label)}</strong>
+      <span class="popup-cat" style="--c:#3F6B34;--ci:#3F6B34">Unser Airbnb</span>
+      <strong class="popup-name">${escapeHtml(airbnb.name || airbnb.label)}</strong>
+      ${airbnb.name && airbnb.address ? `<span class="popup-addr">${escapeHtml(airbnb.address)}</span>` : ''}
       <a class="popup-link" href="${escapeHtml(homeRouteUrl(airbnb))}" target="_blank" rel="noopener">${icon('navigation', { size: 13, stroke: 2.2 })} Route zur Unterkunft ↗</a>
     </div>`;
 }

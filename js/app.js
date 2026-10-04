@@ -35,6 +35,7 @@ const state = {
 let backend = new LocalBackend(() => state);
 let activeId = null;
 let pickMode = false;
+let airbnbFormAuto = false; // Unterkunft-Formular nur geöffnet, weil noch keine Unterkunft eingetragen war
 let geocodeRunning = false;
 let pendingWrites = 0;
 // Erst speichern, wenn die Orte geladen sind – sonst würde eine leere Liste den Speicher überschreiben.
@@ -154,7 +155,10 @@ const mapOptions = {
   onMapClick: (latlng) => {
     if (!pickMode) return false;
     setPickMode(false);
-    setAirbnb({ label: `Gewählter Punkt (${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)})`, lat: latlng.lat, lng: latlng.lng });
+    // Bezeichnung und Adresse aus dem Formular übernehmen; die Route führt weiterhin zur Adresse
+    const name = $('#airbnb-name-input').value.trim().slice(0, 120);
+    const address = $('#airbnb-address-input').value.trim().slice(0, 300);
+    setAirbnb({ ...(state.airbnb || {}), name, address, label: airbnbLabel(name, address) || `Gewählter Punkt (${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)})`, lat: latlng.lat, lng: latlng.lng });
     return true;
   },
   onMarkerClick: (id) => selectPlace(id, { fly: false, scrollList: true }),
@@ -364,36 +368,25 @@ function render({ fit = false } = {}) {
 
 function renderAirbnb() {
   const a = state.airbnb;
-  // Links kommen von der fest hinterlegten Unterkunft (config.js, falls genutzt) oder – im Normalfall –
-  // von den optional selbst eingetragenen Links (state.airbnb.url/.mapsUrl, siehe #airbnb-links-form).
-  const links = fixedAirbnb || a;
-  $('#airbnb-label').textContent = a ? a.label : 'Noch nicht festgelegt';
+  // Anzeige: Bezeichnung + Adresse. Ältere Einträge haben nur eine Bezeichnung (label) – dann steht diese da.
+  const name = a?.name || '';
+  $('#airbnb-name').textContent = name;
+  $('#airbnb-name').hidden = !name;
+  $('#airbnb-label').textContent = a ? (name ? a.address || '' : a.label) : 'Noch nicht festgelegt';
   $('#airbnb-label').classList.toggle('is-set', !!a);
-  $('#btn-airbnb-clear').hidden = !a || !!fixedAirbnb;
-  // Feste Unterkunft: Suche und Kartenauswahl ausblenden, stattdessen Link zum Inserat.
-  $('#airbnb-form').hidden = !!fixedAirbnb;
-  $('#btn-pick').hidden = !!fixedAirbnb;
-  if (fixedAirbnb) $('#airbnb-results').hidden = true;
-  // Null-sicher: lädt der Browser noch ein älteres index.html aus dem Cache, darf der Start nicht abbrechen.
-  const link = $('#airbnb-link');
-  if (link) {
-    link.hidden = !links?.url;
-    if (links?.url) link.href = links.url;
-  }
   const route = $('#airbnb-route');
-  if (route) {
-    route.hidden = !a;
-    if (a) route.href = homeRouteUrl(a);
-  }
-  const mapsLink = $('#airbnb-maps-link');
-  if (mapsLink) {
-    mapsLink.hidden = !links?.mapsUrl;
-    if (links?.mapsUrl) mapsLink.href = links.mapsUrl;
-  }
-  // "Links hinzufügen" nur bei einer selbst gesetzten (nicht fest hinterlegten) Unterkunft anbieten.
-  const linksBtn = $('#btn-airbnb-links');
-  if (linksBtn) linksBtn.hidden = !a || !!fixedAirbnb;
-  $('.airbnb .link-row')?.classList.toggle('is-stacked', !!fixedAirbnb);
+  route.hidden = !a;
+  if (a) route.href = homeRouteUrl(a);
+  // Link zum Inserat: nur noch anzeigen, falls früher einer eingetragen wurde (oder fest in config.js)
+  const url = safeHttpUrl((fixedAirbnb || a)?.url);
+  $('#airbnb-link').hidden = !url;
+  if (url) $('#airbnb-link').href = url;
+  // Feste Unterkunft (config.js): nicht bearbeitbar. Ohne Unterkunft gleich das Formular zeigen.
+  $('#btn-airbnb-edit').hidden = !!fixedAirbnb || !a;
+  $('#btn-airbnb-edit').textContent = a && !name ? 'Bezeichnung & Adresse ergänzen' : 'Bearbeiten';
+  // Das automatisch geöffnete Formular wieder schliessen, sobald eine Unterkunft da ist (z. B. nach dem Laden)
+  if (!a && !fixedAirbnb && $('#airbnb-form').hidden) openAirbnbForm({ auto: true });
+  else if (a && airbnbFormAuto) closeAirbnbForm();
 }
 
 // Rennrad-Routen: eigener Abschnitt unter den Orten, gleicher Aufbau wie die Ortsliste, aber jede
@@ -716,19 +709,44 @@ function selectPlace(id, { fly = true, scrollList = false } = {}) {
 }
 
 // --- Airbnb ---------------------------------------------------------------------------
+// state.airbnb = { name, address, label, lat, lng } – label = „Name · Adresse“ für Karte und ältere Versionen.
 
 function setAirbnb(airbnb) {
   if (fixedAirbnb) return;
   state.airbnb = airbnb;
   if (airbnb && state.ui.sort !== 'distance') state.ui.sort = 'distance';
   $('#sort').value = state.ui.sort;
-  $('#airbnb-results').hidden = true;
+  closeAirbnbForm();
   render();
   persistSettings();
   if (airbnb) {
     mapView.centerOn([airbnb.lat, airbnb.lng], Math.max(mapView.map.getZoom(), 11));
-    toast('Airbnb gesetzt – Entfernungen werden jetzt berechnet.');
+    toast('Unterkunft gespeichert – Entfernungen werden jetzt berechnet.');
   }
+}
+
+const airbnbLabel = (name, address) => [name, address].filter(Boolean).join(' · ');
+
+function openAirbnbForm({ auto = false } = {}) {
+  airbnbFormAuto = auto;
+  const a = state.airbnb;
+  $('#airbnb-name-input').value = a?.name || '';
+  // Ältere Einträge: eine echte Adresse aus der Bezeichnung übernehmen, „Pin (…)“/„Gewählter Punkt (…)“ nicht
+  const oldText = a && !a.name ? String(a.label || '') : '';
+  $('#airbnb-address-input').value = a?.address || (/^(Pin|Gewählter Punkt)\b/.test(oldText) || !/[a-zäöü]{3}/i.test(oldText) ? '' : oldText);
+  $('#airbnb-error').textContent = '';
+  $('#btn-pick').hidden = true;
+  $('#btn-airbnb-cancel').hidden = !a;
+  $('#btn-airbnb-clear').hidden = !a;
+  $('#airbnb-view').hidden = true; // beim Bearbeiten nur das Formular – „Abbrechen“ zeigt die Anzeige wieder
+  $('#airbnb-form').hidden = false;
+}
+
+function closeAirbnbForm() {
+  airbnbFormAuto = false;
+  $('#airbnb-form').hidden = true;
+  $('#airbnb-view').hidden = false;
+  if (pickMode) setPickMode(false);
 }
 
 function setPickMode(on) {
@@ -742,33 +760,44 @@ function setPickMode(on) {
   }
 }
 
+$('#btn-airbnb-edit').addEventListener('click', () => {
+  if ($('#airbnb-form').hidden) openAirbnbForm();
+  else closeAirbnbForm();
+});
+$('#btn-airbnb-cancel').addEventListener('click', closeAirbnbForm);
+
+// Speichern: Koordinaten aus der Adresse suchen (OpenStreetMap). Bleibt die Adresse gleich, gelten die
+// bisherigen Koordinaten weiter. Wird nichts gefunden, lässt sich der Punkt auf der Karte wählen.
 $('#airbnb-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const value = $('#airbnb-input').value.trim();
-  if (!value) return;
-  const coords = parseCoords(value);
-  if (coords) {
-    setAirbnb({ label: value.startsWith('http') ? `Pin (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})` : value, ...coords });
-    $('#airbnb-input').value = '';
+  const name = $('#airbnb-name-input').value.trim().slice(0, 120);
+  const address = $('#airbnb-address-input').value.trim().slice(0, 300);
+  const error = $('#airbnb-error');
+  error.textContent = '';
+  if (!address) {
+    error.textContent = 'Bitte die Adresse eintragen – sie ist das Ziel für die Route.';
     return;
   }
-  const results = $('#airbnb-results');
-  results.hidden = false;
-  results.innerHTML = '<li class="muted">Suche …</li>';
+  const prev = state.airbnb;
+  if (prev && prev.address === address && hasCoords(prev)) {
+    setAirbnb({ ...prev, name, address, label: airbnbLabel(name, address) });
+    return;
+  }
+  const save = $('#btn-airbnb-save');
+  save.disabled = true;
+  save.textContent = 'Suche Adresse …';
   try {
-    const hits = await geocode(value, MALLORCA_CENTER);
-    results.innerHTML = hits.length
-      ? hits.map((h, i) => `<li><button type="button" data-hit="${i}">${escapeHtml(h.label)}</button></li>`).join('')
-      : '<li class="muted">Nichts gefunden. Versuche es mit Ort und Straße oder einem Maps-Link.</li>';
-    results.onclick = (ev) => {
-      const btn = ev.target.closest('[data-hit]');
-      if (!btn) return;
-      const h = hits[Number(btn.dataset.hit)];
-      setAirbnb({ label: h.label.split(',').slice(0, 3).join(','), lat: h.lat, lng: h.lng });
-      $('#airbnb-input').value = '';
-    };
+    const [hit] = await geocode(address, MALLORCA_CENTER);
+    if (!hit) throw new Error('nicht gefunden');
+    setAirbnb({ ...(prev || {}), name, address, label: airbnbLabel(name, address), lat: hit.lat, lng: hit.lng });
   } catch (err) {
-    results.innerHTML = `<li class="muted">${escapeHtml(err.message)}</li>`;
+    error.textContent = err.message === 'nicht gefunden'
+      ? 'Adresse nicht gefunden. Schreib sie genauer (Strasse, Nummer, Ort) oder wähle den Punkt auf der Karte.'
+      : `Adresssuche nicht erreichbar (${err.message}). Du kannst den Punkt auf der Karte wählen.`;
+    $('#btn-pick').hidden = false;
+  } finally {
+    save.disabled = false;
+    save.textContent = 'Speichern';
   }
 });
 
@@ -776,31 +805,9 @@ $('#btn-pick').addEventListener('click', () => setPickMode(!pickMode));
 $('#btn-pick-cancel').addEventListener('click', () => setPickMode(false));
 $('#btn-airbnb-clear').addEventListener('click', () => {
   state.airbnb = fixedAirbnb;
+  closeAirbnbForm();
   render();
   persistSettings();
-});
-
-$('#btn-airbnb-links')?.addEventListener('click', () => {
-  const form = $('#airbnb-links-form');
-  const opening = form.hidden;
-  form.hidden = !opening;
-  if (opening) {
-    $('#airbnb-link-input').value = state.airbnb?.url || '';
-    $('#airbnb-mapslink-input').value = state.airbnb?.mapsUrl || '';
-    $('#airbnb-link-input').focus();
-  }
-});
-
-$('#airbnb-links-form')?.addEventListener('submit', (e) => {
-  e.preventDefault();
-  if (!state.airbnb) return;
-  const url = $('#airbnb-link-input').value.trim();
-  const mapsUrl = $('#airbnb-mapslink-input').value.trim();
-  state.airbnb = { ...state.airbnb, url, mapsUrl };
-  $('#airbnb-links-form').hidden = true;
-  render();
-  persistSettings();
-  toast('Links gespeichert');
 });
 
 // --- Filter ------------------------------------------------------------------------------

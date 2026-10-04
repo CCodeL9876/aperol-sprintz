@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-04.1" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-04.1">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-04.2" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-04.2">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-04.1">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-04.1">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-04.1">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-04.2">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-04.2">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-04.2">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -132,24 +132,32 @@
             <svg class="icon panel-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
           </summary>
           <div class="airbnb-details">
-            <p id="airbnb-label" class="airbnb-label">Noch nicht festgelegt</p>
-            <a id="airbnb-route" class="chip-btn route-btn airbnb-route" href="#" target="_blank" rel="noopener" title="Route von deinem Standort in Google Maps" hidden><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 22 2l-9 19-2-8Z"/></svg>Route zur Unterkunft</a>
-            <form id="airbnb-form" class="inline-form" autocomplete="off">
-              <input id="airbnb-input" type="text" placeholder="Adresse, Maps-Link oder „39.77, 2.71“" aria-label="Airbnb-Adresse">
-              <button class="btn btn-small" type="submit">Suchen</button>
-            </form>
-            <ul id="airbnb-results" class="search-results" hidden></ul>
-            <div class="link-row">
-              <button id="btn-pick" class="btn-link" type="button">Auf der Karte wählen</button>
-              <a id="airbnb-link" class="btn-link" href="#" target="_blank" rel="noopener" hidden>Inserat auf Airbnb ↗</a>
-              <a id="airbnb-maps-link" class="btn-link" href="#" target="_blank" rel="noopener" hidden>In Google Maps öffnen ↗</a>
-              <button id="btn-airbnb-links" class="btn-link" type="button" hidden>Links hinzufügen</button>
-              <button id="btn-airbnb-clear" class="btn-link muted" type="button" hidden>Entfernen</button>
+            <!-- Anzeige: Bezeichnung, Adresse, Route. Die Koordinaten (Karte, Entfernungen) ermittelt die App aus der Adresse. -->
+            <div id="airbnb-view" class="airbnb-view">
+              <p id="airbnb-name" class="airbnb-name" hidden></p>
+              <p id="airbnb-label" class="airbnb-label">Noch nicht festgelegt</p>
+              <div class="airbnb-actions">
+                <a id="airbnb-route" class="chip-btn route-btn airbnb-route" href="#" target="_blank" rel="noopener" title="Route von deinem Standort in Google Maps" hidden><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 22 2l-9 19-2-8Z"/></svg>Route zur Unterkunft</a>
+                <a id="airbnb-link" class="btn-link" href="#" target="_blank" rel="noopener" hidden>Inserat ↗</a>
+                <button id="btn-airbnb-edit" class="btn-link" type="button">Bearbeiten</button>
+              </div>
             </div>
-            <form id="airbnb-links-form" class="airbnb-links-form" autocomplete="off" hidden>
-              <input id="airbnb-link-input" type="text" placeholder="Link zum Airbnb-Inserat (optional)" aria-label="Link zum Airbnb-Inserat">
-              <input id="airbnb-mapslink-input" type="text" placeholder="Google-Maps-Link (optional)" aria-label="Google-Maps-Link">
-              <button class="btn btn-small" type="submit">Speichern</button>
+            <form id="airbnb-form" class="airbnb-form" autocomplete="off" novalidate hidden>
+              <label class="field">
+                <span>Bezeichnung</span>
+                <input id="airbnb-name-input" type="text" maxlength="120" placeholder="z. B. Finca Es Molí">
+              </label>
+              <label class="field">
+                <span>Adresse</span>
+                <input id="airbnb-address-input" type="text" maxlength="300" placeholder="Strasse Nr., PLZ Ort">
+              </label>
+              <p id="airbnb-error" class="airbnb-error" role="alert"></p>
+              <div class="airbnb-form-actions">
+                <button class="btn btn-small btn-primary" type="submit" id="btn-airbnb-save">Speichern</button>
+                <button id="btn-airbnb-cancel" class="btn-link muted" type="button">Abbrechen</button>
+                <button id="btn-pick" class="btn-link" type="button" hidden>Auf der Karte wählen</button>
+                <button id="btn-airbnb-clear" class="btn-link muted" type="button" hidden>Entfernen</button>
+              </div>
             </form>
           </div>
         </details>
@@ -468,25 +476,25 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-04.1"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-04.2"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-04.1",
-      "./js/backend.js": "./js/backend.js?v=2026-10-04.1",
-      "./js/cash.js": "./js/cash.js?v=2026-10-04.1",
-      "./js/categories.js": "./js/categories.js?v=2026-10-04.1",
-      "./js/config.js": "./js/config.js?v=2026-10-04.1",
-      "./js/geo.js": "./js/geo.js?v=2026-10-04.1",
-      "./js/icons.js": "./js/icons.js?v=2026-10-04.1",
-      "./js/importers.js": "./js/importers.js?v=2026-10-04.1",
-      "./js/map.js": "./js/map.js?v=2026-10-04.1",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-04.1",
-      "./js/store.js": "./js/store.js?v=2026-10-04.1"
+      "./js/app.js": "./js/app.js?v=2026-10-04.2",
+      "./js/backend.js": "./js/backend.js?v=2026-10-04.2",
+      "./js/cash.js": "./js/cash.js?v=2026-10-04.2",
+      "./js/categories.js": "./js/categories.js?v=2026-10-04.2",
+      "./js/config.js": "./js/config.js?v=2026-10-04.2",
+      "./js/geo.js": "./js/geo.js?v=2026-10-04.2",
+      "./js/icons.js": "./js/icons.js?v=2026-10-04.2",
+      "./js/importers.js": "./js/importers.js?v=2026-10-04.2",
+      "./js/map.js": "./js/map.js?v=2026-10-04.2",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-04.2",
+      "./js/store.js": "./js/store.js?v=2026-10-04.2"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-04.1"></script>
+  <script type="module" src="js/app.js?v=2026-10-04.2"></script>
 </body>
 </html>
