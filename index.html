@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-04.3" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-04.3">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-04.4" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-04.4">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-04.3">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-04.3">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-04.3">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-04.4">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-04.4">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-04.4">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -138,7 +138,7 @@
               <p id="airbnb-label" class="airbnb-label">Noch nicht festgelegt</p>
               <div class="airbnb-actions">
                 <a id="airbnb-route" class="chip-btn route-btn airbnb-route" href="#" target="_blank" rel="noopener" title="Route von deinem Standort in Google Maps" hidden><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 22 2l-9 19-2-8Z"/></svg>Route zur Unterkunft</a>
-                <a id="airbnb-link" class="btn-link" href="#" target="_blank" rel="noopener" hidden>Inserat ↗</a>
+                <a id="airbnb-link" class="btn-link" href="#" target="_blank" rel="noopener" hidden>Inserat auf Airbnb ↗</a>
                 <button id="btn-airbnb-edit" class="btn-link" type="button">Bearbeiten</button>
               </div>
             </div>
@@ -150,6 +150,14 @@
               <label class="field">
                 <span>Adresse</span>
                 <input id="airbnb-address-input" type="text" maxlength="300" placeholder="Strasse Nr., PLZ Ort">
+              </label>
+              <label class="field">
+                <span>Link zum Inserat <span class="field-opt">(optional)</span></span>
+                <input id="airbnb-url-input" type="url" inputmode="url" maxlength="2000" placeholder="https://www.airbnb.ch/rooms/…">
+              </label>
+              <label class="field">
+                <span>Google-Maps-Link <span class="field-opt">(optional, setzt den Pin genau)</span></span>
+                <input id="airbnb-maps-input" type="url" inputmode="url" maxlength="2000" placeholder="https://www.google.com/maps/place/…">
               </label>
               <p id="airbnb-error" class="airbnb-error" role="alert"></p>
               <div class="airbnb-form-actions">
@@ -476,25 +484,25 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-04.3"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-04.4"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-04.3",
-      "./js/backend.js": "./js/backend.js?v=2026-10-04.3",
-      "./js/cash.js": "./js/cash.js?v=2026-10-04.3",
-      "./js/categories.js": "./js/categories.js?v=2026-10-04.3",
-      "./js/config.js": "./js/config.js?v=2026-10-04.3",
-      "./js/geo.js": "./js/geo.js?v=2026-10-04.3",
-      "./js/icons.js": "./js/icons.js?v=2026-10-04.3",
-      "./js/importers.js": "./js/importers.js?v=2026-10-04.3",
-      "./js/map.js": "./js/map.js?v=2026-10-04.3",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-04.3",
-      "./js/store.js": "./js/store.js?v=2026-10-04.3"
+      "./js/app.js": "./js/app.js?v=2026-10-04.4",
+      "./js/backend.js": "./js/backend.js?v=2026-10-04.4",
+      "./js/cash.js": "./js/cash.js?v=2026-10-04.4",
+      "./js/categories.js": "./js/categories.js?v=2026-10-04.4",
+      "./js/config.js": "./js/config.js?v=2026-10-04.4",
+      "./js/geo.js": "./js/geo.js?v=2026-10-04.4",
+      "./js/icons.js": "./js/icons.js?v=2026-10-04.4",
+      "./js/importers.js": "./js/importers.js?v=2026-10-04.4",
+      "./js/map.js": "./js/map.js?v=2026-10-04.4",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-04.4",
+      "./js/store.js": "./js/store.js?v=2026-10-04.4"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-04.3"></script>
+  <script type="module" src="js/app.js?v=2026-10-04.4"></script>
 </body>
 </html>

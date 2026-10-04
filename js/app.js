@@ -158,7 +158,9 @@ const mapOptions = {
     // Bezeichnung und Adresse aus dem Formular übernehmen; die Route führt weiterhin zur Adresse
     const name = $('#airbnb-name-input').value.trim().slice(0, 120);
     const address = $('#airbnb-address-input').value.trim().slice(0, 300);
-    setAirbnb({ ...(state.airbnb || {}), name, address, label: airbnbLabel(name, address) || `Gewählter Punkt (${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)})`, lat: latlng.lat, lng: latlng.lng });
+    const url = cleanLink($('#airbnb-url-input').value) || '';
+    const mapsUrl = cleanLink($('#airbnb-maps-input').value) || '';
+    setAirbnb({ ...(state.airbnb || {}), name, address, url, mapsUrl, label: airbnbLabel(name, address) || `Gewählter Punkt (${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)})`, lat: latlng.lat, lng: latlng.lng });
     return true;
   },
   onMarkerClick: (id) => selectPlace(id, { fly: false, scrollList: true }),
@@ -745,6 +747,8 @@ function openAirbnbForm({ auto = false } = {}) {
   const { name, address } = airbnbParts(a);
   $('#airbnb-name-input').value = name;
   $('#airbnb-address-input').value = address;
+  $('#airbnb-url-input').value = a?.url || '';
+  $('#airbnb-maps-input').value = a?.mapsUrl || '';
   $('#airbnb-error').textContent = '';
   $('#btn-pick').hidden = true;
   $('#btn-airbnb-cancel').hidden = !a;
@@ -777,21 +781,49 @@ $('#btn-airbnb-edit').addEventListener('click', () => {
 });
 $('#btn-airbnb-cancel').addEventListener('click', closeAirbnbForm);
 
-// Speichern: Koordinaten aus der Adresse suchen (OpenStreetMap). Bleibt die Adresse gleich, gelten die
-// bisherigen Koordinaten weiter. Wird nichts gefunden, lässt sich der Punkt auf der Karte wählen.
+// Link aus einem Eingabefeld: ohne Schema wird https:// ergänzt; '' = leer, null = kein gültiger http(s)-Link
+function cleanLink(value) {
+  const v = value.trim();
+  if (!v) return '';
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v}`);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : null;
+  } catch { return null; }
+}
+
+// Speichern. Position (Pin) in dieser Reihenfolge: aus dem Google-Maps-Link (genaue Ortsmarke) – sonst die
+// bisherigen Koordinaten, wenn die Adresse gleich blieb – sonst Adresssuche (OpenStreetMap). Wird nichts
+// gefunden, lässt sich der Punkt auf der Karte wählen. Die Route führt immer zur Adresse.
 $('#airbnb-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = $('#airbnb-name-input').value.trim().slice(0, 120);
   const address = $('#airbnb-address-input').value.trim().slice(0, 300);
+  const url = cleanLink($('#airbnb-url-input').value);
+  const mapsUrl = cleanLink($('#airbnb-maps-input').value);
   const error = $('#airbnb-error');
   error.textContent = '';
   if (!address) {
     error.textContent = 'Bitte die Adresse eintragen – sie ist das Ziel für die Route.';
     return;
   }
+  if (url === null || mapsUrl === null) {
+    error.textContent = 'Bitte einen gültigen Link eintragen (beginnt mit https://) oder das Feld leer lassen.';
+    return;
+  }
   const prev = state.airbnb;
+  const entry = { ...(prev || {}), name, address, url, mapsUrl, label: airbnbLabel(name, address) };
+  const pin = mapsUrl ? parseCoords(mapsUrl) : null;
+  if (pin) {
+    setAirbnb({ ...entry, ...pin });
+    return;
+  }
+  // Kurzlink (maps.app.goo.gl) o. Ä. ohne Koordinaten: Pin über die Adresse, mit Hinweis
+  const noCoordsHint = mapsUrl && mapsUrl !== prev?.mapsUrl
+    ? 'Der Google-Maps-Link enthält keine Koordinaten (z. B. Kurzlink) – der Pin wurde über die Adresse gesetzt. Für den genauen Pin den Link im Browser öffnen und die lange Adresse aus der Adresszeile kopieren.'
+    : '';
   if (prev && airbnbParts(prev).address === address && hasCoords(prev)) {
-    setAirbnb({ ...prev, name, address, label: airbnbLabel(name, address) });
+    setAirbnb(entry);
+    if (noCoordsHint) toast(noCoordsHint, { sticky: true });
     return;
   }
   const save = $('#btn-airbnb-save');
@@ -800,11 +832,12 @@ $('#airbnb-form').addEventListener('submit', async (e) => {
   try {
     const [hit] = await geocode(address, MALLORCA_CENTER);
     if (!hit) throw new Error('nicht gefunden');
-    setAirbnb({ ...(prev || {}), name, address, label: airbnbLabel(name, address), lat: hit.lat, lng: hit.lng });
+    setAirbnb({ ...entry, lat: hit.lat, lng: hit.lng });
+    if (noCoordsHint) toast(noCoordsHint, { sticky: true });
   } catch (err) {
     error.textContent = err.message === 'nicht gefunden'
-      ? 'Adresse nicht gefunden. Schreib sie genauer (Strasse, Nummer, Ort) oder wähle den Punkt auf der Karte.'
-      : `Adresssuche nicht erreichbar (${err.message}). Du kannst den Punkt auf der Karte wählen.`;
+      ? 'Adresse nicht gefunden. Schreib sie genauer (Strasse, Nummer, Ort), füge den Google-Maps-Link ein oder wähle den Punkt auf der Karte.'
+      : `Adresssuche nicht erreichbar (${err.message}). Füge den Google-Maps-Link ein oder wähle den Punkt auf der Karte.`;
     $('#btn-pick').hidden = false;
   } finally {
     save.disabled = false;
