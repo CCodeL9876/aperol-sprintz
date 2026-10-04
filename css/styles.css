@@ -1002,6 +1002,8 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .cash-form { display: flex; flex-direction: column; gap: 12px; }
 .cash-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .cash-row > .field { min-width: 0; }
+/* Beschriftungen von Betrag (mit € / CHF-Umschalter) und Datum gleich hoch – sonst stehen die Felder versetzt */
+.cash-row > .field > span:first-child { display: flex; align-items: center; min-height: 34px; }
 /* Betrag, Datum und „Wofür“ exakt gleich hoch (feste Höhe statt Mindesthöhe – iOS hält sich sonst nicht daran) */
 .cash-form input[type="text"], .cash-form input[type="date"] { height: 46px; min-height: 0; padding-top: 0; padding-bottom: 0; line-height: normal; }
 .cash-label-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
