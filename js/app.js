@@ -2,7 +2,7 @@ import { DEFAULT_CATEGORIES, FALLBACK_CATEGORY, ROUTE_CATEGORY, routeColor } fro
 import { haversineKm, hasCoords, parseCoords, formatKm, geocode, formatReservation, routeUrl, homeRouteUrl } from './geo.js';
 import { parseFile, parseGeoJSON, parseLinks, assignCategory, buildGpx } from './importers.js';
 import { loadUi, saveUi, readPref, writePref, downloadBackup, newId, newTripKey, loadLocalBackup, clearLocalBackup } from './store.js';
-import {
+import { expandMapsLinks, hasShortMapsLinks,
   LocalBackend, SharedBackend, sharingConfigured, tripKeyFromUrl,
   rememberedTripKey, rememberTripKey, forgetTripKey, shareUrl,
 } from './backend.js';
@@ -797,7 +797,8 @@ $('#airbnb-form').addEventListener('submit', async (e) => {
   const name = $('#airbnb-name-input').value.trim().slice(0, 120);
   const address = $('#airbnb-address-input').value.trim().slice(0, 300);
   const url = cleanLink($('#airbnb-url-input').value);
-  const mapsUrl = cleanLink($('#airbnb-maps-input').value);
+  let mapsUrl = cleanLink($('#airbnb-maps-input').value);
+  if (mapsUrl && hasShortMapsLinks(mapsUrl)) mapsUrl = (await expandMapsLinks(mapsUrl)).text;
   const error = $('#airbnb-error');
   error.textContent = '';
   if (!address) {
@@ -817,7 +818,7 @@ $('#airbnb-form').addEventListener('submit', async (e) => {
   }
   // Kurzlink (maps.app.goo.gl) o. Ä. ohne Koordinaten: Pin über die Adresse, mit Hinweis
   const noCoordsHint = mapsUrl && mapsUrl !== prev?.mapsUrl
-    ? 'Der Google-Maps-Link enthält keine Koordinaten (z. B. Kurzlink) – der Pin wurde über die Adresse gesetzt. Für den genauen Pin den Link im Browser öffnen und die lange Adresse aus der Adresszeile kopieren.'
+    ? 'Aus dem Google-Maps-Link liess sich keine Position lesen – der Pin wurde über die Adresse gesetzt.'
     : '';
   if (prev && airbnbParts(prev).address === address && hasCoords(prev)) {
     setAirbnb(entry);
@@ -1646,8 +1647,23 @@ const dropzone = $('#dropzone');
 dropzone.addEventListener('drop', (e) => handleFiles([...e.dataTransfer.files]));
 
 $('#btn-parse-links').addEventListener('click', async () => {
-  const text = $('#links-input').value.trim();
+  let text = $('#links-input').value.trim();
   if (!text) return;
+  // Kurzlinks aus der Google-Maps-App zuerst auflösen (Name + Koordinaten stehen erst im langen Link)
+  if (hasShortMapsLinks(text)) {
+    const btn = $('#btn-parse-links');
+    const label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Löse Kurzlinks auf …';
+    const r = await expandMapsLinks(text);
+    btn.disabled = false;
+    btn.textContent = label;
+    text = r.text;
+    if (r.failed) {
+      log(`${r.failed} Kurzlink(s) konnten nicht aufgelöst werden – die Orte werden über den Namen gesucht. `
+        + 'Ist die Supabase-Funktion „resolve-maps-link“ eingerichtet? (ANLEITUNG.md)', '');
+    }
+  }
   const { added, missing } = await importRaw(parseLinks(text, 'Eingefügt'), 'Eingefügte Links');
   $('#links-input').value = '';
   finishImport(added, missing);

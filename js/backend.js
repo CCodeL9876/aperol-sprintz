@@ -40,6 +40,46 @@ export const rememberTripKey = (key) => writePref('trip', key);
 export const forgetTripKey = () => writePref('trip', null);
 export const shareUrl = (key) => `${location.origin}${location.pathname}#reise=${key}`;
 
+// Google-Maps-Kurzlinks (maps.app.goo.gl – aus „Teilen → Kopieren“ in der Google-Maps-App) enthalten weder
+// Name noch Koordinaten. Die Supabase-Funktion „resolve-maps-link“ (supabase/functions/) holt die lange
+// Adresse. Ersetzt alle Kurzlinks im Text; ohne eingerichtete Funktion bleibt der Text unverändert.
+// Rückgabe: { text, resolved, failed }
+const SHORT_LINK = /https:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps)\/[A-Za-z0-9_\-?=&.%]+/g;
+export const hasShortMapsLinks = (text) => new RegExp(SHORT_LINK.source).test(String(text || ''));
+
+export async function expandMapsLinks(text) {
+  const links = [...new Set(String(text || '').match(SHORT_LINK) || [])].slice(0, 50);
+  if (!links.length) return { text, resolved: 0, failed: 0 };
+  if (!sharingConfigured()) return { text, resolved: 0, failed: links.length };
+  const expand = async (url) => {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/resolve-maps-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
+        body: JSON.stringify({ url }),
+        signal: AbortSignal.timeout(10000),
+      });
+      const data = res.ok ? await res.json() : null;
+      return typeof data?.url === 'string' && /^https:\/\//.test(data.url) ? data.url : null;
+    } catch {
+      return null;
+    }
+  };
+  let out = String(text);
+  let resolved = 0;
+  // Je vier gleichzeitig – schnell genug für eine eingefügte Liste, ohne die Funktion zu fluten
+  for (let i = 0; i < links.length; i += 4) {
+    const batch = links.slice(i, i + 4);
+    const longs = await Promise.all(batch.map(expand));
+    batch.forEach((short, j) => {
+      if (!longs[j]) return;
+      out = out.split(short).join(longs[j]);
+      resolved++;
+    });
+  }
+  return { text: out, resolved, failed: links.length - resolved };
+}
+
 export class LocalBackend {
   kind = 'local';
 

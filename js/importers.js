@@ -293,11 +293,23 @@ function elevationGain(elevations) {
 const TRAILING_COORDS = /(-?\d{1,2}\.\d{2,})\s*[,;]\s*(-?\d{1,3}\.\d{2,})\s*$/;
 
 export function parseLinks(text, listName = '') {
-  return text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((line) => {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  // Geteilter Text aus der Google-Maps-App: „Name“, „Adresse“ und Link auf eigenen Zeilen ergeben einen Ort.
+  // Textzeilen ohne Link (und ohne Koordinaten) gehören daher zum nächsten Link; nur wenn Links vorkommen.
+  const hasUrls = lines.some((l) => /https?:\/\/\S+/.test(l));
+  const entries = [];
+  let pending = [];
+  for (const line of lines) {
+    if (hasUrls && !/https?:\/\/\S+/.test(line) && !parseCoords(line)) {
+      pending.push(line);
+      continue;
+    }
+    entries.push({ line, extra: pending });
+    pending = [];
+  }
+  pending.forEach((line) => entries.push({ line, extra: [] }));
+  return entries
+    .map(({ line, extra }) => {
       const urlMatch = line.match(/https?:\/\/\S+/);
       const url = urlMatch ? urlMatch[0] : '';
       let label = line.replace(url, '');
@@ -310,9 +322,10 @@ export function parseLinks(text, listName = '') {
       }
       label = label.replace(/[\s|–,;-]+$/, '').trim();
       const labelIsCoords = !!parseCoords(label);
+      if (!label && extra.length) label = extra[0];
       return {
         name: (!labelIsCoords && label) || nameFromUrl(url) || (c ? `Pin ${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}` : line),
-        address: '',
+        address: extra.slice(1).join(', ').slice(0, 500),
         lat: c ? c.lat : null,
         lng: c ? c.lng : null,
         url,

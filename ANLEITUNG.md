@@ -68,6 +68,28 @@ Routen und Einstellungen bleiben unverändert. Es darf beliebig oft ausgeführt 
 
 Solange das nicht passiert ist, läuft die App trotzdem; im Fenster „Ausgaben“ erscheint dann ein Hinweis.
 
+## 2b. Google-Maps-Kurzlinks direkt einfügen (einmalig einrichten)
+
+Teilt man einen Ort in der Google-Maps-App (**Teilen → Kopieren**), entsteht ein Kurzlink wie
+`https://maps.app.goo.gl/…`. Darin stehen weder Name noch Koordinaten – die kennt erst die lange
+Google-Adresse, auf die der Kurzlink weiterleitet. Der Browser darf diese Weiterleitung nicht selbst lesen,
+deshalb übernimmt das eine kleine Funktion in deinem Supabase-Projekt. Sie nimmt nur Google-Maps-Kurzlinks
+an, gibt nur die lange Google-Maps-Adresse zurück und speichert nichts.
+
+1. Im Supabase-Dashboard dein Projekt öffnen → links **Edge Functions**.
+2. **Deploy a new function** → **Via Editor**.
+3. Als Namen genau `resolve-maps-link` eintragen.
+4. Den Beispielcode im Editor komplett löschen und den Inhalt der Datei
+   `supabase/functions/resolve-maps-link/index.ts` hineinkopieren → **Deploy function**.
+5. In der Funktion die **Einstellungen/Details** öffnen und die JWT-Prüfung ausschalten
+   (Schalter „Verify JWT“ bzw. „Enforce JWT verification“) → speichern.
+   Grund: Die App meldet sich nicht mit einem Benutzerkonto an, sondern nutzt nur den öffentlichen Schlüssel.
+6. Fertig. In der App bei **Importieren → Links einfügen** den kopierten Kurzlink einfügen – der Ort erscheint
+   mit Name und genauer Position. Auch mehrere Links (einer pro Zeile) und der komplette geteilte Text
+   (Name, Adresse, Link) funktionieren. Im Feld „Google-Maps-Link“ der Unterkunft geht es genauso.
+
+Ist die Funktion (noch) nicht eingerichtet, sucht die App solche Orte über den Namen und weist im Import darauf hin.
+
 ## 3. App auf GitHub Pages veröffentlichen
 
 ### Variante A: im Browser (ohne Terminal)

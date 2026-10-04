@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-04.6" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-04.6">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-04.7" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-04.7">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-04.6">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-04.6">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-04.6">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-04.7">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-04.7">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-04.7">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -219,7 +219,7 @@
 
       <div class="tab-panel" data-panel="links" role="tabpanel">
         <textarea id="links-input" rows="6" placeholder="Ein Eintrag pro Zeile, z. B.&#10;https://www.google.com/maps/place/…/@39.8506,2.8070,15z&#10;Coll dels Reis | 39.8283, 2.8303&#10;Ca'n Joan de s'Aigo, Palma"></textarea>
-        <p class="hint">Kurzlinks (maps.app.goo.gl) enthalten keine Koordinaten – öffne sie einmal im Browser und kopiere den langen Link. Einträge ohne Koordinaten werden per Name gesucht.</p>
+        <p class="hint">Am einfachsten: in der Google-Maps-App bei einem Ort <strong>Teilen → Kopieren</strong> und hier einfügen – Kurzlinks (maps.app.goo.gl) werden automatisch aufgelöst. Mehrere Orte: ein Link pro Zeile. Einträge ohne Koordinaten werden per Name gesucht.</p>
         <button id="btn-parse-links" class="btn btn-primary" type="button">Übernehmen</button>
       </div>
 
@@ -484,25 +484,25 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-04.6"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-04.7"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-04.6",
-      "./js/backend.js": "./js/backend.js?v=2026-10-04.6",
-      "./js/cash.js": "./js/cash.js?v=2026-10-04.6",
-      "./js/categories.js": "./js/categories.js?v=2026-10-04.6",
-      "./js/config.js": "./js/config.js?v=2026-10-04.6",
-      "./js/geo.js": "./js/geo.js?v=2026-10-04.6",
-      "./js/icons.js": "./js/icons.js?v=2026-10-04.6",
-      "./js/importers.js": "./js/importers.js?v=2026-10-04.6",
-      "./js/map.js": "./js/map.js?v=2026-10-04.6",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-04.6",
-      "./js/store.js": "./js/store.js?v=2026-10-04.6"
+      "./js/app.js": "./js/app.js?v=2026-10-04.7",
+      "./js/backend.js": "./js/backend.js?v=2026-10-04.7",
+      "./js/cash.js": "./js/cash.js?v=2026-10-04.7",
+      "./js/categories.js": "./js/categories.js?v=2026-10-04.7",
+      "./js/config.js": "./js/config.js?v=2026-10-04.7",
+      "./js/geo.js": "./js/geo.js?v=2026-10-04.7",
+      "./js/icons.js": "./js/icons.js?v=2026-10-04.7",
+      "./js/importers.js": "./js/importers.js?v=2026-10-04.7",
+      "./js/map.js": "./js/map.js?v=2026-10-04.7",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-04.7",
+      "./js/store.js": "./js/store.js?v=2026-10-04.7"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-04.6"></script>
+  <script type="module" src="js/app.js?v=2026-10-04.7"></script>
 </body>
 </html>
