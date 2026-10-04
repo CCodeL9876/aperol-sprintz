@@ -366,13 +366,25 @@ function render({ fit = false } = {}) {
   saveUi(state.ui);
 }
 
+// Bezeichnung und Adresse einer Unterkunft. Ältere Einträge haben nur label: „Name · Adresse“ wird
+// aufgeteilt; „Pin (…)“, „Gewählter Punkt (…)“ und reine Koordinaten gelten nicht als Adresse.
+function airbnbParts(a) {
+  if (!a) return { name: '', address: '' };
+  if (a.name || a.address) return { name: a.name || '', address: a.address || '' };
+  const label = String(a.label || '').trim();
+  const i = label.lastIndexOf(' · ');
+  const rest = i >= 0 ? label.slice(i + 3).trim() : label;
+  const isAddress = /[a-zäöü]{3}/i.test(rest) && !/^(Pin|Gewählter Punkt)\b/.test(rest);
+  return { name: i >= 0 ? label.slice(0, i).trim() : '', address: isAddress ? rest : '' };
+}
+
 function renderAirbnb() {
   const a = state.airbnb;
-  // Anzeige: Bezeichnung + Adresse. Ältere Einträge haben nur eine Bezeichnung (label) – dann steht diese da.
-  const name = a?.name || '';
+  // Anzeige: Bezeichnung + Adresse (ohne Adresse: die bisherige Bezeichnung, z. B. „Pin (…)“)
+  const { name, address } = airbnbParts(a);
   $('#airbnb-name').textContent = name;
   $('#airbnb-name').hidden = !name;
-  $('#airbnb-label').textContent = a ? (name ? a.address || '' : a.label) : 'Noch nicht festgelegt';
+  $('#airbnb-label').textContent = a ? address || (name ? '' : a.label) : 'Noch nicht festgelegt';
   $('#airbnb-label').classList.toggle('is-set', !!a);
   const route = $('#airbnb-route');
   route.hidden = !a;
@@ -383,7 +395,7 @@ function renderAirbnb() {
   if (url) $('#airbnb-link').href = url;
   // Feste Unterkunft (config.js): nicht bearbeitbar. Ohne Unterkunft gleich das Formular zeigen.
   $('#btn-airbnb-edit').hidden = !!fixedAirbnb || !a;
-  $('#btn-airbnb-edit').textContent = a && !name ? 'Bezeichnung & Adresse ergänzen' : 'Bearbeiten';
+  $('#btn-airbnb-edit').textContent = a && !address ? 'Bezeichnung & Adresse ergänzen' : 'Bearbeiten';
   // Das automatisch geöffnete Formular wieder schliessen, sobald eine Unterkunft da ist (z. B. nach dem Laden)
   if (!a && !fixedAirbnb && $('#airbnb-form').hidden) openAirbnbForm({ auto: true });
   else if (a && airbnbFormAuto) closeAirbnbForm();
@@ -730,10 +742,9 @@ const airbnbLabel = (name, address) => [name, address].filter(Boolean).join(' ·
 function openAirbnbForm({ auto = false } = {}) {
   airbnbFormAuto = auto;
   const a = state.airbnb;
-  $('#airbnb-name-input').value = a?.name || '';
-  // Ältere Einträge: eine echte Adresse aus der Bezeichnung übernehmen, „Pin (…)“/„Gewählter Punkt (…)“ nicht
-  const oldText = a && !a.name ? String(a.label || '') : '';
-  $('#airbnb-address-input').value = a?.address || (/^(Pin|Gewählter Punkt)\b/.test(oldText) || !/[a-zäöü]{3}/i.test(oldText) ? '' : oldText);
+  const { name, address } = airbnbParts(a);
+  $('#airbnb-name-input').value = name;
+  $('#airbnb-address-input').value = address;
   $('#airbnb-error').textContent = '';
   $('#btn-pick').hidden = true;
   $('#btn-airbnb-cancel').hidden = !a;
@@ -779,7 +790,7 @@ $('#airbnb-form').addEventListener('submit', async (e) => {
     return;
   }
   const prev = state.airbnb;
-  if (prev && prev.address === address && hasCoords(prev)) {
+  if (prev && airbnbParts(prev).address === address && hasCoords(prev)) {
     setAirbnb({ ...prev, name, address, label: airbnbLabel(name, address) });
     return;
   }
