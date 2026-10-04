@@ -240,6 +240,13 @@ select {
   padding: 10px 12px; border: 0; border-radius: var(--radius-sm); background: none; cursor: pointer;
 }
 .menu-panel button:hover { background: var(--chip); }
+/* Link-Eintrag (easyJet-App): sieht aus wie die Knöpfe, mit Flugzeug-Symbol */
+.menu-panel .menu-link {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border-radius: var(--radius-sm);
+  color: var(--green); font-weight: 700; text-decoration: none;
+}
+.menu-panel .menu-link:hover { background: var(--chip); }
 .menu-panel .danger { color: var(--orange-ink); font-weight: 600; }
 .menu-panel hr { border: 0; border-top: 1px solid var(--line); margin: 6px 4px; }
 .menu-version { margin: 4px 10px 2px; font-size: 11px; color: var(--muted); }

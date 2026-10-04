@@ -1793,6 +1793,10 @@ $('#category-form').addEventListener('submit', (e) => {
 
 // --- Menü -------------------------------------------------------------------------------------
 
+// Wallet-Link nur auf iPhone/iPad zeigen (iPadOS meldet sich als „Macintosh“ mit Touch)
+const isAppleMobile = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+$('#menu-wallet').hidden = !isAppleMobile;
+
 $('.menu-panel').addEventListener('click', async (e) => {
   const what = e.target.closest('[data-menu]')?.dataset.menu;
   if (!what) return;
