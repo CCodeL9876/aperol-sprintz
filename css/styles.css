@@ -1168,7 +1168,6 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
     height: calc(100dvh - var(--topbar-h) - env(safe-area-inset-top, 0px));
     --sheet-h: 50%;
   }
-  .layout[data-sheet="peek"] { --sheet-h: calc(150px + env(safe-area-inset-bottom, 0px)); } /* 150px: SHEET_PEEK_PX in app.js */
   .layout[data-sheet="full"] { --sheet-h: calc(100% - 10px); }
   /* Ganz eingeklappt: Blatt nach unten weg, nur der Knopf „Orte & Filter“ bleibt (66px: SHEET_HIDDEN_PX in app.js) */
   .layout[data-sheet="hidden"] { --sheet-h: calc(66px + env(safe-area-inset-bottom, 0px)); }

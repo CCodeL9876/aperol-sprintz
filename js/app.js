@@ -225,13 +225,12 @@ async function addGooglePlace(g, categoryId) {
 
 // --- Handy: Liste als Blatt über der Karte ------------------------------------------------
 // Unter 900px liegt die Seitenleiste als Blatt unten über der randlosen Karte (wie auf dem Desktop
-// schwebend, nur von unten). Höhen: „hidden“ (ganz eingeklappt, nur Knopf „Orte & Filter“), „peek“ (nur Suche),
+// schwebend, nur von unten). Höhen: „hidden“ (ganz eingeklappt, nur Knopf „Orte & Filter“),
 // „half“ (Standard), „full“ (ganze Liste).
 // Die Höhen selbst stehen in styles.css (--sheet-h); hier wird nur umgeschaltet.
 
 const isMobile = () => window.matchMedia('(max-width: 899px)').matches;
-const SHEET_STATES = ['hidden', 'peek', 'half', 'full'];
-const SHEET_PEEK_PX = 150; // muss zu --sheet-h bei [data-sheet="peek"] in styles.css passen
+const SHEET_STATES = ['hidden', 'half', 'full'];
 const SHEET_HIDDEN_PX = 66; // Platz für den Knopf „Orte & Filter“, siehe [data-sheet="hidden"] in styles.css
 
 function sheetState() {
@@ -254,7 +253,7 @@ function mapInsets() {
   let top = row.height ? Math.max(0, row.bottom - m.top) : 0;
   if (isMobile()) {
     const state = sheetState();
-    const bottom = state === 'hidden' ? SHEET_HIDDEN_PX : state === 'peek' ? SHEET_PEEK_PX : state === 'half' ? m.height * 0.5 : m.height;
+    const bottom = state === 'hidden' ? SHEET_HIDDEN_PX : state === 'half' ? m.height * 0.5 : m.height;
     if (m.height - bottom - top < 120) top = 0; // offene Box: nicht auf einen Streifen quetschen
     return { top, bottom: Math.min(bottom, m.height - 40) };
   }
@@ -266,7 +265,7 @@ function mapInsets() {
 (() => {
   const handle = $('#sheet-handle');
   handle.setAttribute('aria-expanded', 'false');
-  // Tippen: halb ↔ ganz (aus „peek“ auf halb). Wischen auf dem Griff: hoch = größer, runter = kleiner.
+  // Tippen: halb ↔ ganz. Wischen auf dem Griff: hoch = größer, runter = kleiner (halb → ganz eingeklappt).
   handle.addEventListener('click', () => {
     const cur = sheetState();
     setSheet(cur === 'half' ? 'full' : 'half');
@@ -707,7 +706,6 @@ function selectPlace(id, { fly = true, scrollList = false } = {}) {
   if (isMobile() && activeId) {
     // Ort aus der Liste gewählt: Karte muss sichtbar sein. Marker angetippt: Eintrag muss sichtbar sein.
     if (fly && sheetState() === 'full') setSheet('half');
-    if (scrollList && sheetState() === 'peek') setSheet('half');
   }
   if (activeId && fly) mapView.focusPlace(activeId);
   if (activeId && scrollList) {
@@ -769,8 +767,8 @@ function setPickMode(on) {
   $('#pick-banner').hidden = !on;
   $('#map').classList.toggle('is-picking', on);
   if (on && isMobile()) {
-    // Karte freimachen: Liste nach unten, offene Boxen zu (sonst verdecken sie die Karte)
-    setSheet('peek');
+    // Karte freimachen: Liste ganz einklappen, offene Boxen zu (sonst verdecken sie die Karte)
+    setSheet('hidden');
     $$('.panel-row details[open]').forEach((d) => { d.open = false; });
   }
 }
