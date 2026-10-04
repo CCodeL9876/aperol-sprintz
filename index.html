@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-04.12" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-04.12">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-04.13" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-04.13">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-04.12">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-04.12">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-04.12">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-04.13">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-04.13">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-04.13">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -59,6 +59,9 @@
           <a class="menu-link" id="menu-wallet" data-menu="wallet" href="shoebox://" hidden><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2M13 17v2M13 11v2"/></svg>Bordkarten · Wallet</a>
           <!-- easyJet bietet keinen offiziellen Direkt-Link in die App: der App-Store-Eintrag zeigt „Öffnen“, wenn sie installiert ist -->
           <a class="menu-link" data-menu="easyjet" href="https://apps.apple.com/ch/app/easyjet-travel-app/id483568103" target="_blank" rel="noopener"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>Meine Flüge · easyJet</a>
+          <!-- Airbnb unterstützt App-Links: airbnb.com/trips öffnet auf dem iPhone direkt die Airbnb-App bei „Reisen“
+               (dort Buchung → Check-in-Anleitung mit Schlüsselbox-Code). Der Code selbst steht bewusst nicht in dieser App. -->
+          <a class="menu-link" data-menu="airbnb-trips" href="https://www.airbnb.com/trips" target="_blank" rel="noopener"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>Check-in · Airbnb</a>
           <hr>
           <button type="button" data-menu="intro">So funktioniert's</button>
           <button type="button" data-menu="categories">Kategorien verwalten</button>
@@ -293,7 +296,7 @@
             </li>
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--yellow)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Flüge &amp; Bordkarten</strong><span>Im Menü oben rechts öffnet <strong>„Bordkarten · Wallet“</strong> deine Bordkarte, <strong>„Meine Flüge · easyJet“</strong> die easyJet-App.</span></span>
+              <span class="intro-text"><strong class="intro-name">Flüge &amp; Check-in</strong><span>Im Menü oben rechts öffnet <strong>„Bordkarten · Wallet“</strong> deine Bordkarte, <strong>„Meine Flüge · easyJet“</strong> die easyJet-App und <strong>„Check-in · Airbnb“</strong> eure Buchung mit der Check-in-Anleitung.</span></span>
             </li>
           </ul>
         </section>
@@ -514,25 +517,25 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-04.12"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-04.13"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-04.12",
-      "./js/backend.js": "./js/backend.js?v=2026-10-04.12",
-      "./js/cash.js": "./js/cash.js?v=2026-10-04.12",
-      "./js/categories.js": "./js/categories.js?v=2026-10-04.12",
-      "./js/config.js": "./js/config.js?v=2026-10-04.12",
-      "./js/geo.js": "./js/geo.js?v=2026-10-04.12",
-      "./js/icons.js": "./js/icons.js?v=2026-10-04.12",
-      "./js/importers.js": "./js/importers.js?v=2026-10-04.12",
-      "./js/map.js": "./js/map.js?v=2026-10-04.12",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-04.12",
-      "./js/store.js": "./js/store.js?v=2026-10-04.12"
+      "./js/app.js": "./js/app.js?v=2026-10-04.13",
+      "./js/backend.js": "./js/backend.js?v=2026-10-04.13",
+      "./js/cash.js": "./js/cash.js?v=2026-10-04.13",
+      "./js/categories.js": "./js/categories.js?v=2026-10-04.13",
+      "./js/config.js": "./js/config.js?v=2026-10-04.13",
+      "./js/geo.js": "./js/geo.js?v=2026-10-04.13",
+      "./js/icons.js": "./js/icons.js?v=2026-10-04.13",
+      "./js/importers.js": "./js/importers.js?v=2026-10-04.13",
+      "./js/map.js": "./js/map.js?v=2026-10-04.13",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-04.13",
+      "./js/store.js": "./js/store.js?v=2026-10-04.13"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-04.12"></script>
+  <script type="module" src="js/app.js?v=2026-10-04.13"></script>
 </body>
 </html>
