@@ -1086,6 +1086,41 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .cash-icon-btn:hover { background: var(--yellow-tint); color: var(--ink); }
 .cash-icon-btn.is-danger:hover { background: #FFE3E4; color: var(--red); }
 
+/* Währung (€ / CHF) und Aufteilung (Gleich / Anteile / Beträge): kleine Umschalter */
+.cash-cur, .cash-seg-group {
+  display: inline-flex; overflow: hidden;
+  border: 2px solid var(--edge); border-radius: 999px; background: var(--card);
+}
+.cash-seg-group { display: flex; width: 100%; }
+.cash-cur-btn, .cash-seg {
+  min-height: 30px; padding: 0 12px; border: 0; background: none; cursor: pointer;
+  color: var(--ink); font: 700 13px var(--font-body);
+}
+.cash-seg { flex: 1; min-height: 38px; }
+.cash-cur-btn + .cash-cur-btn, .cash-seg + .cash-seg { border-left: 2px solid var(--edge); }
+.cash-cur-btn[aria-pressed="true"], .cash-seg[aria-pressed="true"] { background: var(--yellow); }
+.cash-cur-btn:disabled, .cash-seg:disabled { opacity: 0.45; cursor: not-allowed; }
+.cash-split-rows { display: grid; gap: 6px; margin-top: 4px; }
+.cash-split-row { display: grid; grid-template-columns: 1fr 110px 52px; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+.cash-split-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cash-form .cash-split-row input[type="text"] { height: 40px; padding: 0 10px; text-align: right; }
+.cash-split-unit { font-size: 13px; color: var(--muted); }
+/* Franken-Rechnung: Euro-Gegenwert klein unter dem Betrag */
+.cash-item-sub { display: block; font-family: var(--font-body); font-weight: 600; font-size: 12px; color: var(--muted); text-align: right; }
+/* Bereits bezahlter Ausgleich in der Liste */
+.cash-item.is-transfer { background: var(--yellow-tint); }
+.cash-item.is-transfer .cash-item-title { display: inline-flex; align-items: center; gap: 6px; }
+/* „bezahlt“ im Ausgleich */
+.cash-settle li { flex-wrap: wrap; }
+.cash-paid-btn {
+  flex: none; display: inline-flex; align-items: center; gap: 4px;
+  min-height: 32px; padding: 0 10px; cursor: pointer;
+  border: 2px solid var(--edge); border-radius: 999px; background: var(--card);
+  color: var(--ink); font: 700 12.5px var(--font-body);
+}
+.cash-paid-btn:hover { background: var(--mint); }
+.cash-paid-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
 /* --- Standort-Hilfe ------------------------------------------------------------------ */
 .locate-lead { margin: 0; font-size: 15px; line-height: 1.5; }
 .locate-steps { margin: 0; padding-left: 22px; display: grid; gap: 10px; font-size: 14px; line-height: 1.5; color: var(--text-soft); }

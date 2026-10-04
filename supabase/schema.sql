@@ -93,6 +93,11 @@ create table if not exists public.expenses (
 );
 
 create index if not exists expenses_trip_key_idx on public.expenses (trip_key);
+-- Nachträglich ergänzt: Rückzahlung aus dem Ausgleich (kind = 'transfer'), in Franken erfasst
+-- (orig = { currency, cents, rate }) und ungleiche Aufteilung (split = { mode, values }) – alle optional
+alter table public.expenses add column if not exists kind text check (kind in ('transfer'));
+alter table public.expenses add column if not exists orig jsonb;
+alter table public.expenses add column if not exists split jsonb;
 
 -- Schlüssel aus dem Anfrage-Header lesen (leer → null → kein Zugriff)
 create or replace function public.request_trip_key()

@@ -3,6 +3,11 @@
 //
 // Teilnehmende: [{ id, name }]
 // Rechnung:     { id, title, amountCents, paidBy: id, sharedWith: [id, …], date: 'JJJJ-MM-TT' | '' }
+//   amountCents ist immer der Euro-Betrag – darauf beruhen alle Rechnungen. Optional:
+//   kind:  'transfer'                          Rückzahlung aus dem Ausgleich: paidBy hat sharedWith[0] überwiesen
+//   orig:  { currency: 'CHF', cents, rate }    in Franken erfasst; rate = CHF pro € am Erfassungstag (bleibt fest)
+//   split: { mode: 'shares'|'amounts', values: { id: Zahl } }   ungleich aufgeteilt: Anteile (z. B. 2 und 1)
+//          oder Beträge in Cent/Rappen der Eingabewährung; ohne split gleichmässig
 
 const EURO = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 export const formatEuro = (cents) => EURO.format((cents || 0) / 100);
@@ -43,8 +48,21 @@ export async function loadRate() {
   }
 }
 
-// Euro-Cent → Rappen zum gegebenen Kurs
+// Euro-Cent → Rappen zum gegebenen Kurs und zurück
 export const toRappen = (cents, rate) => Math.round(cents * rate);
+export const toEuroCents = (rappen, rate) => Math.round(rappen / rate);
+
+export const isTransfer = (e) => e?.kind === 'transfer';
+// Summe der Ausgaben ohne Rückzahlungen (die verschieben nur Geld zwischen Mitreisenden)
+export const expenseTotal = (expenses) => expenses.reduce((sum, e) => sum + (isTransfer(e) ? 0 : e.amountCents), 0);
+
+// Anteil für die ungleiche Aufteilung: „2“, „1,5“ → Zahl; ungültig oder ≤ 0 → null
+export function parseShare(input) {
+  const s = String(input || '').trim().replace(',', '.');
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) return null;
+  const v = parseFloat(s);
+  return v > 0 && v <= 1000 ? v : null;
+}
 
 // „12,50“, „12.50“, „1.234,50“, „1'234.50“, „12“ → Cent; ungültig oder ≤ 0 → null
 export function parseAmount(input) {
@@ -63,34 +81,61 @@ export function parseAmount(input) {
   return cents > 0 && cents <= 100000000 ? cents : null;
 }
 
-// Gleichmässig aufteilen, sodass die Summe der Anteile immer genau dem Betrag entspricht. Übrige Cent
-// (z. B. 10,01 € für 3) gehen reihum an einzelne Personen; wo die Reihe beginnt, hängt von der Rechnung
-// ab (seed = Rechnungs-ID) – sonst trüge immer dieselbe Person den Extra-Cent.
+// Aufteilen, sodass die Summe der Anteile immer genau dem Betrag entspricht – gleichmässig oder nach
+// Gewichten (weights, gleiche Reihenfolge wie ids). Übrige Cent (z. B. 10,01 € für 3) gehen reihum an
+// einzelne Personen; wo die Reihe beginnt, hängt von der Rechnung ab (seed = Rechnungs-ID) – sonst trüge
+// immer dieselbe Person den Extra-Cent. Gleichmässig ergibt das exakt dieselben Beträge wie früher.
 const seedOffset = (seed, n) => [...String(seed)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 0) % n;
-export function splitCents(amountCents, ids, seed = '') {
+export function splitCents(amountCents, ids, seed = '', weights = null) {
   const shares = new Map();
   const n = ids.length;
   if (!n) return shares;
-  const base = Math.floor(amountCents / n);
-  const rest = amountCents - base * n;
+  const w = weights?.length === n && weights.some((x) => x > 0) ? weights : ids.map(() => 1);
+  const total = w.reduce((a, b) => a + b, 0);
+  const parts = w.map((x) => Math.floor((amountCents * x) / total));
+  let rest = amountCents - parts.reduce((a, b) => a + b, 0);
   const start = rest ? seedOffset(seed, n) : 0;
-  ids.forEach((id, i) => shares.set(id, base + (((i - start + n) % n) < rest ? 1 : 0)));
+  for (let k = 0; rest > 0 && k < 2 * n; k++) {
+    const i = (start + k) % n;
+    if (w[i] > 0) { parts[i]++; rest--; }
+  }
+  ids.forEach((id, i) => shares.set(id, parts[i]));
   return shares;
 }
 
-// Pro Person: bezahlt, Anteil (was sie verbraucht hat) und Saldo (+ bekommt Geld, − schuldet Geld).
-// Personen, die in Rechnungen vorkommen, aber nicht mehr in der Liste stehen, erscheinen als „Unbekannt“.
+// Gewichte einer Rechnung für splitCents (ohne gültige ungleiche Aufteilung: alle gleich)
+export function splitWeights(e) {
+  const v = e.split?.values;
+  if ((e.split?.mode === 'shares' || e.split?.mode === 'amounts') && v) {
+    const w = e.sharedWith.map((id) => Math.max(0, Number(v[id]) || 0));
+    if (w.some((x) => x > 0)) return w;
+  }
+  return e.sharedWith.map(() => 1);
+}
+
+// Euro-Anteil jeder Person an einer Rechnung: Map id → Cent
+export const sharesOf = (e) => splitCents(e.amountCents, e.sharedWith, e.id, splitWeights(e));
+
+// Pro Person: bezahlt, Anteil (was sie verbraucht hat), bereits überwiesene/erhaltene Ausgleichszahlungen
+// und Saldo (+ bekommt Geld, − schuldet Geld). Personen, die in Rechnungen vorkommen, aber nicht mehr in
+// der Liste stehen, erscheinen als „Unbekannt“.
 export function computeBalances(expenses, participants) {
-  const rows = new Map(participants.map((p) => [p.id, { id: p.id, name: p.name, paid: 0, share: 0 }]));
+  const blank = (id, name) => ({ id, name, paid: 0, share: 0, sent: 0, received: 0 });
+  const rows = new Map(participants.map((p) => [p.id, blank(p.id, p.name)]));
   const row = (id) => {
-    if (!rows.has(id)) rows.set(id, { id, name: 'Unbekannt', paid: 0, share: 0 });
+    if (!rows.has(id)) rows.set(id, blank(id, 'Unbekannt'));
     return rows.get(id);
   };
   for (const e of expenses) {
+    if (isTransfer(e)) {
+      row(e.paidBy).sent += e.amountCents;
+      row(e.sharedWith[0]).received += e.amountCents;
+      continue;
+    }
     row(e.paidBy).paid += e.amountCents;
-    for (const [id, cents] of splitCents(e.amountCents, e.sharedWith, e.id)) row(id).share += cents;
+    for (const [id, cents] of sharesOf(e)) row(id).share += cents;
   }
-  return [...rows.values()].map((r) => ({ ...r, balance: r.paid - r.share }));
+  return [...rows.values()].map((r) => ({ ...r, balance: r.paid - r.share + r.sent - r.received }));
 }
 
 // Ausgleich mit möglichst wenigen Überweisungen: jeweils wer am meisten schuldet zahlt an den,
@@ -126,7 +171,7 @@ export function sanitizeExpense(e) {
   const amountCents = Math.round(Number(e.amountCents));
   const sharedWith = (Array.isArray(e.sharedWith) ? e.sharedWith : []).map(String).filter(Boolean);
   if (!(amountCents > 0) || !e.paidBy || !sharedWith.length) return null;
-  return {
+  const out = {
     id: String(e.id),
     title: String(e.title || '').slice(0, 120),
     amountCents,
@@ -136,4 +181,19 @@ export function sanitizeExpense(e) {
     addedBy: String(e.addedBy || '').slice(0, 80),
     addedAt: Number(e.addedAt) || 0,
   };
+  if (e.kind === 'transfer' && out.sharedWith.length === 1) out.kind = 'transfer';
+  const o = e.orig;
+  if (o?.currency === 'CHF' && Number(o.cents) > 0 && Number(o.rate) > 0) {
+    out.orig = { currency: 'CHF', cents: Math.round(Number(o.cents)), rate: Number(o.rate) };
+  }
+  const sp = e.split;
+  if ((sp?.mode === 'shares' || sp?.mode === 'amounts') && sp.values && typeof sp.values === 'object') {
+    const values = {};
+    for (const id of out.sharedWith) {
+      const v = Number(sp.values[id]);
+      if (v > 0 && v < 1e9) values[id] = sp.mode === 'amounts' ? Math.round(v) : Math.round(v * 100) / 100;
+    }
+    if (Object.keys(values).length) out.split = { mode: sp.mode, values };
+  }
+  return out;
 }

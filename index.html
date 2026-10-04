@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-04.10" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-04.10">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-04.11" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-04.11">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-04.10">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-04.10">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-04.10">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-04.11">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-04.11">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-04.11">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -319,7 +319,7 @@
           <ul class="intro-list">
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--orange)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Ausgaben teilen</strong><span>Unter <strong>„Ausgaben“</strong> erfassen, wer was für wen bezahlt hat. Die Abrechnung zeigt, wer wem wie viel schuldet – in Franken, mit € auf Antippen.</span></span>
+              <span class="intro-text"><strong class="intro-name">Ausgaben teilen</strong><span>Unter <strong>„Ausgaben“</strong> erfassen, wer was für wen bezahlt hat – in € oder CHF, gleich oder nach Anteilen aufgeteilt. Der Ausgleich zeigt, wer wem wie viel schuldet; nach der Überweisung <strong>„bezahlt“</strong> antippen.</span></span>
             </li>
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--pink)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
@@ -375,6 +375,9 @@
 
       <p id="cash-missing" class="cash-warn" hidden>Die Ausgaben sind in der Datenbank noch nicht eingerichtet. Bitte das SQL aus
         <code>supabase/schema.sql</code> (Abschnitt „Reisekasse“) im Supabase SQL Editor ausführen.</p>
+      <p id="cash-extras-missing" class="cash-warn" hidden>Für Franken, ungleiche Aufteilung und „bezahlt“ fehlen in der Datenbank
+        noch drei Spalten. Bitte den Inhalt von <code>supabase/schema.sql</code> im Supabase SQL Editor nochmals ausführen –
+        bestehende Daten bleiben erhalten.</p>
 
       <!-- Klappbar: beim Öffnen nur „Rechnung erfassen“ aufgeklappt, „Teilnehmende“ solange niemand eingetragen ist (siehe openCash in app.js) -->
       <details class="cash-section cash-fold" id="cash-people-fold">
@@ -400,10 +403,15 @@
           <p id="cash-form-hint" class="hint" hidden>Zuerst oben bei „Teilnehmende“ die Namen eintragen.</p>
           <form id="cash-form" class="cash-form" autocomplete="off" novalidate>
             <div class="cash-row">
-              <label class="field">
-                <span>Betrag in €</span>
+              <div class="field">
+                <span class="cash-label-row"><label for="cash-amount">Betrag</label>
+                  <span class="cash-cur" role="group" aria-label="Währung">
+                    <button type="button" class="cash-cur-btn" data-cur="EUR" aria-pressed="true">€</button>
+                    <button type="button" class="cash-cur-btn" data-cur="CHF" aria-pressed="false">CHF</button>
+                  </span>
+                </span>
                 <input id="cash-amount" type="text" inputmode="decimal" placeholder="0,00">
-              </label>
+              </div>
               <label class="field">
                 <span>Datum</span>
                 <input id="cash-date" type="date">
@@ -420,6 +428,15 @@
             <div class="field">
               <span class="cash-label-row">Für wen <button type="button" class="btn-link" id="cash-all">alle auswählen</button></span>
               <div id="cash-shared" class="cash-pick" role="group" aria-label="Für wen"></div>
+            </div>
+            <div class="field">
+              <span>Aufteilung</span>
+              <div class="cash-seg-group" role="group" aria-label="Aufteilung">
+                <button type="button" class="cash-seg" data-split="equal" aria-pressed="true">Gleich</button>
+                <button type="button" class="cash-seg" data-split="shares" aria-pressed="false">Anteile</button>
+                <button type="button" class="cash-seg" data-split="amounts" aria-pressed="false">Beträge</button>
+              </div>
+              <div id="cash-split-rows" class="cash-split-rows" hidden></div>
             </div>
             <p id="cash-preview" class="cash-preview"></p>
             <p id="cash-error" class="cash-error" role="alert"></p>
@@ -497,25 +514,25 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-04.10"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-04.11"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-04.10",
-      "./js/backend.js": "./js/backend.js?v=2026-10-04.10",
-      "./js/cash.js": "./js/cash.js?v=2026-10-04.10",
-      "./js/categories.js": "./js/categories.js?v=2026-10-04.10",
-      "./js/config.js": "./js/config.js?v=2026-10-04.10",
-      "./js/geo.js": "./js/geo.js?v=2026-10-04.10",
-      "./js/icons.js": "./js/icons.js?v=2026-10-04.10",
-      "./js/importers.js": "./js/importers.js?v=2026-10-04.10",
-      "./js/map.js": "./js/map.js?v=2026-10-04.10",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-04.10",
-      "./js/store.js": "./js/store.js?v=2026-10-04.10"
+      "./js/app.js": "./js/app.js?v=2026-10-04.11",
+      "./js/backend.js": "./js/backend.js?v=2026-10-04.11",
+      "./js/cash.js": "./js/cash.js?v=2026-10-04.11",
+      "./js/categories.js": "./js/categories.js?v=2026-10-04.11",
+      "./js/config.js": "./js/config.js?v=2026-10-04.11",
+      "./js/geo.js": "./js/geo.js?v=2026-10-04.11",
+      "./js/icons.js": "./js/icons.js?v=2026-10-04.11",
+      "./js/importers.js": "./js/importers.js?v=2026-10-04.11",
+      "./js/map.js": "./js/map.js?v=2026-10-04.11",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-04.11",
+      "./js/store.js": "./js/store.js?v=2026-10-04.11"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-04.10"></script>
+  <script type="module" src="js/app.js?v=2026-10-04.11"></script>
 </body>
 </html>

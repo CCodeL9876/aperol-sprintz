@@ -9,7 +9,7 @@ import { expandMapsLinks, hasShortMapsLinks,
 import { createMap } from './map.js';
 import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './config.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
-import { formatEuro, formatChf, toRappen, cachedRate, loadRate, parseAmount, computeBalances, settle, sanitizeParticipants, sanitizeExpense } from './cash.js';
+import { formatEuro, formatChf, toRappen, toEuroCents, cachedRate, loadRate, parseAmount, parseShare, computeBalances, settle, splitCents, sharesOf, expenseTotal, isTransfer, sanitizeParticipants, sanitizeExpense } from './cash.js';
 
 const MALLORCA_CENTER = { lat: 39.62, lng: 2.95 };
 const SYNC_INTERVAL_MS = 20000;
@@ -29,6 +29,7 @@ const state = {
   participants: [],
   expenses: [],
   cashMissing: false, // gemeinsame Reise, aber Tabelle/Spalte in Supabase fehlt noch
+  cashExtrasMissing: false, // gemeinsame Reise, aber Spalten für Franken/Aufteilung/Ausgleich fehlen noch
   ui: loadUi(),
 };
 
@@ -92,6 +93,7 @@ function applyData(data) {
   state.participants = sanitizeParticipants(data.participants);
   state.expenses = (data.expenses || []).map(sanitizeExpense).filter(Boolean);
   state.cashMissing = Boolean(data.cashMissing);
+  state.cashExtrasMissing = Boolean(data.cashExtrasMissing);
 }
 
 // Führt eine Speicher-Operation aus. Schlägt sie in einer gemeinsamen Reise fehl,
@@ -900,19 +902,28 @@ function resetFilters() {
 
 // --- Reisekasse -------------------------------------------------------------------------------
 // Teilnehmende als feste Namensliste (state.participants), Rechnungen in state.expenses.
-// Gerechnet wird in js/cash.js (Cent-Beträge, gleichmässige Aufteilung, Ausgleich).
+// Gerechnet wird in js/cash.js (Euro-Cent, Aufteilung gleich/nach Anteilen/nach Beträgen, Ausgleich).
+// Rechnungen in Franken werden zum Tageskurs in Euro umgerechnet gespeichert (Kurs bleibt fest);
+// „bezahlt“ im Ausgleich legt eine Rückzahlung an (kind: 'transfer'), die nur den Saldo verändert.
 
 const cashDialog = $('#cash-dialog');
-// Auswahl im Formular – bleibt beim Neuzeichnen (z. B. Abgleich alle 20 s) erhalten
-const cashForm = { editingId: null, payer: null, shared: new Set() };
+// Auswahl im Formular – bleibt beim Neuzeichnen (z. B. Abgleich alle 20 s) erhalten.
+// splitValues: Eingaben je Person als Text (Anteile bzw. Beträge in der gewählten Währung)
+const cashForm = { editingId: null, payer: null, shared: new Set(), currency: 'EUR', splitMode: 'equal', splitValues: {} };
 const todayIso = () => new Date().toLocaleDateString('sv-SE'); // JJJJ-MM-TT in Ortszeit
 const personName = (id) => state.participants.find((p) => p.id === id)?.name || 'Unbekannt';
 const cashBlocked = () => backend.kind === 'shared' && state.cashMissing;
+// Spalten für Franken, Aufteilung und Ausgleich fehlen noch (SQL nicht erneut ausgeführt)
+const extrasBlocked = () => backend.kind === 'shared' && state.cashExtrasMissing;
 // Ausgleich in Franken: Tageskurs (siehe loadRate) und Klappzustand, der beim Neuzeichnen erhalten bleibt
 let fx = cachedRate();
 let fxLoading = false;
 let cashSettleOpen = false;
+let cashSplitSig = '';
 const longDate = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${Number(m[3])}.${Number(m[2])}.${m[1]}` : iso; };
+const centsText = (cents) => (cents / 100).toFixed(2).replace('.', ',');
+// Betrag einer Rechnung so, wie er erfasst wurde (Franken oder Euro)
+const enteredMoney = (e) => (e.orig?.currency === 'CHF' ? formatChf(e.orig.cents) : formatEuro(e.amountCents));
 
 // „2026-10-01“ → „Do 1.10.“
 function shortDate(iso) {
@@ -923,8 +934,7 @@ function shortDate(iso) {
 }
 
 function renderCash() {
-  const total = state.expenses.reduce((sum, e) => sum + e.amountCents, 0);
-  $('#cash-total').textContent = formatEuro(total);
+  $('#cash-total').textContent = formatEuro(expenseTotal(state.expenses));
   if (cashDialog.open) renderCashDialog();
 }
 
@@ -933,6 +943,10 @@ function resetCashForm() {
   const me = state.participants.find((p) => norm(p.name) === norm(memberName()));
   cashForm.payer = (me || state.participants[0])?.id || null;
   cashForm.shared = new Set(state.participants.map((p) => p.id));
+  cashForm.currency = 'EUR';
+  cashForm.splitMode = 'equal';
+  cashForm.splitValues = {};
+  cashSplitSig = '';
   $('#cash-amount').value = '';
   $('#cash-what').value = '';
   $('#cash-date').value = todayIso();
@@ -949,6 +963,7 @@ function renderCashDialog() {
   for (const id of [...cashForm.shared]) if (!people.some((p) => p.id === id)) cashForm.shared.delete(id);
 
   $('#cash-missing').hidden = !cashBlocked();
+  $('#cash-extras-missing').hidden = cashBlocked() || !extrasBlocked();
   const used = new Set(state.expenses.flatMap((e) => [e.paidBy, ...e.sharedWith]));
   $('#cash-people').innerHTML = people.length
     ? people.map((p) => `<span class="cash-person">${escapeHtml(p.name)}<button type="button" class="cash-person-x" data-remove-person="${escapeHtml(p.id)}" aria-label="${escapeHtml(p.name)} entfernen" title="${used.has(p.id) ? 'Kommt in Rechnungen vor' : 'Entfernen'}">${icon('close', { size: 12, stroke: 2.6 })}</button></span>`).join('')
@@ -962,17 +977,98 @@ function renderCashDialog() {
   const chip = (p, on, attr) => `<button type="button" class="cash-chip" ${attr}="${escapeHtml(p.id)}" aria-pressed="${on}">${escapeHtml(p.name)}</button>`;
   $('#cash-payer').innerHTML = people.map((p) => chip(p, cashForm.payer === p.id, 'data-payer')).join('');
   $('#cash-shared').innerHTML = people.map((p) => chip(p, cashForm.shared.has(p.id), 'data-shared')).join('');
+
+  // Währung und Aufteilung: Franken braucht einen Kurs, beides die neuen Spalten (gemeinsame Reise)
+  const editingChf = state.expenses.find((x) => x.id === cashForm.editingId)?.orig?.currency === 'CHF';
+  $$('.cash-cur-btn', cashDialog).forEach((b) => {
+    b.setAttribute('aria-pressed', String(b.dataset.cur === cashForm.currency));
+    b.disabled = b.dataset.cur === 'CHF' && cashForm.currency !== 'CHF' && (extrasBlocked() || (!fx && !editingChf));
+    b.title = b.disabled ? (extrasBlocked() ? 'Datenbank noch nicht erweitert (siehe Hinweis oben)' : 'Kein Wechselkurs verfügbar') : '';
+  });
+  $$('.cash-seg', cashDialog).forEach((b) => {
+    b.setAttribute('aria-pressed', String(b.dataset.split === cashForm.splitMode));
+    b.disabled = b.dataset.split !== 'equal' && b.dataset.split !== cashForm.splitMode && extrasBlocked();
+  });
+  renderCashSplitRows();
   renderCashPreview();
   renderCashSummary();
   renderCashList();
 }
 
+// Eingabezeilen für Anteile bzw. Beträge – nur neu aufbauen, wenn sich Personen, Art oder Währung ändern,
+// damit das Neuzeichnen (Abgleich) nicht mitten im Tippen das Feld leert
+function renderCashSplitRows() {
+  const box = $('#cash-split-rows');
+  const ids = state.participants.map((p) => p.id).filter((id) => cashForm.shared.has(id));
+  const sig = [cashForm.splitMode, cashForm.currency, ...ids].join('|');
+  box.hidden = cashForm.splitMode === 'equal' || !ids.length;
+  if (sig === cashSplitSig) return;
+  cashSplitSig = sig;
+  if (box.hidden) { box.innerHTML = ''; return; }
+  const amounts = cashForm.splitMode === 'amounts';
+  const unit = amounts ? (cashForm.currency === 'CHF' ? 'CHF' : '€') : 'Teil(e)';
+  box.innerHTML = ids.map((id) => {
+    const value = cashForm.splitValues[id] ?? (amounts ? '' : '1');
+    return `<label class="cash-split-row"><span class="cash-split-name">${escapeHtml(personName(id))}</span>
+      <input type="text" inputmode="decimal" data-split-id="${escapeHtml(id)}" value="${escapeHtml(value)}" placeholder="${amounts ? '0,00' : '1'}" aria-label="${amounts ? 'Betrag' : 'Anteil'} von ${escapeHtml(personName(id))}">
+      <span class="cash-split-unit">${unit}</span></label>`;
+  }).join('');
+}
+
+// Formular auswerten – für Vorschau und Speichern. Ergebnis: Euro-Betrag, optionale Franken-Angabe
+// und Aufteilung, oder ein Fehlertext.
+function readCashForm() {
+  const entered = parseAmount($('#cash-amount').value); // in der gewählten Währung
+  const ids = state.participants.map((p) => p.id).filter((id) => cashForm.shared.has(id));
+  const chf = cashForm.currency === 'CHF';
+  const editing = state.expenses.find((x) => x.id === cashForm.editingId);
+  // Beim Bearbeiten einer Franken-Rechnung gilt weiter ihr ursprünglicher Kurs – der Saldo bleibt stabil
+  const rate = chf ? (editing?.orig?.currency === 'CHF' ? editing.orig.rate : fx?.rate) : null;
+  const money = (c) => (chf ? formatChf(c) : formatEuro(c));
+  const r = { entered, ids, chf, rate, money, amountCents: null, orig: null, split: null, error: '', remaining: 0 };
+  if (!entered) return r;
+  if (chf && !rate) { r.error = 'Gerade kein Wechselkurs verfügbar – bitte in Euro erfassen.'; return r; }
+  r.amountCents = chf ? toEuroCents(entered, rate) : entered;
+  if (chf) r.orig = { currency: 'CHF', cents: entered, rate };
+  if (cashForm.splitMode !== 'equal' && ids.length) {
+    const amounts = cashForm.splitMode === 'amounts';
+    const values = {};
+    for (const id of ids) {
+      const raw = cashForm.splitValues[id] ?? (amounts ? '' : '1');
+      const v = amounts ? parseAmount(raw) : parseShare(raw);
+      if (!v) {
+        r.error = `Bitte für ${personName(id)} ${amounts ? 'einen Betrag' : 'einen Anteil grösser 0'} eintragen – oder bei „Für wen“ abwählen.`;
+        return r;
+      }
+      values[id] = v;
+    }
+    if (amounts) {
+      const sum = Object.values(values).reduce((a, b) => a + b, 0);
+      r.remaining = entered - sum;
+      if (r.remaining) {
+        r.error = r.remaining > 0 ? `Noch ${money(r.remaining)} zu verteilen (Rechnung ${money(entered)}).` : `${money(-r.remaining)} zu viel verteilt (Rechnung ${money(entered)}).`;
+        return r;
+      }
+    }
+    r.split = { mode: cashForm.splitMode, values };
+  }
+  return r;
+}
+
 function renderCashPreview() {
-  const cents = parseAmount($('#cash-amount').value);
-  const n = cashForm.shared.size;
-  $('#cash-preview').textContent = cents && n
-    ? `${n === 1 ? 'Ganz für 1 Person' : `Je ${formatEuro(Math.floor(cents / n))}${cents % n ? ' (±1 Cent)' : ''} für ${n} Personen`}`
-    : '';
+  const r = readCashForm();
+  const el = $('#cash-preview');
+  if (!r.entered || !r.ids.length) { el.textContent = r.error; return; }
+  if (r.error) { el.textContent = r.error; return; }
+  const fxNote = r.chf ? `≈ ${formatEuro(r.amountCents)} (1 € = ${r.rate.toFixed(4)} CHF) · ` : '';
+  const n = r.ids.length;
+  if (!r.split) {
+    el.textContent = fxNote + (n === 1 ? 'Ganz für 1 Person'
+      : `Je ${formatEuro(Math.floor(r.amountCents / n))}${r.amountCents % n ? ' (±1 Cent)' : ''} für ${n} Personen`);
+    return;
+  }
+  const shares = sharesOf({ id: cashForm.editingId || 'neu', amountCents: r.amountCents, sharedWith: r.ids, split: r.split });
+  el.textContent = fxNote + r.ids.map((id) => `${personName(id)} ${formatEuro(shares.get(id))}`).join(' · ');
 }
 
 function renderCashSummary() {
@@ -982,11 +1078,13 @@ function renderCashSummary() {
     return;
   }
   const balances = computeBalances(state.expenses, state.participants);
-  const total = state.expenses.reduce((sum, e) => sum + e.amountCents, 0);
+  const total = expenseTotal(state.expenses);
+  const anySettled = state.expenses.some(isTransfer);
   const saldo = (c) => c > 0
     ? `<span class="cash-pos">+${formatEuro(c)}</span>`
     : c < 0 ? `<span class="cash-neg">−${formatEuro(-c)}</span>` : '<span class="muted">±0</span>';
   const transfers = settle(balances);
+  const paidBtn = (t) => `<button type="button" class="cash-paid-btn" data-settle-from="${escapeHtml(t.from)}" data-settle-to="${escapeHtml(t.to)}" data-settle-cents="${t.cents}"${extrasBlocked() ? ' disabled title="Datenbank noch nicht erweitert (siehe Hinweis oben)"' : ''}>${icon('check', { size: 13, stroke: 3 })}bezahlt</button>`;
   box.innerHTML = `
     <div class="cash-table-wrap">
       <table class="cash-table">
@@ -995,7 +1093,7 @@ function renderCashSummary() {
         <tfoot><tr><th scope="row">Total</th><td>${formatEuro(total)}</td><td>${formatEuro(total)}</td><td></td></tr></tfoot>
       </table>
     </div>
-    <p class="hint cash-legend">Anteil = was die Person verbraucht hat. Plus = bekommt Geld zurück, Minus = schuldet Geld.</p>
+    <p class="hint cash-legend">Anteil = was die Person verbraucht hat. Plus = bekommt Geld zurück, Minus = schuldet Geld.${anySettled ? ' Bereits bezahlte Ausgleichszahlungen sind im Saldo berücksichtigt.' : ''}</p>
     <details class="cash-settle cash-fold" id="cash-settle-fold"${cashSettleOpen ? ' open' : ''}>
       <summary class="cash-fold-head">
         <h4>Ausgleich <span class="cash-fold-count">· ${transfers.length ? `${transfers.length} ${transfers.length === 1 ? 'Zahlung' : 'Zahlungen'}` : 'alles ausgeglichen'}</span></h4>
@@ -1010,11 +1108,13 @@ function renderCashSummary() {
                 <button type="button" class="cash-eur-btn" aria-expanded="false" aria-label="Betrag in Euro anzeigen" title="In Euro">€</button>
                 <span class="cash-eur-pop" hidden>${formatEuro(t.cents)}</span>
               </span>` : ''}
+              ${paidBtn(t)}
             </li>`).join('')}</ul>`
           : '<p class="hint">Alles ausgeglichen – niemand schuldet jemandem etwas.</p>'}
         <p class="hint cash-fx">${fx
           ? `In Franken zum EZB-Referenzkurs vom ${longDate(fx.date)}: 1 € = ${fx.rate.toFixed(4)} CHF.${fx.fetched === todayIso() ? '' : fxLoading ? ' Tageskurs wird aktualisiert …' : ' Gerade kein Internet – letzter bekannter Kurs.'} Mit € den Euro-Betrag anzeigen.`
-          : fxLoading ? 'Wechselkurs wird geladen …' : 'Wechselkurs gerade nicht abrufbar – Beträge in Euro.'}</p>
+          : fxLoading ? 'Wechselkurs wird geladen …' : 'Wechselkurs gerade nicht abrufbar – Beträge in Euro.'}
+          ${transfers.length ? ' Nach der Überweisung auf „bezahlt“ tippen – der Saldo wird für alle angepasst.' : ''}</p>
       </div>
     </details>`;
 }
@@ -1027,21 +1127,37 @@ function renderCashList() {
   }
   const allIds = state.participants.map((p) => p.id);
   const sorted = [...state.expenses].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.addedAt - a.addedAt);
+  const amountHtml = (e) => `<span class="cash-item-amount">${enteredMoney(e)}${e.orig?.currency === 'CHF' ? `<span class="cash-item-sub">≈ ${formatEuro(e.amountCents)}</span>` : ''}</span>`;
   list.innerHTML = sorted.map((e) => {
+    if (isTransfer(e)) {
+      const meta = [shortDate(e.date), `${escapeHtml(personName(e.paidBy))} → ${escapeHtml(personName(e.sharedWith[0]))} bezahlt`].filter(Boolean).join(' · ');
+      return `<li class="cash-item is-transfer">
+        <div class="cash-item-main">
+          <span class="cash-item-title">${icon('check', { size: 14, stroke: 3 })} Ausgleich</span>
+          <span class="cash-item-meta">${meta}</span>
+        </div>
+        ${amountHtml(e)}
+        <span class="cash-item-actions">
+          <button type="button" class="cash-icon-btn is-danger" data-delete-expense="${escapeHtml(e.id)}" aria-label="Ausgleichszahlung rückgängig machen" title="Rückgängig">${icon('trash', { size: 15, stroke: 2 })}</button>
+        </span>
+      </li>`;
+    }
     const forAll = allIds.length > 1 && allIds.every((id) => e.sharedWith.includes(id)) && e.sharedWith.length === allIds.length;
-    const each = Math.floor(e.amountCents / e.sharedWith.length);
-    const who = forAll ? 'alle' : e.sharedWith.map(personName).join(', ');
-    const meta = [
-      shortDate(e.date),
-      `bezahlt von ${escapeHtml(personName(e.paidBy))}`,
-      `für ${escapeHtml(who)}${e.sharedWith.length > 1 ? ` (je ${formatEuro(each)})` : ''}`,
-    ].filter(Boolean).join(' · ');
+    let forText;
+    if (e.split) {
+      const shares = sharesOf(e);
+      forText = `für ${e.sharedWith.map((id) => `${escapeHtml(personName(id))} ${formatEuro(shares.get(id))}`).join(', ')}`;
+    } else {
+      const each = Math.floor(e.amountCents / e.sharedWith.length);
+      forText = `für ${escapeHtml(forAll ? 'alle' : e.sharedWith.map(personName).join(', '))}${e.sharedWith.length > 1 ? ` (je ${formatEuro(each)})` : ''}`;
+    }
+    const meta = [shortDate(e.date), `bezahlt von ${escapeHtml(personName(e.paidBy))}`, forText].filter(Boolean).join(' · ');
     return `<li class="cash-item${cashForm.editingId === e.id ? ' is-editing' : ''}">
       <div class="cash-item-main">
         <span class="cash-item-title">${escapeHtml(e.title || 'Rechnung')}</span>
         <span class="cash-item-meta">${meta}</span>
       </div>
-      <span class="cash-item-amount">${formatEuro(e.amountCents)}</span>
+      ${amountHtml(e)}
       <span class="cash-item-actions">
         <button type="button" class="cash-icon-btn" data-edit-expense="${escapeHtml(e.id)}" aria-label="Rechnung bearbeiten" title="Bearbeiten">${icon('pencil', { size: 15, stroke: 2 })}</button>
         <button type="button" class="cash-icon-btn is-danger" data-delete-expense="${escapeHtml(e.id)}" aria-label="Rechnung löschen" title="Löschen">${icon('trash', { size: 15, stroke: 2 })}</button>
@@ -1053,12 +1169,12 @@ function renderCashList() {
 function openCash() {
   resetCashForm();
   cashSettleOpen = false;
-  // Tageskurs holen (höchstens einmal pro Tag), danach die Abrechnung in Franken neu zeichnen
+  // Tageskurs holen (höchstens einmal pro Tag), danach Abrechnung und Franken-Knopf neu zeichnen
   fxLoading = fx?.fetched !== todayIso();
   loadRate().then((v) => {
     fxLoading = false;
     if (v) fx = v;
-    if (cashDialog.open) renderCashSummary();
+    if (cashDialog.open) renderCashDialog();
   });
   $('#cash-people-fold').open = !state.participants.length;
   $('#cash-form-fold').open = true;
@@ -1102,6 +1218,14 @@ $('#cash-person-form').addEventListener('submit', async (e) => {
 cashDialog.addEventListener('toggle', (e) => {
   if (e.target.id === 'cash-settle-fold') cashSettleOpen = e.target.open;
 }, true);
+
+// Eingaben bei Anteilen/Beträgen: Wert merken und nur die Vorschau aktualisieren (Fokus bleibt)
+cashDialog.addEventListener('input', (e) => {
+  const id = e.target.dataset?.splitId;
+  if (!id) return;
+  cashForm.splitValues[id] = e.target.value;
+  renderCashPreview();
+});
 
 cashDialog.addEventListener('click', async (e) => {
   // Euro-Sprechblase: € zeigt/versteckt sie, jeder andere Klick schliesst offene Blasen
@@ -1154,6 +1278,47 @@ cashDialog.addEventListener('click', async (e) => {
     renderCashDialog();
     return;
   }
+  if (btn.dataset.cur) {
+    if (btn.dataset.cur === cashForm.currency) return;
+    cashForm.currency = btn.dataset.cur;
+    if (cashForm.splitMode === 'amounts') cashForm.splitValues = {}; // Beträge gelten in der alten Währung
+    renderCashDialog();
+    return;
+  }
+  if (btn.dataset.split) {
+    const mode = btn.dataset.split;
+    if (mode === cashForm.splitMode) return;
+    cashForm.splitMode = mode;
+    cashForm.splitValues = {};
+    // Beträge: mit der gleichmässigen Aufteilung vorbelegen – dann nur noch anpassen
+    const entered = parseAmount($('#cash-amount').value);
+    const ids = state.participants.map((p) => p.id).filter((id) => cashForm.shared.has(id));
+    if (mode === 'amounts' && entered && ids.length) {
+      for (const [id, c] of splitCents(entered, ids, cashForm.editingId || 'neu')) cashForm.splitValues[id] = centsText(c);
+    }
+    renderCashDialog();
+    return;
+  }
+  if (btn.dataset.settleFrom) {
+    // Ausgleich als bezahlt markieren: nur, wenn die Zahlung noch genau so offen ist
+    const { settleFrom: from, settleTo: to } = btn.dataset;
+    const t = settle(computeBalances(state.expenses, state.participants)).find((x) => x.from === from && x.to === to);
+    if (!t) return renderCashDialog();
+    if (extrasBlocked()) return toast('Dafür bitte zuerst das SQL aus supabase/schema.sql nochmals ausführen (siehe Hinweis oben).');
+    const shown = fx ? formatChf(toRappen(t.cents, fx.rate)) : formatEuro(t.cents);
+    if (!confirm(`${personName(from)} hat ${personName(to)} ${shown} bezahlt?\n\nDer Saldo wird für alle angepasst; rückgängig machen geht in der Liste „Rechnungen“.`)) return;
+    const exp = {
+      id: newId(), kind: 'transfer', title: 'Ausgleich', amountCents: t.cents, paidBy: from, sharedWith: [to],
+      date: todayIso(), addedBy: memberName(), addedAt: Date.now(),
+      ...(fx ? { orig: { currency: 'CHF', cents: toRappen(t.cents, fx.rate), rate: fx.rate } } : {}),
+    };
+    state.expenses.push(exp);
+    render();
+    const ok = await persist((b) => b.addExpenses([exp]), 'Ausgleich konnte nicht gespeichert werden');
+    if (!ok) { state.expenses = state.expenses.filter((x) => x.id !== exp.id); render(); return; }
+    toast(`Als bezahlt markiert: ${personName(from)} → ${personName(to)}`);
+    return;
+  }
   if (btn.id === 'cash-cancel') {
     resetCashForm();
     renderCashDialog();
@@ -1161,11 +1326,18 @@ cashDialog.addEventListener('click', async (e) => {
   }
   if (btn.dataset.editExpense) {
     const exp = state.expenses.find((x) => x.id === btn.dataset.editExpense);
-    if (!exp) return;
+    if (!exp || isTransfer(exp)) return;
     cashForm.editingId = exp.id;
     cashForm.payer = exp.paidBy;
     cashForm.shared = new Set(exp.sharedWith);
-    $('#cash-amount').value = (exp.amountCents / 100).toFixed(2).replace('.', ',');
+    cashForm.currency = exp.orig?.currency === 'CHF' ? 'CHF' : 'EUR';
+    cashForm.splitMode = exp.split?.mode || 'equal';
+    cashForm.splitValues = {};
+    for (const [id, v] of Object.entries(exp.split?.values || {})) {
+      cashForm.splitValues[id] = exp.split.mode === 'amounts' ? centsText(v) : String(v).replace('.', ',');
+    }
+    cashSplitSig = '';
+    $('#cash-amount').value = centsText(cashForm.currency === 'CHF' ? exp.orig.cents : exp.amountCents);
     $('#cash-what').value = exp.title;
     $('#cash-date').value = exp.date;
     $('#cash-error').textContent = '';
@@ -1180,13 +1352,16 @@ cashDialog.addEventListener('click', async (e) => {
   if (btn.dataset.deleteExpense) {
     const exp = state.expenses.find((x) => x.id === btn.dataset.deleteExpense);
     if (!exp) return;
-    if (!confirm(`Rechnung „${exp.title || 'Rechnung'}“ über ${formatEuro(exp.amountCents)} löschen?`)) return;
+    const question = isTransfer(exp)
+      ? `Ausgleichszahlung ${personName(exp.paidBy)} → ${personName(exp.sharedWith[0])} über ${enteredMoney(exp)} rückgängig machen?`
+      : `Rechnung „${exp.title || 'Rechnung'}“ über ${enteredMoney(exp)} löschen?`;
+    if (!confirm(question)) return;
     state.expenses = state.expenses.filter((x) => x.id !== exp.id);
     if (cashForm.editingId === exp.id) resetCashForm();
     render();
-    const ok = await persist((b) => b.deleteExpense(exp.id), 'Rechnung konnte nicht gelöscht werden');
+    const ok = await persist((b) => b.deleteExpense(exp.id), 'Eintrag konnte nicht gelöscht werden');
     if (!ok) { if (!state.expenses.some((x) => x.id === exp.id)) state.expenses.push(exp); render(); return; }
-    toast('Rechnung gelöscht');
+    toast(isTransfer(exp) ? 'Ausgleich rückgängig gemacht' : 'Rechnung gelöscht');
   }
 });
 
@@ -1195,23 +1370,27 @@ $('#cash-amount').addEventListener('input', renderCashPreview);
 $('#cash-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const error = $('#cash-error');
-  const amountCents = parseAmount($('#cash-amount').value);
-  const sharedWith = state.participants.map((p) => p.id).filter((id) => cashForm.shared.has(id));
+  const r = readCashForm();
   error.textContent = cashBlocked() ? 'Die Ausgaben sind in der Datenbank noch nicht eingerichtet (siehe Hinweis oben).'
-    : !amountCents ? 'Bitte einen gültigen Betrag eingeben, z. B. 24,50.'
+    : !r.entered ? 'Bitte einen gültigen Betrag eingeben, z. B. 24,50.'
     : !cashForm.payer ? 'Bitte auswählen, wer bezahlt hat.'
-    : !sharedWith.length ? 'Bitte bei „Für wen“ mindestens eine Person auswählen.'
+    : !r.ids.length ? 'Bitte bei „Für wen“ mindestens eine Person auswählen.'
+    : r.error ? r.error
+    : (r.orig || r.split) && extrasBlocked() ? 'Franken und ungleiche Aufteilung gehen erst, wenn die Datenbank erweitert ist (siehe Hinweis oben).'
     : '';
   if (error.textContent) return;
 
+  const editing = state.expenses.find((x) => x.id === cashForm.editingId);
   const data = {
     title: $('#cash-what').value.trim().slice(0, 120),
-    amountCents,
+    amountCents: r.amountCents,
     paidBy: cashForm.payer,
-    sharedWith,
+    sharedWith: r.ids,
     date: $('#cash-date').value || '',
   };
-  const editing = state.expenses.find((x) => x.id === cashForm.editingId);
+  // Erweiterungen: setzen, oder beim Bearbeiten ausdrücklich entfernen (null), sonst gar nicht mitschicken
+  if (r.orig) data.orig = r.orig; else if (editing?.orig) data.orig = null;
+  if (r.split) data.split = r.split; else if (editing?.split) data.split = null;
   if (cashForm.editingId && !editing) {
     // Inzwischen von jemand anderem gelöscht – nicht stillschweigend als neue Rechnung anlegen
     error.textContent = 'Diese Rechnung wurde inzwischen gelöscht. Bitte bei Bedarf neu erfassen.';
@@ -1228,7 +1407,12 @@ $('#cash-form').addEventListener('submit', async (e) => {
     resetCashForm();
     render();
     const ok = await persist((b) => b.updateExpense(editing.id, editing), 'Rechnung konnte nicht gespeichert werden');
-    if (!ok) { Object.assign(editing, before); render(); return; }
+    if (!ok) {
+      for (const k of Object.keys(editing)) if (!(k in before)) delete editing[k];
+      Object.assign(editing, before);
+      render();
+      return;
+    }
     toast('Rechnung geändert');
     return;
   }
@@ -1238,7 +1422,7 @@ $('#cash-form').addEventListener('submit', async (e) => {
   render();
   const ok = await persist((b) => b.addExpenses([exp]), 'Rechnung konnte nicht gespeichert werden');
   if (!ok) { state.expenses = state.expenses.filter((x) => x.id !== exp.id); render(); return; }
-  toast(`Rechnung gespeichert: ${formatEuro(exp.amountCents)}`);
+  toast(`Rechnung gespeichert: ${enteredMoney(exp)}`);
 });
 
 // --- Liste ---------------------------------------------------------------------------------
