@@ -1206,12 +1206,17 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
     gap: 18px;
     overflow-y: auto; overscroll-behavior: contain;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    background: rgba(247, 244, 238, 0.94);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    box-shadow: 0 -8px 28px rgba(37, 50, 31, 0.18);
+    /* Fast deckend statt Weichzeichner und ein kurzer statt breiter Schatten: beides müsste sonst bei
+       jedem Animationsschritt des Blatts neu berechnet werden */
+    background: rgba(247, 244, 238, 0.98);
+    box-shadow: 0 -3px 12px rgba(37, 50, 31, 0.14);
     transition: height 0.25s ease, transform 0.25s ease;
   }
+  /* Flüssiges Verschieben: Der Pinsel-Filter (SVG) auf Chips, Listeneinträgen und Knöpfen im Blatt würde
+     in jedem Animationsschritt neu gerechnet – auf dem Handy daher glatte Ränder (wie in der Kopfzeile). */
+  .sidebar .chip::before,
+  .sidebar .place::before,
+  .sidebar .btn::before { filter: none; }
   /* Griff oben am Blatt: bleibt beim Scrollen stehen */
   .sheet-handle {
     display: flex; justify-content: center; align-items: center; flex: none;
