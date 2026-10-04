@@ -96,14 +96,20 @@ export async function geocode(query, near = null) {
   if (wait) await new Promise((r) => setTimeout(r, wait));
   lastRequest = Date.now();
 
+  // Nominatim ist genau, aber streng bei Schreibweisen (Google: „Carrer de Can Sanç“, OpenStreetMap:
+  // „Carrer de Ca'n Sanç“). Findet es nichts oder ist nicht erreichbar, sucht Photon unscharf weiter.
+  let nominatimError = null;
   try {
-    return await geocodeNominatim(query, near);
-  } catch (nominatimError) {
-    try {
-      return await geocodePhoton(query, near);
-    } catch (photonError) {
-      throw new Error(`Adresssuche nicht erreichbar – Nominatim: ${nominatimError.message}; Photon: ${photonError.message}`);
-    }
+    const hits = await geocodeNominatim(query, near);
+    if (hits.length) return hits;
+  } catch (err) {
+    nominatimError = err;
+  }
+  try {
+    return await geocodePhoton(query, near);
+  } catch (photonError) {
+    if (!nominatimError) return [];
+    throw new Error(`Adresssuche nicht erreichbar – Nominatim: ${nominatimError.message}; Photon: ${photonError.message}`);
   }
 }
 

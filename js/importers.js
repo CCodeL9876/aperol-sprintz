@@ -292,6 +292,22 @@ function elevationGain(elevations) {
 
 const TRAILING_COORDS = /(-?\d{1,2}\.\d{2,})\s*[,;]\s*(-?\d{1,3}\.\d{2,})\s*$/;
 
+// Google-Maps-Links ohne Koordinaten – typisch für Kurzlinks aus der iPhone-App, die auf
+// „maps.google.com/maps?q=Name,+Strasse+1,+PLZ+Ort&ftid=…“ weiterleiten, oder „…/maps/search/?query=Name“:
+// erster Teil = Name, Rest = Adresse. Damit findet die Standortsuche (OpenStreetMap) den Ort.
+function placeTextFromUrl(url) {
+  try {
+    const u = new URL(url);
+    if (!/(^|\.)google\.|goo\.gl$/.test(u.hostname)) return null;
+    const q = (u.searchParams.get('q') || u.searchParams.get('query') || '').trim();
+    if (!q || parseCoords(q)) return null;
+    const [name, ...rest] = q.split(',').map((t) => t.trim()).filter(Boolean);
+    return name ? { name: name.slice(0, 300), address: rest.join(', ').slice(0, 500) } : null;
+  } catch {
+    return null;
+  }
+}
+
 export function parseLinks(text, listName = '') {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   // Geteilter Text aus der Google-Maps-App: „Name“, „Adresse“ und Link auf eigenen Zeilen ergeben einen Ort.
@@ -323,9 +339,10 @@ export function parseLinks(text, listName = '') {
       label = label.replace(/[\s|–,;-]+$/, '').trim();
       const labelIsCoords = !!parseCoords(label);
       if (!label && extra.length) label = extra[0];
+      const fromUrl = url && !c ? placeTextFromUrl(url) : null;
       return {
-        name: (!labelIsCoords && label) || nameFromUrl(url) || (c ? `Pin ${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}` : line),
-        address: extra.slice(1).join(', ').slice(0, 500),
+        name: (!labelIsCoords && label) || nameFromUrl(url) || fromUrl?.name || (c ? `Pin ${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}` : line),
+        address: (extra.slice(1).join(', ') || fromUrl?.address || '').slice(0, 500),
         lat: c ? c.lat : null,
         lng: c ? c.lng : null,
         url,
