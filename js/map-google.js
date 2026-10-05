@@ -311,8 +311,14 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       await place.fetchFields({ fields: PLACE_FIELDS });
     } catch (err) {
       console.warn('Places API:', err);
+      const msg = String(err?.message || '');
+      const hint = /referer/i.test(msg)
+        ? `Schlüssel-Einschränkung: in der Google Cloud Console bei den Websites ${location.origin}/* ergänzen.`
+        : /not been used|disabled|not enabled|PERMISSION_DENIED/i.test(msg)
+          ? 'im Google-Cloud-Projekt die „Places API (New)“ aktivieren und beim Schlüssel freigeben.'
+          : 'gerade keine Verbindung zu Google.';
       info.setContent(`<div class="popup">
-        <span class="popup-addr">Details nicht verfügbar – im Google-Cloud-Projekt die „Places API (New)“ aktivieren.</span>
+        <span class="popup-addr">Details nicht verfügbar – ${escapeHtml(hint)}</span>
         <a class="popup-link" href="${escapeHtml(fallbackUrl)}" target="_blank" rel="noopener">In Google Maps öffnen ↗</a>
       </div>`);
       return;

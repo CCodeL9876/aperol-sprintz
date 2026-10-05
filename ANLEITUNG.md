@@ -252,8 +252,10 @@ und bietet: Google-Kartenbild, Satellit, Radwege-Ebene, antippbare Restaurants/C
    für eine kleine Reisegruppe fallen nach aktuellem Stand keine Kosten an; aktuelle Bedingungen bei Google prüfen.
 3. **APIs & Dienste → Bibliothek**: **„Maps JavaScript API“** und **„Places API (New)“** aktivieren.
 4. **APIs & Dienste → Anmeldedaten → Anmeldedaten erstellen → API-Schlüssel**. Danach den Schlüssel **einschränken**:
-   - *Anwendungseinschränkungen*: **Websites**, dann beide Adressen eintragen:
-     `https://ccodel9876.github.io/aperol-sprintz/*` und `http://localhost:5173/*`
+   - *Anwendungseinschränkungen*: **Websites**, dann diese Adressen eintragen:
+     `https://ccodel9876.github.io/aperol-sprintz/*`, `https://ccodel9876.github.io/*` und `http://localhost:5173/*`
+     (Die mittlere ist nötig für die Ortsdetails: Der Browser schickt bei Anfragen an die Places API nur
+     `https://ccodel9876.github.io/` als Herkunft mit, ohne `/aperol-sprintz/`.)
    - *API-Einschränkungen*: **Schlüssel einschränken** → nur „Maps JavaScript API“ und „Places API (New)“.
 5. Empfohlen: **Abrechnung → Budgets & Benachrichtigungen** → Budget z. B. 5 € mit E-Mail-Warnung anlegen.
 6. Den Schlüssel in `js/config.js` bei `GOOGLE_MAPS_API_KEY = '…'` eintragen und `./deploy.sh` ausführen.
