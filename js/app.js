@@ -2519,10 +2519,12 @@ $('.menu-panel').addEventListener('click', async (e) => {
       return;
     }
     writePref('map', next);
-    // ?karte=… aus der Adresse entfernen, sonst würde es die neue Wahl beim Neuladen überschreiben
+    // ?karte=… aus der Adresse entfernen, sonst würde es die neue Wahl beim Neuladen überschreiben. Danach
+    // ausdrücklich neu laden: location.replace() mit gleicher Adresse und „#reise=…“ lädt nicht neu.
     const url = new URL(location.href);
     url.searchParams.delete('karte');
-    location.replace(url.href);
+    history.replaceState(null, '', url.href);
+    location.reload();
   }
   if (what === 'reset') {
     const where = backend.kind === 'shared' ? ' – für alle in dieser gemeinsamen Reise' : '';
