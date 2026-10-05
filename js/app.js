@@ -4,7 +4,7 @@ import { parseFile, parseGeoJSON, parseLinks, assignCategory, buildGpx } from '.
 import { loadUi, saveUi, readPref, writePref, downloadBackup, newId, newTripKey, loadLocalBackup, clearLocalBackup } from './store.js';
 import { expandMapsLinks, hasShortMapsLinks,
   LocalBackend, SharedBackend, sharingConfigured, tripKeyFromUrl,
-  rememberedTripKey, rememberTripKey, forgetTripKey, shareUrl, rememberTripCode, forgetTripCode,
+  rememberedTripKey, rememberTripKey, forgetTripKey, shareUrl, rememberTripCode, forgetTripCode, validTripCodeChars,
 } from './backend.js';
 import { createMap } from './map.js';
 import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './config.js';
@@ -110,7 +110,9 @@ async function persist(op, failMsg = 'Änderung konnte nicht gespeichert werden'
     lastSync = new Date();
     return true;
   } catch (err) {
-    toast(`${failMsg}: ${err.message}`);
+    toast(/row-level security/i.test(err.message)
+      ? `${failMsg}: Zugriff abgelehnt – vermutlich wurde der Zugangscode geändert.`
+      : `${failMsg}: ${err.message}`);
     failed = true;
     return false;
   } finally {
@@ -2026,12 +2028,16 @@ $('#code-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const code = $('#code-input').value.trim();
   if (!code) return;
+  if (!validTripCodeChars(code)) {
+    $('#code-error').textContent = 'Der Code enthält Zeichen, die hier nicht gehen (z. B. Umlaute) – bitte genau so eingeben, wie er festgelegt wurde.';
+    return;
+  }
   const btn = $('#code-submit');
   btn.disabled = true;
   btn.textContent = 'Prüfe …';
   try {
     const shared = await SharedBackend.connect(codeTripKey, code);
-    rememberTripCode(code);
+    rememberTripCode(codeTripKey, code);
     switchTo(shared);
     codeDialog.close();
     if (!readPref('introHidden')) openIntro();
@@ -2066,7 +2072,7 @@ function openCodeManage() {
 // Code in der Datenbank setzen (leer = entfernen), auf diesem Gerät merken und neu verbinden
 async function applyTripCode(newCode) {
   await backend.setCode(newCode);
-  if (newCode) rememberTripCode(newCode); else forgetTripCode();
+  if (newCode) rememberTripCode(backend.key, newCode); else forgetTripCode();
   switchTo(await SharedBackend.connect(backend.key, newCode));
   lastSignature = '';
   await refresh();
@@ -2079,6 +2085,7 @@ $('#code-manage-form').addEventListener('submit', async (e) => {
   const code = $('#code-new').value.trim();
   error.textContent = code.length < 6 ? 'Der Code braucht mindestens 6 Zeichen – z. B. ein Wort mit Zahl.'
     : code.length > 64 ? 'Der Code darf höchstens 64 Zeichen lang sein.'
+    : !validTripCodeChars(code) ? 'Bitte nur Buchstaben ohne Umlaute (ae statt ä), Ziffern und einfache Satzzeichen verwenden.'
     : code !== $('#code-repeat').value.trim() ? 'Die beiden Eingaben stimmen nicht überein.'
     : '';
   if (error.textContent) return;

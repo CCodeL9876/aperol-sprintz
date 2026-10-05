@@ -197,6 +197,10 @@ begin
   if char_length(new_code) < 6 or char_length(new_code) > 64 then
     raise exception 'der Code muss 6 bis 64 Zeichen lang sein';
   end if;
+  -- Nur einfache Zeichen: Der Code geht als HTTP-Header mit, und Browser senden z. B. Umlaute nicht als UTF-8
+  if new_code !~ '^[ -~]+$' then
+    raise exception 'bitte nur Buchstaben ohne Umlaute, Ziffern und einfache Satzzeichen';
+  end if;
   insert into public.trip_access (trip_key, code_hash, updated_at)
   values (k, extensions.crypt(new_code, extensions.gen_salt('bf', 8)), now())
   on conflict (trip_key) do update set code_hash = excluded.code_hash, updated_at = now();

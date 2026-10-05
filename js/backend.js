@@ -39,10 +39,20 @@ export const rememberedTripKey = () => readPref('trip');
 export const rememberTripKey = (key) => writePref('trip', key);
 export const forgetTripKey = () => writePref('trip', null);
 export const shareUrl = (key) => `${location.origin}${location.pathname}#reise=${key}`;
-// Zugangscode der Reise: bleibt auf diesem Gerät gespeichert, bis man sich abmeldet
-export const rememberedTripCode = () => readPref('tripCode') || '';
-export const rememberTripCode = (code) => writePref('tripCode', code || null);
+// Zugangscode der Reise: bleibt auf diesem Gerät gespeichert, bis man sich abmeldet – zusammen mit dem
+// Reise-Schlüssel, damit beim Öffnen einer anderen Reise nicht deren falscher Code mitgeht.
+// (Ältere Versionen speicherten nur den Code als Text; der gilt weiter, bis er ersetzt wird.)
+export function rememberedTripCode(key) {
+  const saved = readPref('tripCode');
+  if (typeof saved === 'string') return saved;
+  return saved && saved.key === key ? String(saved.code || '') : '';
+}
+export const rememberTripCode = (key, code) => writePref('tripCode', code ? { key, code } : null);
 export const forgetTripCode = () => writePref('tripCode', null);
+
+// Der Code geht als HTTP-Header mit – dort sind nur einfache Zeichen sicher (Browser schicken z. B. „ä“
+// anders als UTF-8, Supabase antwortet dann mit einem Fehler; „€“ senden sie gar nicht).
+export const validTripCodeChars = (code) => /^[\x20-\x7E]+$/.test(code);
 
 // Die Reise ist mit einem Zugangscode geschützt und der Code fehlt oder ist falsch
 export class CodeRequiredError extends Error {
@@ -238,7 +248,7 @@ export class SharedBackend {
 
   // code: Zugangscode, falls die Reise geschützt ist – wird bei jeder Anfrage als „x-trip-code“ mitgeschickt
   // und von der Datenbank geprüft (supabase/schema.sql, trip_code_ok)
-  static async connect(key, code = rememberedTripCode()) {
+  static async connect(key, code = rememberedTripCode(key)) {
     if (!sharingConfigured()) throw new Error('Gemeinsame Reisen sind noch nicht eingerichtet (js/config.js).');
     const { createClient } = await loadSupabase();
     const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -268,6 +278,9 @@ export class SharedBackend {
     // Zuerst klären, ob ein Zugangscode nötig ist: bei falschem Code liefert die Datenbank sonst einfach
     // leere Listen, und die Reise sähe leer aus. Fehlt die Funktion (SQL noch nicht ausgeführt): kein Schutz.
     const access = await this.db.rpc('trip_code_status');
+    // Nur wenn die Funktion fehlt (SQL noch nicht ausgeführt) gilt „kein Schutz“. Jeder andere Fehler bricht
+    // ab – sonst sähe die Reise bei einem kurzen Aussetzer leer aus.
+    if (access.error && access.error.code !== 'PGRST202') throw new Error(access.error.message || 'Zugangsprüfung fehlgeschlagen');
     const status = access.error ? 'none' : access.data;
     if (status === 'wrong') throw new CodeRequiredError(Boolean(this.code));
     this.codeProtected = status === 'ok';
