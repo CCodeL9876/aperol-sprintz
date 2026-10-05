@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-05.3" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-05.3">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-05.4" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-05.4">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-05.3">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-05.3">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-05.3">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-05.4">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-05.4">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-05.4">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -113,6 +113,19 @@
           <h2 class="list-title">Rennrad-Routen</h2>
           <span id="route-count" class="result-count"></span>
         </div>
+        <!-- Grundtempo für die Fahrzeit-Schätzung; jedes Gerät merkt sich seins -->
+        <label class="route-speed" id="route-speed" hidden>
+          <span>Fahrzeit bei</span>
+          <select id="bike-speed" aria-label="Grundtempo in der Ebene">
+            <option value="20">20 km/h</option>
+            <option value="22">22 km/h</option>
+            <option value="25">25 km/h</option>
+            <option value="28">28 km/h</option>
+            <option value="30">30 km/h</option>
+            <option value="32">32 km/h</option>
+          </select>
+          <span class="muted">in der Ebene</span>
+        </label>
         <p id="route-empty" class="hint route-empty" hidden>Noch keine Route importiert – über „Importieren“ eine GPX-Datei hinzufügen.</p>
         <ul id="route-list" class="place-list route-list"></ul>
       </section>
@@ -279,7 +292,7 @@
             </li>
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--mint)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Rennrad-Routen</strong><span>GPX-Dateien über <strong>„+ Importieren“</strong> hinzufügen, unter „Rennrad-Routen“ einzeln einblenden, herunterladen oder mit Strava/Komoot verlinken.</span></span>
+              <span class="intro-text"><strong class="intro-name">Rennrad-Routen</strong><span>GPX-Dateien über <strong>„+ Importieren“</strong> hinzufügen. Jede Route zeigt Fahrzeit, Wetter am Start und Kaffee-Stopps unterwegs; nach der Fahrt mit dem Haken als gefahren markieren und die Strava-Aktivität verlinken.</span></span>
             </li>
           </ul>
         </section>
@@ -568,25 +581,25 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-05.3"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-05.4"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-05.3",
-      "./js/backend.js": "./js/backend.js?v=2026-10-05.3",
-      "./js/cash.js": "./js/cash.js?v=2026-10-05.3",
-      "./js/categories.js": "./js/categories.js?v=2026-10-05.3",
-      "./js/config.js": "./js/config.js?v=2026-10-05.3",
-      "./js/geo.js": "./js/geo.js?v=2026-10-05.3",
-      "./js/icons.js": "./js/icons.js?v=2026-10-05.3",
-      "./js/importers.js": "./js/importers.js?v=2026-10-05.3",
-      "./js/map.js": "./js/map.js?v=2026-10-05.3",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-05.3",
-      "./js/store.js": "./js/store.js?v=2026-10-05.3"
+      "./js/app.js": "./js/app.js?v=2026-10-05.4",
+      "./js/backend.js": "./js/backend.js?v=2026-10-05.4",
+      "./js/cash.js": "./js/cash.js?v=2026-10-05.4",
+      "./js/categories.js": "./js/categories.js?v=2026-10-05.4",
+      "./js/config.js": "./js/config.js?v=2026-10-05.4",
+      "./js/geo.js": "./js/geo.js?v=2026-10-05.4",
+      "./js/icons.js": "./js/icons.js?v=2026-10-05.4",
+      "./js/importers.js": "./js/importers.js?v=2026-10-05.4",
+      "./js/map.js": "./js/map.js?v=2026-10-05.4",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-05.4",
+      "./js/store.js": "./js/store.js?v=2026-10-05.4"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-05.3"></script>
+  <script type="module" src="js/app.js?v=2026-10-05.4"></script>
 </body>
 </html>

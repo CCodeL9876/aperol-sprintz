@@ -55,6 +55,9 @@ alter table public.routes add column if not exists elevation_gain_m double preci
 alter table public.routes add column if not exists elevation_loss_m double precision;
 -- Nachträglich ergänzt: Link zur Tour (Strava, Komoot …)
 alter table public.routes add column if not exists url text check (char_length(url) <= 2000);
+-- Nachträglich ergänzt: Route gefahren (für die ganze Reise) und Link zur gefahrenen Aktivität (Strava …)
+alter table public.routes add column if not exists ridden boolean default false;
+alter table public.routes add column if not exists activity_url text check (char_length(activity_url) <= 2000);
 
 -- Original-GPX je Route (für den Download) – eigene Tabelle, damit der regelmäßige Abgleich die
 -- großen Dateien nicht jedes Mal mitlädt. Wird beim Löschen der Route automatisch mit gelöscht.

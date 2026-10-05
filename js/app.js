@@ -409,6 +409,153 @@ function renderAirbnb() {
   else if (a && airbnbFormAuto) closeAirbnbForm();
 }
 
+// --- Rennrad: Fahrzeit, Stopps unterwegs, Wetter -------------------------------------------
+
+// Fahrzeit ohne Pausen: Strecke im gewählten Grundtempo plus Zuschlag fürs Klettern. Die Steigleistung
+// wächst mit dem Tempo (25 km/h → 750 Hm/h). Grobe Faustregel; Abfahrten werden nicht abgezogen.
+const BIKE_SPEEDS = [20, 22, 25, 28, 30, 32];
+const bikeSpeed = () => { const v = Number(readPref('bikeSpeed')); return BIKE_SPEEDS.includes(v) ? v : 25; };
+function rideHours(r, speed = bikeSpeed()) {
+  if (!Number.isFinite(r.distanceKm) || r.distanceKm <= 0) return null;
+  const climb = Number.isFinite(r.elevationGainM) ? r.elevationGainM / (speed * 30) : 0;
+  return r.distanceKm / speed + climb;
+}
+function formatDuration(hours) {
+  const min = Math.max(5, Math.round((hours * 60) / 5) * 5);
+  return min < 60 ? `ca. ${min} min` : `ca. ${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`;
+}
+
+// Kaffee-Stopps: eigene Orte der Arten Kaffee und Rennrad-Hotspot, höchstens 500 m von der Strecke entfernt,
+// in Fahrtrichtung sortiert. Abstand flach genähert – auf Inselgröße auf wenige Meter genau.
+const STOP_CATEGORIES = new Set(['kaffee', 'rennrad']);
+const STOP_RADIUS_M = 500;
+function stopsAlong(route) {
+  const pts = route.points;
+  if (!pts?.length) return [];
+  const kx = 111320 * Math.cos((pts[0][0] * Math.PI) / 180);
+  const ky = 110540;
+  const xy = pts.map(([lat, lng]) => [lng * kx, lat * ky]);
+  const xs = xy.map((p) => p[0]);
+  const ys = xy.map((p) => p[1]);
+  const box = [Math.min(...xs) - STOP_RADIUS_M, Math.max(...xs) + STOP_RADIUS_M, Math.min(...ys) - STOP_RADIUS_M, Math.max(...ys) + STOP_RADIUS_M];
+  const stops = [];
+  for (const p of state.places) {
+    if (!STOP_CATEGORIES.has(p.category) || !hasCoords(p)) continue;
+    const x = p.lng * kx;
+    const y = p.lat * ky;
+    if (x < box[0] || x > box[1] || y < box[2] || y > box[3]) continue;
+    let best = Infinity;
+    let along = 0;
+    for (let i = 0; i < xy.length; i++) {
+      const [ax, ay] = xy[i];
+      const [bx, by] = xy[i + 1] || xy[i];
+      const dx = bx - ax;
+      const dy = by - ay;
+      const len2 = dx * dx + dy * dy;
+      const t = len2 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / len2)) : 0;
+      const d = Math.hypot(x - (ax + t * dx), y - (ay + t * dy));
+      if (d < best) { best = d; along = i + t; }
+    }
+    if (best <= STOP_RADIUS_M) stops.push({ place: p, along, distM: best });
+  }
+  return stops.sort((a, b) => a.along - b.along);
+}
+
+// Wetter am Startpunkt jeder Route – „als wäre jeder Tag ein Fahrtag“: heute für die Fahrstunden 9–16 Uhr,
+// ab 15 Uhr schon für morgen. Daten von Open-Meteo (kostenlos, ohne Schlüssel; übermittelt werden nur die
+// Startkoordinaten), höchstens einmal pro Stunde abgefragt und im Browser gemerkt.
+const WEATHER_PREF = 'weather';
+let weather = (() => { const w = readPref(WEATHER_PREF); return w && w.byCoord ? w : null; })();
+let weatherLoading = false;
+let weatherFailedAt = 0;
+const startKey = (route) => (route.points?.length ? `${route.points[0][0].toFixed(2)},${route.points[0][1].toFixed(2)}` : '');
+const compass = (deg) => ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8];
+
+function weatherDay() {
+  const now = new Date();
+  const tomorrow = now.getHours() >= 15;
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (tomorrow ? 1 : 0));
+  return { day: d.toLocaleDateString('sv-SE'), label: tomorrow ? 'Morgen' : 'Heute' };
+}
+
+// Stundenwerte eines Tages → Kurzfassung für die Fahrstunden (9–16 Uhr)
+function summarizeRideHours(hourly, day) {
+  const idx = (hourly?.time || []).flatMap((t, i) => (t.startsWith(day) && Number(t.slice(11, 13)) >= 9 && Number(t.slice(11, 13)) <= 16 ? [i] : []));
+  if (!idx.length) return null;
+  const vals = (k) => idx.map((i) => hourly[k]?.[i]).filter((v) => Number.isFinite(v));
+  const temp = vals('temperature_2m');
+  const rain = vals('precipitation_probability');
+  const wind = vals('wind_speed_10m');
+  const gust = vals('wind_gusts_10m');
+  const dir = vals('wind_direction_10m');
+  if (!temp.length || !wind.length) return null;
+  // Mittlere Windrichtung als Vektormittel (sonst ergäbe 350° und 10° fälschlich Süd)
+  const rad = (d) => (d * Math.PI) / 180;
+  const sx = dir.reduce((s, d) => s + Math.sin(rad(d)), 0);
+  const sy = dir.reduce((s, d) => s + Math.cos(rad(d)), 0);
+  return {
+    tMin: Math.round(Math.min(...temp)), tMax: Math.round(Math.max(...temp)),
+    rain: rain.length ? Math.round(Math.max(...rain)) : null,
+    wind: Math.round(Math.max(...wind)), gust: gust.length ? Math.round(Math.max(...gust)) : null,
+    dir: dir.length ? (((Math.atan2(sx, sy) * 180) / Math.PI) + 360) % 360 : null,
+  };
+}
+
+async function ensureWeather() {
+  if (weatherLoading || Date.now() - weatherFailedAt < 5 * 60 * 1000) return;
+  const starts = [...new Set(state.routes.map(startKey).filter(Boolean))];
+  if (!starts.length) return;
+  const { day, label } = weatherDay();
+  if (weather && weather.day === day && Date.now() - weather.fetched < 60 * 60 * 1000 && starts.every((k) => k in weather.byCoord)) return;
+  weatherLoading = true;
+  try {
+    const params = new URLSearchParams({
+      latitude: starts.map((k) => k.split(',')[0]).join(','),
+      longitude: starts.map((k) => k.split(',')[1]).join(','),
+      hourly: 'temperature_2m,precipitation_probability,wind_speed_10m,wind_direction_10m,wind_gusts_10m',
+      timezone: 'Europe/Madrid',
+      forecast_days: '2',
+    });
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : [data];
+    const byCoord = {};
+    starts.forEach((k, i) => { byCoord[k] = summarizeRideHours(list[i]?.hourly, day); });
+    weather = { fetched: Date.now(), day, label, byCoord };
+    writePref(WEATHER_PREF, weather);
+    renderRoutes();
+  } catch (err) {
+    weatherFailedAt = Date.now();
+    console.warn('Wetter nicht abrufbar:', err.message);
+  } finally {
+    weatherLoading = false;
+  }
+}
+
+function weatherHtml(route) {
+  const w = weather?.byCoord?.[startKey(route)];
+  if (!w || weather.day !== weatherDay().day) return '';
+  // Auffällig, wenn es fürs Rennrad ungemütlich wird: viel Wind, starke Böen oder wahrscheinlicher Regen
+  const rough = w.wind >= 30 || (w.gust ?? 0) >= 45 || (w.rain ?? 0) >= 50;
+  const parts = [
+    `${w.tMin === w.tMax ? w.tMax : `${w.tMin}–${w.tMax}`}°`,
+    w.rain != null ? `Regen ${w.rain} %` : '',
+    `Wind ${w.wind} km/h${w.dir != null ? ` aus ${compass(w.dir)}` : ''}${w.gust != null ? `, Böen ${w.gust}` : ''}`,
+  ].filter(Boolean);
+  return `<div class="route-extra route-weather${rough ? ' is-rough' : ''}" title="Startpunkt, ${weather.label.toLowerCase()} 9–16 Uhr (Open-Meteo)">
+    ${icon('wind', { size: 14, stroke: 2 })}<span><strong>${weather.label}:</strong> ${parts.join(' · ')}</span></div>`;
+}
+
+function stopsHtml(route) {
+  const stops = stopsAlong(route);
+  if (!stops.length) return '';
+  const shown = stops.slice(0, 4);
+  return `<div class="route-extra route-stops">${icon('coffee', { size: 14, stroke: 2 })}<span class="route-stops-label">Unterwegs:</span>
+    ${shown.map((s) => `<button type="button" class="route-stop" data-action="show-stop" data-place="${escapeHtml(s.place.id)}" title="${Math.round(s.distM)} m neben der Strecke">${escapeHtml(s.place.name)}</button>`).join('')}
+    ${stops.length > shown.length ? `<span class="muted">+${stops.length - shown.length}</span>` : ''}</div>`;
+}
+
 // Rennrad-Routen: eigener Abschnitt unter den Orten, gleicher Aufbau wie die Ortsliste, aber jede
 // Zeile ist ein Kippschalter – standardmäßig ist state.ui.visibleRoutes leer, also keine Route auf der Karte.
 function renderRoutes() {
@@ -423,21 +570,34 @@ function renderRoutes() {
       : '';
   }
   if (empty) empty.hidden = state.routes.length > 0;
+  const speedBox = $('#route-speed');
+  if (speedBox) {
+    speedBox.hidden = !state.routes.length;
+    $('#bike-speed').value = String(bikeSpeed());
+  }
   // Offenes Link-Feld übersteht das Neuzeichnen (z. B. Abgleich alle 20 s) samt Eingabe und Fokus
   const draftInput = $('.route-link-form input', list);
   const draft = draftInput ? { value: draftInput.value, focused: document.activeElement === draftInput } : null;
   if (editingRouteLink && !state.routes.some((r) => r.id === editingRouteLink)) editingRouteLink = null;
+  const linkForm = (r, field) => {
+    const activity = field === 'activityUrl';
+    // novalidate: Links ohne „https://“ (z. B. „strava.com/…“) ergänzt normalizeLink – der Browser würde sie sonst still ablehnen
+    return `<form class="route-link-form" data-action="save-route-link" data-field="${field}" autocomplete="off" novalidate>
+          <input type="url" inputmode="url" placeholder="${activity ? 'Link zur gefahrenen Aktivität (Strava …)' : 'Link zur Tour (Strava, Komoot …)'}" aria-label="${activity ? 'Link zur Aktivität' : 'Link zur Tour'}" value="${escapeHtml(r[field] || '')}">
+          <button class="btn btn-small" type="submit">Speichern</button>
+          <button class="btn-link muted" type="button" data-action="cancel-route-link">Abbrechen</button>
+        </form>`;
+  };
   list.innerHTML = state.routes.map((r, i) => {
     const on = visible.has(r.id);
     const colors = { ...ROUTE_CATEGORY, ...routeColor(i) }; // gleiche Farbe wie die Linie auf der Karte
     const hm = formatHm(r.elevationGainM);
+    const hours = rideHours(r);
     const url = safeHttpUrl(r.url);
-    const linkLine = editingRouteLink === r.id
-      ? `<form class="route-link-form" data-action="save-route-link" autocomplete="off">
-          <input type="url" inputmode="url" placeholder="Link zur Tour (Strava, Komoot …)" aria-label="Link zur Tour" value="${escapeHtml(r.url || '')}">
-          <button class="btn btn-small" type="submit">Speichern</button>
-          <button class="btn-link muted" type="button" data-action="cancel-route-link">Abbrechen</button>
-        </form>`
+    const activity = safeHttpUrl(r.activityUrl);
+    const editing = editingRouteLink === r.id ? editingRouteField : null;
+    const linkLine = editing === 'url'
+      ? linkForm(r, 'url')
       : url
         ? `<div class="route-link-line">
             <a class="route-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">${icon('link', { size: 13, stroke: 2 })}<span>${escapeHtml(linkLabel(url))}</span> ↗</a>
@@ -446,13 +606,30 @@ function renderRoutes() {
         : `<div class="route-link-line">
             <button class="btn-link muted route-link-add" type="button" data-action="edit-route-link">${icon('link', { size: 13, stroke: 2 })}Link hinzufügen</button>
           </div>`;
-    return `<li class="place route-item${on ? ' is-on' : ''}" data-id="${r.id}" style="${categoryStyle(colors)}">
+    // Gefahren: Link zur Aktivität (Strava …) nachtragen
+    const activityLine = !r.ridden ? ''
+      : editing === 'activityUrl' ? linkForm(r, 'activityUrl')
+      : activity
+        ? `<div class="route-link-line">
+            <a class="route-link" href="${escapeHtml(activity)}" target="_blank" rel="noopener">${icon('check', { size: 13, stroke: 2.6 })}<span>Gefahren · ${escapeHtml(linkLabel(activity))}</span> ↗</a>
+            <button class="btn-link muted" type="button" data-action="edit-activity-link">Ändern</button>
+          </div>`
+        : `<div class="route-link-line">
+            <button class="btn-link muted route-link-add" type="button" data-action="edit-activity-link">${icon('check', { size: 13, stroke: 2.6 })}Aktivität verlinken (Strava …)</button>
+          </div>`;
+    // Symbol und Text je als Einheit, damit beim Umbrechen nichts auseinanderfällt
+    const meta = [
+      hm ? `<span class="route-meta-part">${icon('trending-up', { size: 13, stroke: 2.2 })} ${hm}</span>` : '',
+      hours != null ? `<span class="route-meta-part">${icon('clock', { size: 13, stroke: 2.2 })} ${formatDuration(hours)}</span>` : '',
+    ].filter(Boolean).join('<span class="route-meta-sep">·</span>') || escapeHtml(ROUTE_CATEGORY.label);
+    return `<li class="place route-item${on ? ' is-on' : ''}${r.ridden ? ' is-ridden' : ''}" data-id="${r.id}" style="${categoryStyle(colors)}">
       <div class="route-row">
+      <button type="button" class="visit-toggle" data-action="ridden" aria-pressed="${!!r.ridden}" aria-label="${escapeHtml(r.name)} gefahren" title="${r.ridden ? 'Gefahren – antippen zum Entfernen' : 'Als gefahren markieren'}">${icon('check', { size: 16, stroke: 3 })}</button>
       <button type="button" class="place-main" data-action="toggle-route" aria-pressed="${on}" title="${on ? 'Auf der Karte ausblenden' : 'Auf der Karte einblenden'}">
         <span class="place-icon" aria-hidden="true">${categoryIcon(ROUTE_CATEGORY, { size: 18, stroke: 1.7 })}</span>
         <span class="place-body">
           <span class="place-name">${escapeHtml(r.name)}</span>
-          <span class="place-meta">${hm ? `${icon('trending-up', { size: 13, stroke: 2.2 })} ${hm}` : escapeHtml(ROUTE_CATEGORY.label)}</span>
+          <span class="place-meta">${meta}</span>
         </span>
         ${r.distanceKm != null ? `<span class="place-dist">${distanceHtml(r.distanceKm)}</span>` : ''}
         <span class="route-switch" aria-hidden="true"></span>
@@ -460,7 +637,10 @@ function renderRoutes() {
       <button type="button" class="route-action" data-action="download-route" aria-label="Route „${escapeHtml(r.name)}“ als GPX herunterladen" title="Als GPX herunterladen">${icon('download', { size: 15, stroke: 1.9 })}</button>
       <button type="button" class="route-action is-danger" data-action="delete-route" aria-label="Route „${escapeHtml(r.name)}“ entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
       </div>
+      ${weatherHtml(r)}
+      ${stopsHtml(r)}
       ${linkLine}
+      ${activityLine}
     </li>`;
   }).join('');
   const input = $('.route-link-form input', list);
@@ -468,10 +648,13 @@ function renderRoutes() {
     input.value = draft.value;
     if (draft.focused) input.focus();
   }
+  ensureWeather();
 }
 
-// Link zur Tour (Strava, Komoot, …): Id der Route, deren Link-Feld gerade offen ist
+// Link zur Tour (Strava, Komoot, …) bzw. zur gefahrenen Aktivität: Id der Route, deren Link-Feld gerade
+// offen ist, und welches Feld ('url' oder 'activityUrl')
 let editingRouteLink = null;
+let editingRouteField = 'url';
 
 // Nur http(s)-Links in href übernehmen – nie javascript: o. Ä. aus der Datenbank
 const safeHttpUrl = (u) => (/^https?:\/\//i.test(u || '') ? u : '');
@@ -1524,10 +1707,26 @@ $('#route-list')?.addEventListener('click', async (e) => {
       mapView.fitToRoute(route);
     }
   }
-  if (action === 'edit-route-link') {
+  if (action === 'edit-route-link' || action === 'edit-activity-link') {
     editingRouteLink = id;
+    editingRouteField = action === 'edit-activity-link' ? 'activityUrl' : 'url';
     renderRoutes();
     $('.route-link-form input', $('#route-list'))?.focus();
+  }
+  if (action === 'ridden') {
+    route.ridden = !route.ridden;
+    render();
+    const ok = await persist((b) => b.updateRoute(route.id, { ridden: route.ridden }),
+      'Markierung konnte nicht gespeichert werden (Spalte „ridden“ in Supabase angelegt?)');
+    if (!ok) { route.ridden = !route.ridden; render(); return; }
+    toast(route.ridden ? `„${route.name}“ als gefahren markiert` : 'Markierung „gefahren“ entfernt');
+  }
+  if (action === 'show-stop') {
+    const placeId = e.target.closest('[data-place]')?.dataset.place;
+    if (!state.places.some((p) => p.id === placeId)) return;
+    // Ausgefiltert? Dann Filter zurücksetzen, damit der Ort in Liste und Karte erscheint
+    if (!lastVisible.some((p) => p.id === placeId)) resetFilters();
+    selectPlace(placeId, { fly: true, scrollList: true });
   }
   if (action === 'cancel-route-link') {
     editingRouteLink = null;
@@ -1543,20 +1742,27 @@ $('#route-list')?.addEventListener('click', async (e) => {
   }
 });
 
+$('#bike-speed')?.addEventListener('change', (e) => {
+  writePref('bikeSpeed', Number(e.target.value));
+  renderRoutes();
+});
+
 $('#route-list')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const form = e.target.closest('.route-link-form');
   const route = state.routes.find((r) => r.id === form?.closest('[data-id]')?.dataset.id);
   if (!route) return;
+  const field = form.dataset.field === 'activityUrl' ? 'activityUrl' : 'url';
   const url = normalizeLink($('input', form).value);
   if (url === null) return toast('Bitte einen gültigen Link eingeben (z. B. https://www.komoot.com/…)');
-  const before = route.url || '';
-  route.url = url;
+  const before = route[field] || '';
+  route[field] = url;
   editingRouteLink = null;
   render();
-  const ok = await persist((b) => b.updateRoute(route.id, { url }), 'Link konnte nicht gespeichert werden');
+  const ok = await persist((b) => b.updateRoute(route.id, { [field]: url }),
+    field === 'activityUrl' ? 'Link konnte nicht gespeichert werden (Spalte „activity_url“ in Supabase angelegt?)' : 'Link konnte nicht gespeichert werden');
   if (!ok) {
-    route.url = before;
+    route[field] = before;
     render();
     return;
   }

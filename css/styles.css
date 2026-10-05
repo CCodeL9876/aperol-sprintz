@@ -667,7 +667,8 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .route-link .icon, .route-link-add .icon { flex: none; }
 .route-link-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 12px 10px 58px; }
 .route-link-form input { flex: 1 1 100%; min-height: 38px; padding: 6px 12px; background: var(--card); }
-.route-item .place-meta { display: flex; align-items: center; gap: 4px; }
+/* Höhenmeter und Fahrzeit: dürfen umbrechen statt abgeschnitten zu werden */
+.route-item .place-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0 4px; white-space: normal; overflow: visible; }
 .route-item .place-meta .icon { flex: none; color: var(--ci); }
 .route-item.is-on::before { background: var(--card); border-color: var(--ci, var(--green)); }
 .route-item.is-on .place-icon { background: var(--c); color: #FFFFFF; transform: rotate(-3deg); }
@@ -692,6 +693,29 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .route-action:last-child { margin-right: 6px; }
 .route-action:hover { background: var(--chip); color: var(--green); }
 .route-action.is-danger:hover { color: var(--orange-ink); }
+
+/* Rennrad: Tempo für die Fahrzeit, Wetter am Start, Kaffee-Stopps, „gefahren“ */
+.route-speed { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px; font-size: 13px; color: var(--text-soft); }
+.route-speed select { width: auto; min-height: 32px; padding: 2px 30px 2px 10px; font-size: 13px; }
+.route-meta-sep { margin: 0 3px; color: var(--muted); }
+.route-meta-part { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.route-extra {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px;
+  padding: 0 12px 6px 58px; margin-top: -4px; font-size: 12.5px; line-height: 1.4; color: var(--text-soft);
+}
+.route-extra > .icon { flex: none; color: var(--ci, var(--green)); }
+.route-weather { align-items: flex-start; flex-wrap: nowrap; }
+.route-weather > .icon { margin-top: 2px; }
+.route-weather > span { flex: 1; min-width: 0; }
+.route-weather.is-rough, .route-weather.is-rough > .icon { color: var(--orange-ink); }
+.route-stops-label { font-weight: 600; }
+.route-stop {
+  padding: 2px 9px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--chip); color: var(--text); font: 600 12px var(--font-body);
+}
+.route-stop:hover { background: var(--green-tint); color: var(--green); }
+.route-item .visit-toggle { margin-left: 8px; }
+.route-item.is-ridden:not(.is-on) .place-main { opacity: 0.55; }
 
 .cat-select {
   min-height: 32px; height: 32px; width: auto; max-width: 100%;
@@ -1266,7 +1290,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   .sheet-handle:active .sheet-grabber { background: var(--muted); }
   .place-list { margin: 0 -8px; }
   .place-details { padding-left: 12px; }
-  .route-link-line, .route-link-form { padding-left: 12px; }
+  .route-link-line, .route-link-form, .route-extra { padding-left: 12px; }
   /* Fingergerechte Tippflächen (mind. ~40px) für die kleinen Knöpfe in Orts- und Routenliste */
   .route-action { width: 40px; height: 40px; }
   .gf-toggle { min-width: 40px; height: 40px; margin-right: 2px; }

@@ -224,6 +224,9 @@ const toRouteRow = (route, key) => ({
   url: route.url || null,
   added_by: route.addedBy || '',
   created_at: new Date(route.addedAt || Date.now()).toISOString(),
+  // nur wenn gesetzt – so funktioniert der Import auch, bevor die neuen Spalten angelegt sind
+  ...(route.ridden ? { ridden: true } : {}),
+  ...(route.activityUrl ? { activity_url: route.activityUrl } : {}),
 });
 
 const fromRouteRow = (r) => ({
@@ -237,6 +240,8 @@ const fromRouteRow = (r) => ({
   url: r.url || '',
   addedBy: r.added_by || '',
   addedAt: Date.parse(r.created_at) || 0,
+  ridden: r.ridden === true,
+  activityUrl: r.activity_url || '',
 });
 
 function check({ error }) {
@@ -355,8 +360,13 @@ export class SharedBackend {
   }
 
   // Bisher nur der Link zur Tour (Strava, Komoot …) – weitere Felder bei Bedarf hier ergänzen
-  async updateRoute(id, { url }) {
-    check(await this.db.from('routes').update({ url: url || null, updated_at: new Date().toISOString() }).eq('id', id).eq('trip_key', this.key));
+  // Teilaktualisierung: Link zur Tour, „gefahren“ und Link zur Aktivität (nur die übergebenen Felder)
+  async updateRoute(id, patch) {
+    const row = { updated_at: new Date().toISOString() };
+    if ('url' in patch) row.url = patch.url || null;
+    if ('ridden' in patch) row.ridden = Boolean(patch.ridden);
+    if ('activityUrl' in patch) row.activity_url = patch.activityUrl || null;
+    check(await this.db.from('routes').update(row).eq('id', id).eq('trip_key', this.key));
   }
 
   async deleteRoute(id) {
