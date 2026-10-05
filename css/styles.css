@@ -1448,3 +1448,15 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 #cash-submit:hover::before { background: #185A8F; }
 #cash-submit:disabled { opacity: 1; }
 #cash-submit:disabled::before { background: #4A8CC4; }
+
+/* Fenster: Wischen bleibt im Fenster, die Seite dahinter steht still; Tippen ohne Verzögerung */
+.dialog { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+html.dialog-open, html.dialog-open body { overflow: hidden; overscroll-behavior: none; }
+button, a, input, select, textarea, summary, label { touch-action: manipulation; }
+@media (max-width: 899px) {
+  /* Flüssigere Fenster auf dem Handy: Weichzeichner hinter dem Fenster und Pinsel-Filter (SVG) müssten
+     sonst bei jeder Eingabe neu berechnet werden – Safari auf dem iPhone ist dabei spürbar träge */
+  .dialog::backdrop { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(37, 50, 31, 0.5); }
+  .dialog-inner::before { filter: none; }
+  .dialog .btn::before { filter: none; }
+}

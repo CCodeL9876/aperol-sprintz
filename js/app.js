@@ -2182,12 +2182,19 @@ function selectImportTab(name) {
 $$('.tab', importDialog).forEach((tab) => tab.addEventListener('click', () => selectImportTab(tab.dataset.tab)));
 
 // Dialoge: Schließen-Buttons + Klick auf den Hintergrund
+// Hintergrund schliesst nur, wenn der Tipp dort auch begonnen hat – sonst schlösse eine Wischbewegung, die im
+// Fenster beginnt und daneben endet, versehentlich das Fenster (samt halb ausgefülltem Formular).
 $$('dialog').forEach((dlg) => {
+  let downOnBackdrop = false;
+  dlg.addEventListener('pointerdown', (e) => { downOnBackdrop = e.target === dlg; });
   dlg.addEventListener('click', (e) => {
     if (dlg.hasAttribute('data-locked')) return;
-    if (e.target === dlg || e.target.closest('[data-close]')) dlg.close();
+    if (e.target.closest('[data-close]') || (e.target === dlg && downOnBackdrop)) dlg.close();
   });
 });
+// Solange ein Fenster offen ist, die Seite dahinter festhalten (iOS reicht Wischbewegungen sonst weiter)
+const syncDialogLock = () => document.documentElement.classList.toggle('dialog-open', !!document.querySelector('dialog[open]'));
+new MutationObserver(syncDialogLock).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
 
 // --- Teilen / gemeinsame Reise ------------------------------------------------------------
 
