@@ -1618,12 +1618,32 @@ cashDialog.addEventListener('click', async (e) => {
 
 $('#cash-amount').addEventListener('input', renderCashPreview);
 
+// Bestätigung direkt im Ausgaben-Fenster (eine Meldung am Bildschirmrand läge hinter dem Fenster) und kurz
+// „✓ Gespeichert“ auf dem Knopf; solange ist er gesperrt, damit ein zweiter Tipp nicht leer absendet.
+let cashSuccessTimer;
+function showCashSuccess(text) {
+  const box = $('#cash-success');
+  const btn = $('#cash-submit');
+  box.textContent = text;
+  $('#cash-error').textContent = '';
+  btn.disabled = true;
+  btn.textContent = '✓ Gespeichert';
+  clearTimeout(cashSuccessTimer);
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = cashForm.editingId ? 'Änderungen speichern' : 'Rechnung speichern';
+  }, 1400);
+  cashSuccessTimer = setTimeout(() => { box.textContent = ''; }, 6000);
+}
+
 $('#cash-form').addEventListener('submit', async (e) => {
   e.preventDefault();
+  if ($('#cash-submit').disabled) return;
   const error = $('#cash-error');
+  $('#cash-success').textContent = '';
   const r = readCashForm();
   error.textContent = cashBlocked() ? 'Die Ausgaben sind in der Datenbank noch nicht eingerichtet (siehe Hinweis oben).'
-    : !r.entered ? 'Bitte einen gültigen Betrag eingeben, z. B. 24,50.'
+    : !r.entered ? 'Bitte einen gültigen Betrag eingeben, z. B. 24.50 oder 24,50.'
     : !cashForm.payer ? 'Bitte auswählen, wer bezahlt hat.'
     : !r.ids.length ? 'Bitte bei „Für wen“ mindestens eine Person auswählen.'
     : r.error ? r.error
@@ -1664,7 +1684,7 @@ $('#cash-form').addEventListener('submit', async (e) => {
       render();
       return;
     }
-    toast('Rechnung geändert');
+    showCashSuccess(`✓ Änderung gespeichert: ${editing.title || 'Rechnung'} · ${enteredMoney(editing)}`);
     return;
   }
   const exp = { id: newId(), ...data, addedBy: memberName(), addedAt: Date.now() };
@@ -1673,7 +1693,7 @@ $('#cash-form').addEventListener('submit', async (e) => {
   render();
   const ok = await persist((b) => b.addExpenses([exp]), 'Rechnung konnte nicht gespeichert werden');
   if (!ok) { state.expenses = state.expenses.filter((x) => x.id !== exp.id); render(); return; }
-  toast(`Rechnung gespeichert: ${enteredMoney(exp)}`);
+  showCashSuccess(`✓ Rechnung erfasst: ${exp.title || 'Rechnung'} · ${enteredMoney(exp)} (bezahlt von ${personName(exp.paidBy)})`);
 });
 
 // --- Liste ---------------------------------------------------------------------------------
@@ -2554,6 +2574,11 @@ $('#locate-retry').addEventListener('click', () => {
 
 function toast(msg, { sticky = false } = {}) {
   const el = $('#toast');
+  // Ist ein Fenster offen, liegt es über allem anderen – die Meldung dann in dieses Fenster hängen, sonst
+  // erschiene sie unsichtbar dahinter
+  const openDialog = [...document.querySelectorAll('dialog[open]')].pop();
+  const host = openDialog || document.body;
+  if (el.parentElement !== host) host.append(el);
   el.textContent = msg;
   el.hidden = false;
   requestAnimationFrame(() => el.classList.add('is-visible'));

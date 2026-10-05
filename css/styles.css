@@ -1437,3 +1437,14 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .route-popup-links { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; font-size: 12.5px; font-weight: 700; }
 .route-popup-links a, .route-popup-links span { display: inline-flex; align-items: center; gap: 3px; color: var(--green); }
 .route-popup-more { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; padding: 0; border: 0; background: none; cursor: pointer; font: inherit; font-size: 12.5px; }
+
+/* Bestätigung nach dem Erfassen einer Rechnung (im Ausgaben-Fenster) */
+.cash-success { margin: 0; padding: 8px 12px; border-radius: var(--radius); font-size: 13.5px; font-weight: 700; background: var(--green-tint); color: var(--green); }
+.cash-success:empty { display: none; }
+
+/* „Rechnung speichern“ hebt sich von Orange und Grün ab: Mittelmeer-Blau */
+#cash-submit { color: #FFFFFF; }
+#cash-submit::before { background: #1F6FAF; }
+#cash-submit:hover::before { background: #185A8F; }
+#cash-submit:disabled { opacity: 1; }
+#cash-submit:disabled::before { background: #4A8CC4; }
