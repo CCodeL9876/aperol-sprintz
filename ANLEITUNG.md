@@ -239,10 +239,10 @@ dafür ist kein zusätzlicher Schritt nötig.
 
 ---
 
-## 5. Google Maps testen (optional)
+## 5. Google Maps (Standardkarte)
 
-Standard bleibt die OpenStreetMap-Karte. Die Google-Variante lässt sich zusätzlich zum Ausprobieren einschalten
-und bietet: Google-Kartenbild, Satellit, Radwege-Ebene, antippbare Restaurants/Cafés mit Bewertung und
+Mit eingetragenem API-Schlüssel zeigt die App standardmässig Google Maps; ohne Schlüssel die OpenStreetMap-Karte.
+Die Google-Karte bietet: Google-Kartenbild, Satellit, Radwege-Ebene, antippbare Restaurants/Cafés mit Bewertung und
 Öffnungszeiten sowie „Zu unseren Orten hinzufügen“.
 
 **Einmalig einrichten (ca. 15 Minuten):**
@@ -263,8 +263,8 @@ und bietet: Google-Kartenbild, Satellit, Radwege-Ebene, antippbare Restaurants/C
 Der Schlüssel steht danach öffentlich im Quellcode – das ist bei Google Maps so vorgesehen. Durch die
 Einschränkung in Schritt 4 funktioniert er nur auf deiner Seite und nur für diese beiden Dienste.
 
-**Umschalten:** Menü **„•••“ → „Google Maps testen“**, zurück mit **„Zurück zu OpenStreetMap“**. Die Wahl merkt sich
-jedes Gerät bzw. jeder Browser selbst; andere sehen weiterhin OpenStreetMap, bis sie selbst umschalten.
+**Umschalten:** Schalter **„Google | OSM“** unten auf der Karte. Die Wahl merkt sich jedes Gerät bzw. jeder
+Browser selbst; andere sehen weiterhin Google Maps, bis sie selbst umschalten.
 Alternativ direkt per Adresse: `…/aperol-sprintz/?karte=google` bzw. `?karte=osm` (der `#reise=…`-Teil bleibt dahinter).
 
 ## Sicherheit in einem Satz

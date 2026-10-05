@@ -17,11 +17,11 @@ export const SUPABASE_ANON_KEY = 'sb_publishable_G925wSaWBj-DIK_xWYjQOw_PCCPwZQy
 // dort zusätzlich der Airbnb- und der Google-Maps-Link nachtragen.
 export const FIXED_AIRBNB = null;
 
-// Test-Variante mit Google Maps (Standard bleibt OpenStreetMap). Aktivieren über das Menü „•••“ →
-// „Google Maps testen“ oder mit ?karte=google in der Adresse. Der Schlüssel ist – wie der Supabase-Key –
+// Google Maps ist die Standardkarte; OpenStreetMap gibt es über den Schalter „Google | OSM“ auf der Karte
+// oder mit ?karte=osm in der Adresse. Der Schlüssel ist – wie der Supabase-Key –
 // für den Browser gedacht und öffentlich sichtbar. Deshalb in der Google Cloud Console UNBEDINGT auf die
-// eigenen Website-Adressen einschränken (siehe ANLEITUNG.md, Abschnitt „Google Maps testen“).
-// Leer lassen = Google-Variante nicht verfügbar.
+// eigenen Website-Adressen einschränken (siehe ANLEITUNG.md, Abschnitt „Google Maps“).
+// Leer lassen = nur OpenStreetMap.
 export const GOOGLE_MAPS_API_KEY = 'AIzaSyDUaIdiA9_jRel67xyEPqdaQBqEY-ZQWmM';
 // Optional: eigene Map-ID aus der Google Cloud Console (für eigene Kartenstile). Leer = Googles Test-ID.
 export const GOOGLE_MAPS_MAP_ID = 'AIzaSyDUaIdiA9_jRel67xyEPqdaQBqEY-ZQWmM';

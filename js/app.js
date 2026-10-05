@@ -180,15 +180,53 @@ const mapOptions = {
   getInsets: mapInsets,
 };
 
-// Kartenvariante: Standard OpenStreetMap (Leaflet). Google Maps nur als Test – per ?karte=google|osm in der
-// Adresse (wird gemerkt) oder über das Menü. Ohne API-Schlüssel in config.js immer OpenStreetMap.
+// Kartenvariante: Standard Google Maps, OpenStreetMap (Leaflet) als Alternative – umschaltbar über den
+// Schalter „Google | OSM“ auf der Karte oder per ?karte=google|osm in der Adresse (beides wird pro Gerät
+// gemerkt). Ohne API-Schlüssel in config.js immer OpenStreetMap, ohne Schalter.
 const MAP_VARIANTS = ['osm', 'google'];
 const mapParam = new URLSearchParams(location.search).get('karte');
 if (MAP_VARIANTS.includes(mapParam)) writePref('map', mapParam);
-const wantedMap = MAP_VARIANTS.includes(mapParam) ? mapParam : readPref('map') || 'osm';
+const wantedMap = MAP_VARIANTS.includes(mapParam) ? mapParam : readPref('map') || 'google';
 const mapVariant = wantedMap === 'google' && GOOGLE_MAPS_API_KEY ? 'google' : 'osm';
 
 const mapView = mapVariant === 'google' ? createGoogleMapView($('#map')) : createMap($('#map'), mapOptions);
+if (mapVariant === 'osm') mountMapSwitch('osm');
+
+// Schalter „Google | OSM“ unten rechts auf der Karte. Bei Google sitzt er vorne in der Knopfreihe von
+// map-google.js (Satellit, Radwege), bei OpenStreetMap in einer eigenen Reihe. shown = angezeigte Karte.
+function mountMapSwitch(shown) {
+  if (!GOOGLE_MAPS_API_KEY) return;
+  const parent = $('#map').parentElement;
+  let row = parent.querySelector('.gmap-tools');
+  if (!row || shown === 'osm') {
+    row?.remove(); // Knopfreihe einer gescheiterten Google-Karte
+    row = document.createElement('div');
+    row.className = 'gmap-tools map-tools-osm';
+    parent.append(row);
+  }
+  const sw = document.createElement('div');
+  sw.className = 'map-switch';
+  sw.setAttribute('role', 'group');
+  sw.setAttribute('aria-label', 'Kartenart');
+  sw.innerHTML = [['google', 'Google'], ['osm', 'OSM']]
+    .map(([v, label]) => `<button type="button" data-map="${v}" aria-pressed="${v === shown}"${v === 'osm' ? ' title="OpenStreetMap"' : ''}>${label}</button>`)
+    .join('');
+  sw.addEventListener('click', (e) => {
+    const next = e.target.closest('[data-map]')?.dataset.map;
+    if (next && next !== shown) switchMap(next);
+  });
+  row.prepend(sw);
+}
+
+function switchMap(next) {
+  writePref('map', next);
+  // ?karte=… aus der Adresse entfernen, sonst würde es die neue Wahl beim Neuladen überschreiben. Danach
+  // ausdrücklich neu laden: location.replace() mit gleicher Adresse und „#reise=…“ lädt nicht neu.
+  const url = new URL(location.href);
+  url.searchParams.delete('karte');
+  history.replaceState(null, '', url.href);
+  location.reload();
+}
 
 // Google lädt asynchron: bis dahin nimmt ein Platzhalter alle Aufrufe an, danach wird neu gezeichnet.
 // Scheitert Google (Schlüssel, Netz, Zeitüberschreitung), übernimmt automatisch OpenStreetMap.
@@ -198,9 +236,10 @@ function createGoogleMapView(el) {
   for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'locate', 'invalidate']) {
     view[k] = (...args) => impl?.[k](...args);
   }
-  const ready = (m) => {
+  const ready = (m, shown) => {
     impl = m;
     view.map = m.map;
+    mountMapSwitch(shown);
     render({ fit: true });
   };
   import('./map-google.js')
@@ -211,12 +250,12 @@ function createGoogleMapView(el) {
       onAddPlace: (g) => addGooglePlace(g, categoryFromGoogleTypes(g.types)),
       onError: (msg) => toast(msg, { sticky: true }),
     }))
-    .then(ready)
+    .then((m) => ready(m, 'google'))
     .catch((err) => {
       console.error(err);
       toast(`Google Maps nicht verfügbar (${err.message}) – OpenStreetMap wird angezeigt.`);
       el.innerHTML = '';
-      ready(createMap(el, mapOptions));
+      ready(createMap(el, mapOptions), 'osm');
     });
   return view;
 }
@@ -2512,20 +2551,6 @@ $('.menu-panel').addEventListener('click', async (e) => {
   }
   if (what === 'backup') downloadBackup(state);
   if (what === 'fit') mapView.fitTo(lastVisible, state.airbnb);
-  if (what === 'map-variant') {
-    const next = mapVariant === 'google' ? 'osm' : 'google';
-    if (next === 'google' && !GOOGLE_MAPS_API_KEY) {
-      toast('Für Google Maps fehlt noch der API-Schlüssel in js/config.js (siehe ANLEITUNG.md).', { sticky: true });
-      return;
-    }
-    writePref('map', next);
-    // ?karte=… aus der Adresse entfernen, sonst würde es die neue Wahl beim Neuladen überschreiben. Danach
-    // ausdrücklich neu laden: location.replace() mit gleicher Adresse und „#reise=…“ lädt nicht neu.
-    const url = new URL(location.href);
-    url.searchParams.delete('karte');
-    history.replaceState(null, '', url.href);
-    location.reload();
-  }
   if (what === 'reset') {
     const where = backend.kind === 'shared' ? ' – für alle in dieser gemeinsamen Reise' : '';
     if (!confirm(`Wirklich alle Orte, das Airbnb und eigene Kategorien löschen${where}?`)) return;
@@ -2651,7 +2676,6 @@ introDialog.addEventListener('close', () => writePref('introHidden', $('#intro-h
 
 // Welche Version läuft gerade? (Zahl aus index.html, von deploy.sh erhöht) – hilft zu erkennen,
 // ob z. B. die App auf dem Home-Bildschirm noch einen alten Stand zeigt.
-$('#map-variant-label').textContent = mapVariant === 'google' ? 'Zurück zu OpenStreetMap' : 'Google Maps testen';
 $('#app-version').textContent = `Version ${document.querySelector('link[href*="styles.css"]')?.href.match(/v=([\d.-]+)/)?.[1] || '–'}`;
 
 boot();

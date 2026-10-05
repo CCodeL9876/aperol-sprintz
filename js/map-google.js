@@ -1,7 +1,7 @@
-// Test-Variante: Google Maps statt OpenStreetMap/Leaflet. Gleiche Schnittstelle wie createMap in map.js,
+// Standardkarte: Google Maps statt OpenStreetMap/Leaflet. Gleiche Schnittstelle wie createMap in map.js,
 // damit app.js nichts davon wissen muss. Zusätzlich: Restaurants, Cafés usw. von Google antippen und mit
 // Details (Bewertung, Öffnungszeiten) ansehen und per Knopf zu den eigenen Orten hinzufügen.
-// Aktiv nur mit ?karte=google bzw. über das Menü – Standard bleibt OpenStreetMap.
+// Aktiv, solange ein API-Schlüssel in config.js steht und auf dem Gerät nicht OpenStreetMap gewählt wurde.
 /* global google */
 
 import { hasCoords } from './geo.js';
