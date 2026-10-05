@@ -1230,8 +1230,7 @@ function renderCash() {
 
 function resetCashForm() {
   cashForm.editingId = null;
-  const me = state.participants.find((p) => norm(p.name) === norm(memberName()));
-  cashForm.payer = (me || state.participants[0])?.id || null;
+  cashForm.payer = null; // muss bei jeder Rechnung bewusst gewählt werden – keine Vorauswahl
   cashForm.shared = new Set(state.participants.map((p) => p.id));
   cashForm.currency = 'EUR';
   cashForm.splitMode = 'equal';
@@ -1241,6 +1240,7 @@ function resetCashForm() {
   $('#cash-what').value = '';
   $('#cash-date').value = todayIso();
   $('#cash-error').textContent = '';
+  $('#cash-payer').classList.remove('is-missing');
   $('#cash-form-title').textContent = 'Rechnung erfassen';
   $('#cash-submit').textContent = 'Rechnung speichern';
   $('#cash-cancel').hidden = true;
@@ -1266,6 +1266,7 @@ function renderCashDialog() {
   $('#cash-form-hint').hidden = !!people.length;
   const chip = (p, on, attr) => `<button type="button" class="cash-chip" ${attr}="${escapeHtml(p.id)}" aria-pressed="${on}">${escapeHtml(p.name)}</button>`;
   $('#cash-payer').innerHTML = people.map((p) => chip(p, cashForm.payer === p.id, 'data-payer')).join('');
+  if (cashForm.payer) $('#cash-payer').classList.remove('is-missing');
   $('#cash-shared').innerHTML = people.map((p) => chip(p, cashForm.shared.has(p.id), 'data-shared')).join('');
 
   // Währung und Aufteilung: Franken braucht einen Kurs, beides die neuen Spalten (gemeinsame Reise)
@@ -1487,7 +1488,6 @@ $('#cash-person-form').addEventListener('submit', async (e) => {
   state.participants.push(person);
   // Neue Person beim gerade offenen Formular gleich mit auswählen
   if (!cashForm.editingId) cashForm.shared.add(person.id);
-  if (!cashForm.payer) cashForm.payer = person.id;
   input.value = '';
   render();
   let merged = null;
@@ -1554,6 +1554,7 @@ cashDialog.addEventListener('click', async (e) => {
   }
   if (btn.dataset.payer) {
     cashForm.payer = btn.dataset.payer;
+    if ($('#cash-error').textContent === PAYER_MISSING) $('#cash-error').textContent = '';
     renderCashDialog();
     return;
   }
@@ -1660,6 +1661,7 @@ $('#cash-amount').addEventListener('input', renderCashPreview);
 // Bestätigung direkt im Ausgaben-Fenster (eine Meldung am Bildschirmrand läge hinter dem Fenster) und kurz
 // „✓ Gespeichert“ auf dem Knopf; solange ist er gesperrt, damit ein zweiter Tipp nicht leer absendet.
 let cashSuccessTimer;
+const PAYER_MISSING = 'Bitte bei „Bezahlt von“ auswählen, wer die Rechnung bezahlt hat.';
 function showCashSuccess(text) {
   const box = $('#cash-success');
   const btn = $('#cash-submit');
@@ -1683,11 +1685,17 @@ $('#cash-form').addEventListener('submit', async (e) => {
   const r = readCashForm();
   error.textContent = cashBlocked() ? 'Die Ausgaben sind in der Datenbank noch nicht eingerichtet (siehe Hinweis oben).'
     : !r.entered ? 'Bitte einen gültigen Betrag eingeben, z. B. 24.50 oder 24,50.'
-    : !cashForm.payer ? 'Bitte auswählen, wer bezahlt hat.'
+    : !cashForm.payer ? PAYER_MISSING
     : !r.ids.length ? 'Bitte bei „Für wen“ mindestens eine Person auswählen.'
     : r.error ? r.error
     : (r.orig || r.split) && extrasBlocked() ? 'Franken und ungleiche Aufteilung gehen erst, wenn die Datenbank erweitert ist (siehe Hinweis oben).'
     : '';
+  if (error.textContent === PAYER_MISSING) {
+    // Auswahl rot umranden und ins Bild holen – auf dem Handy liegt sie oft weit über dem Knopf
+    const pick = $('#cash-payer');
+    pick.classList.add('is-missing');
+    pick.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
   if (error.textContent) return;
 
   const editing = state.expenses.find((x) => x.id === cashForm.editingId);

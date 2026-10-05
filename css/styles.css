@@ -1066,6 +1066,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .cash-label-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .cash-label-row .btn-link { padding: 0; font-size: 12.5px; }
 .cash-pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.cash-pick.is-missing { outline: 2px solid var(--red); outline-offset: 4px; border-radius: 12px; }
 .cash-chip {
   min-height: 38px; padding: 0 14px;
   border: 2px solid var(--edge); border-radius: 999px;
