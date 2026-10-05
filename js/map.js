@@ -373,28 +373,35 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
       if (!r.points?.length) continue;
       const color = r.color || ROUTE_CATEGORY.ink;
       const casing = L.polyline(r.points, { color: '#FFFFFF', weight: 6, opacity: 0.9, lineJoin: 'round', interactive: false }).addTo(routeLayer);
-      const line = L.polyline(r.points, { color, weight: 3.5, opacity: 0.95, lineJoin: 'round' });
+      const line = L.polyline(r.points, { color, weight: 3.5, opacity: 0.95, lineJoin: 'round', interactive: false }).addTo(routeLayer);
+      // Unsichtbare, breite Tippfläche über der Linie – die 3,5 px schmale Linie trifft man auf dem Handy kaum
+      const hit = L.polyline(r.points, { color, weight: 22, opacity: 0, lineJoin: 'round', className: 'route-hit' });
       // Inhalt erst beim Öffnen erzeugen: so zeigt das Popup immer aktuelles Wetter, Tempo und Stopps.
       // Dabei auch den Abstand zu den Boxen oben und der Liste unten setzen, damit die Karte das Popup
       // nicht dahinter, sondern in den freien Teil schiebt.
-      line.bindPopup(() => {
+      hit.bindPopup(() => {
         const { top, right, bottom, left } = insets();
-        const popup = line.getPopup();
+        const popup = hit.getPopup();
         popup.options.autoPanPaddingTopLeft = L.point(left + 12, top + 12);
         popup.options.autoPanPaddingBottomRight = L.point(right + 12, bottom + 12);
         return routePopup ? routePopup(r, color) : routePopupHtml(r, color);
       }, { closeButton: false, className: 'llocs-popup', maxWidth: 300 }).addTo(routeLayer);
-      // Bei überlappenden Strecken: die berührte/angetippte Route nach vorne holen und hervorheben
+      // Bei überlappenden Strecken: die berührte/angetippte Route nach vorne holen und hervorheben.
+      // Nur umsortieren, wenn sie nicht schon vorne liegt – das Umsortieren mitten im Klick würde ihn verschlucken.
       const raise = () => {
-        casing.bringToFront();
-        line.bringToFront().setStyle({ weight: 5.5 });
+        if (hit._path?.nextSibling) {
+          casing.bringToFront();
+          line.bringToFront();
+          hit.bringToFront();
+        }
+        line.setStyle({ weight: 5.5 });
         casing.setStyle({ weight: 8 });
       };
       const lower = () => {
         line.setStyle({ weight: 3.5 });
         casing.setStyle({ weight: 6 });
       };
-      line.on('mouseover', raise).on('mouseout', lower).on('popupopen', raise).on('popupclose', lower);
+      hit.on('mouseover', raise).on('mouseout', lower).on('popupopen', raise).on('popupclose', lower);
     }
   }
 
