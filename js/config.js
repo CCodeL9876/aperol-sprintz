@@ -22,6 +22,6 @@ export const FIXED_AIRBNB = null;
 // für den Browser gedacht und öffentlich sichtbar. Deshalb in der Google Cloud Console UNBEDINGT auf die
 // eigenen Website-Adressen einschränken (siehe ANLEITUNG.md, Abschnitt „Google Maps testen“).
 // Leer lassen = Google-Variante nicht verfügbar.
-export const GOOGLE_MAPS_API_KEY = '';
+export const GOOGLE_MAPS_API_KEY = 'AIzaSyDUaIdiA9_jRel67xyEPqdaQBqEY-ZQWmM';
 // Optional: eigene Map-ID aus der Google Cloud Console (für eigene Kartenstile). Leer = Googles Test-ID.
 export const GOOGLE_MAPS_MAP_ID = '';
