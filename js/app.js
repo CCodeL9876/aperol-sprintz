@@ -2159,6 +2159,9 @@ function openShare() {
 }
 
 async function startTrip() {
+  // Noch eine andere Reise auf diesem Gerät gespeichert (z. B. Code-Abfrage nicht beantwortet)? Nicht still ersetzen.
+  const previous = rememberedTripKey();
+  if (previous && !confirm('Auf diesem Gerät ist bereits eine gemeinsame Reise gespeichert. Eine neue Reise starten?\n\nDie bisherige bleibt erhalten, ist hier aber nur noch über ihren ursprünglichen Link erreichbar. Zum Zurückkehren: „Abbrechen“ und die Seite neu laden.')) return;
   const btn = $('#btn-start-trip');
   btn.disabled = true;
   btn.textContent = 'Wird eingerichtet …';
@@ -2233,11 +2236,24 @@ $('#share-body').addEventListener('click', (e) => {
 
 const codeDialog = $('#code-dialog');
 let codeTripKey = null;
+let codeUnlocked = false; // erst nach dem richtigen Code darf die Abfrage zugehen
 let codeAttempts = 0; // falsche Versuche seit dem Öffnen der Abfrage – macht jeden neuen Fehlversuch sichtbar
 codeDialog.addEventListener('cancel', (e) => e.preventDefault()); // Esc schliesst die Abfrage nicht
+// Manche Browser schliessen ein Fenster beim zweiten Esc trotzdem. Dann sofort wieder öffnen – sonst landet man
+// ohne Code in der lokalen Ansicht und könnte dort versehentlich eine neue Reise starten.
+const codeLocked = () => Boolean(codeTripKey) && !codeUnlocked;
+const reopenCodeDialog = () => { if (codeLocked() && !codeDialog.open) codeDialog.showModal(); };
+codeDialog.addEventListener('close', () => setTimeout(reopenCodeDialog, 0));
+// Esc abfangen, bevor der Browser die Abfrage schliesst (die Sperre über „cancel“ greift nicht immer)
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && codeLocked()) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+// Wächter: falls die Abfrage auf einem anderen Weg doch zugeht, sofort wieder öffnen
+setInterval(reopenCodeDialog, 400);
 
 function showCodeLogin(key, wrong = false) {
   codeTripKey = key;
+  codeUnlocked = false;
   codeAttempts = 0;
   $('#code-input').classList.remove('is-wrong');
   $$('dialog[open]').forEach((d) => { if (d !== codeDialog) d.close(); });
@@ -2272,6 +2288,7 @@ $('#code-form').addEventListener('submit', async (e) => {
     const shared = await SharedBackend.connect(codeTripKey, code);
     rememberTripCode(codeTripKey, code);
     switchTo(shared);
+    codeUnlocked = true;
     codeDialog.close();
     if (!readPref('introHidden')) openIntro();
     lastSignature = '';
