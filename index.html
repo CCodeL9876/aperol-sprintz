@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-05.19" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-05.19">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-05.20" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-05.20">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-05.19">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-05.19">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-05.19">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-05.20">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-05.20">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-05.20">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -197,7 +197,16 @@
           <svg class="icon panel-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
         </button>
 
+        <!-- Suche auf der Google-Karte (nur dort sichtbar, siehe initMapSearch in app.js) -->
+        <div class="map-search" id="map-search" role="search" hidden>
+          <input id="map-search-input" type="search" placeholder="Auf Google Maps suchen" aria-label="Auf Google Maps suchen"
+                 autocomplete="off" enterkeyhint="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="map-search-results">
+          <button type="button" class="map-search-clear" id="map-search-clear" aria-label="Suche leeren" hidden><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+
     </div>
+    <!-- Trefferliste der Kartensuche: ausserhalb der Boxen-Reihe, damit deren Scrollbereich sie nicht abschneidet -->
+    <ul id="map-search-results" class="map-search-results" role="listbox" aria-label="Suchtreffer" hidden></ul>
 
     <section class="map-wrap" aria-label="Karte">
       <div id="map"></div>
@@ -327,7 +336,7 @@
             </li>
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--mint)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Neue Orte</strong><span>In Google Maps bei einem Ort <strong>Teilen → Kopieren</strong>, dann hier <strong>„+ Importieren“</strong> und einfügen – Name und Position kommen automatisch. Oder direkt auf der Karte ein Restaurant, Café usw. antippen → <strong>„Zu unseren Orten hinzufügen“</strong>.</span></span>
+              <span class="intro-text"><strong class="intro-name">Neue Orte</strong><span>In Google Maps bei einem Ort <strong>Teilen → Kopieren</strong>, dann hier <strong>„+ Importieren“</strong> und einfügen – Name und Position kommen automatisch. Oder direkt auf der Karte ein Restaurant, Café usw. antippen oder über <strong>„Auf Google Maps suchen“</strong> finden → <strong>„Zu unseren Orten hinzufügen“</strong>.</span></span>
             </li>
           </ul>
         </section>
@@ -583,25 +592,25 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-05.19"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-05.20"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-05.19",
-      "./js/backend.js": "./js/backend.js?v=2026-10-05.19",
-      "./js/cash.js": "./js/cash.js?v=2026-10-05.19",
-      "./js/categories.js": "./js/categories.js?v=2026-10-05.19",
-      "./js/config.js": "./js/config.js?v=2026-10-05.19",
-      "./js/geo.js": "./js/geo.js?v=2026-10-05.19",
-      "./js/icons.js": "./js/icons.js?v=2026-10-05.19",
-      "./js/importers.js": "./js/importers.js?v=2026-10-05.19",
-      "./js/map.js": "./js/map.js?v=2026-10-05.19",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-05.19",
-      "./js/store.js": "./js/store.js?v=2026-10-05.19"
+      "./js/app.js": "./js/app.js?v=2026-10-05.20",
+      "./js/backend.js": "./js/backend.js?v=2026-10-05.20",
+      "./js/cash.js": "./js/cash.js?v=2026-10-05.20",
+      "./js/categories.js": "./js/categories.js?v=2026-10-05.20",
+      "./js/config.js": "./js/config.js?v=2026-10-05.20",
+      "./js/geo.js": "./js/geo.js?v=2026-10-05.20",
+      "./js/icons.js": "./js/icons.js?v=2026-10-05.20",
+      "./js/importers.js": "./js/importers.js?v=2026-10-05.20",
+      "./js/map.js": "./js/map.js?v=2026-10-05.20",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-05.20",
+      "./js/store.js": "./js/store.js?v=2026-10-05.20"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-05.19"></script>
+  <script type="module" src="js/app.js?v=2026-10-05.20"></script>
 </body>
 </html>

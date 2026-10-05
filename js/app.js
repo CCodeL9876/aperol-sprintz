@@ -233,13 +233,14 @@ function switchMap(next) {
 function createGoogleMapView(el) {
   let impl = null;
   const view = { map: { getZoom: () => impl?.map.getZoom() ?? 9 } };
-  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'locate', 'invalidate']) {
+  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'searchPlaces', 'openSearchResult', 'clearSearchMarker', 'locate', 'invalidate']) {
     view[k] = (...args) => impl?.[k](...args);
   }
   const ready = (m, shown) => {
     impl = m;
     view.map = m.map;
     mountMapSwitch(shown);
+    if (shown === 'google') initMapSearch();
     render({ fit: true });
   };
   import('./map-google.js')
@@ -258,6 +259,143 @@ function createGoogleMapView(el) {
       ready(createMap(el, mapOptions), 'osm');
     });
   return view;
+}
+
+// --- Suche auf der Google-Karte ---------------------------------------------------------------
+// Ein Feld in der Boxen-Reihe über der Karte. Treffer: oben passende eigene Orte (aus den gerade
+// sichtbaren), darunter Google-Vorschläge. Ein Google-Treffer öffnet das Detailfenster mit
+// „Zu unseren Orten hinzufügen“; ein eigener Ort wird wie aus der Liste ausgewählt.
+function initMapSearch() {
+  const box = $('#map-search');
+  const input = $('#map-search-input');
+  const list = $('#map-search-results');
+  const clearBtn = $('#map-search-clear');
+  box.hidden = false;
+  let items = [];
+  let active = -1;
+  let seq = 0;
+  let timer = 0;
+
+  const place = () => {
+    const r = input.getBoundingClientRect();
+    list.style.left = `${r.left}px`;
+    list.style.top = `${r.bottom + 6}px`;
+    list.style.width = `${r.width}px`;
+    list.style.maxHeight = `${Math.max(160, innerHeight - r.bottom - 24)}px`;
+  };
+  const close = () => {
+    list.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+    active = -1;
+  };
+  const row = (it, i, title, sub, iconHtml) => `<li role="option" id="msr-${i}" aria-selected="${i === active}">
+      <button type="button" class="msr-item" data-i="${i}" tabindex="-1">${iconHtml}<span class="msr-text"><strong>${escapeHtml(title)}</strong>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}</span></button>
+    </li>`;
+  function draw(note = '') {
+    const own = items.filter((it) => it.kind === 'own');
+    const goo = items.filter((it) => it.kind === 'google');
+    let html = '';
+    if (own.length) {
+      html += '<li class="msr-head" role="presentation">Eure Orte</li>';
+      html += own.map((it) => {
+        const c = catOf(it.place.category);
+        return row(it, items.indexOf(it), it.place.name, [c.label, it.place.address].filter(Boolean).join(' · '),
+          `<span class="msr-icon" style="${categoryStyle(c)}">${categoryIcon(c, { size: 15, stroke: 2 })}</span>`);
+      }).join('');
+    }
+    if (goo.length || note) html += '<li class="msr-head" role="presentation">Google Maps</li>';
+    html += goo.map((it) => row(it, items.indexOf(it), it.name, it.sub, `<span class="msr-icon msr-google">${icon('pin', { size: 15, stroke: 2 })}</span>`)).join('');
+    if (note) html += `<li class="msr-note" role="presentation">${escapeHtml(note)}</li>`;
+    if (!html) return close();
+    list.innerHTML = html;
+    place();
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+    if (active >= 0) input.setAttribute('aria-activedescendant', `msr-${active}`);
+    else input.removeAttribute('aria-activedescendant');
+  }
+
+  async function search(q) {
+    const my = ++seq;
+    const n = norm(q);
+    const own = n
+      ? lastVisible.filter((p) => hasCoords(p) && (norm(p.name).includes(n) || norm(p.address).includes(n))).slice(0, 4)
+      : [];
+    items = own.map((p) => ({ kind: 'own', place: p }));
+    active = -1;
+    if (q.length < 2) return draw();
+    draw('Suche läuft …');
+    try {
+      const found = (await mapView.searchPlaces(q)) || [];
+      if (my !== seq) return; // inzwischen weitergetippt
+      items = [...items, ...found.map((g) => ({ kind: 'google', ...g }))];
+      draw(found.length ? '' : 'Keine Treffer bei Google.');
+    } catch (err) {
+      if (my === seq) draw(err.message);
+    }
+  }
+
+  async function pick(i) {
+    const it = items[i];
+    if (!it) return;
+    close();
+    input.blur(); // Handy: Tastatur schliessen, damit die Karte frei ist
+    if (isMobile() && sheetState() === 'full') setSheet('half');
+    if (it.kind === 'own') {
+      input.value = it.place.name;
+      if (activeId === it.place.id) mapView.focusPlace(it.place.id);
+      else selectPlace(it.place.id, { fly: true, scrollList: true });
+      return;
+    }
+    input.value = it.name;
+    try {
+      await mapView.openSearchResult(it.placeId);
+    } catch (err) {
+      toast(err.message, { sticky: true });
+    }
+  }
+
+  function clear() {
+    input.value = '';
+    clearBtn.hidden = true;
+    items = [];
+    seq++;
+    close();
+    mapView.clearSearchMarker();
+  }
+
+  input.addEventListener('input', () => {
+    clearBtn.hidden = !input.value;
+    clearTimeout(timer);
+    const q = input.value.trim();
+    timer = setTimeout(() => search(q), q.length < 2 ? 0 : 250); // nicht bei jedem Buchstaben fragen
+  });
+  input.addEventListener('focus', () => { if (items.length) draw(); });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!items.length) return;
+      e.preventDefault();
+      active = (active + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      draw();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (items.length) pick(active >= 0 ? active : 0);
+    } else if (e.key === 'Escape') {
+      if (!list.hidden) close();
+      else clear();
+    }
+  });
+  clearBtn.addEventListener('click', () => { clear(); input.focus(); });
+  list.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-i]');
+    if (btn) pick(Number(btn.dataset.i));
+  });
+  document.addEventListener('pointerdown', (e) => {
+    if (!list.hidden && !box.contains(e.target) && !list.contains(e.target)) close();
+  });
+  addEventListener('resize', () => { if (!list.hidden) place(); });
+  $('.panel-row').addEventListener('scroll', () => { if (!list.hidden) place(); }, { passive: true });
 }
 
 // Aus dem Google-Detailfenster: Ort in die eigene Liste übernehmen. Rückgabe steuert den Knopftext.

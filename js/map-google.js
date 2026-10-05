@@ -56,10 +56,20 @@ export function categoryFromGoogleTypes(types = []) {
   return null;
 }
 
+const SEARCH_AREA = { south: 39.1, west: 2.25, north: 40.0, east: 3.55 }; // Mallorca und Cabrera
+
 const PLACE_FIELDS = [
   'displayName', 'formattedAddress', 'location', 'rating', 'userRatingCount', 'regularOpeningHours',
   'websiteURI', 'googleMapsURI', 'types', 'primaryType', 'primaryTypeDisplayName', 'nationalPhoneNumber',
 ];
+
+// Fehler der Places API → kurzer Hinweis, was fehlt (Schlüssel-Einschränkung, API nicht aktiv, Netz)
+function placesErrorHint(err) {
+  const msg = String(err?.message || '');
+  if (/referer/i.test(msg)) return `Schlüssel-Einschränkung: in der Google Cloud Console bei den Websites ${location.origin}/* ergänzen.`;
+  if (/not been used|disabled|not enabled|PERMISSION_DENIED/i.test(msg)) return 'im Google-Cloud-Projekt die „Places API (New)“ aktivieren und beim Schlüssel freigeben.';
+  return 'gerade keine Verbindung zu Google.';
+}
 
 export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerClick, getInsets, onAddPlace, onError, routePopup, onLocateMessage }) {
   // Ungültiger Schlüssel oder nicht freigegebene Adresse: Google ruft diese globale Funktion auf
@@ -304,14 +314,8 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       await place.fetchFields({ fields: PLACE_FIELDS });
     } catch (err) {
       console.warn('Places API:', err);
-      const msg = String(err?.message || '');
-      const hint = /referer/i.test(msg)
-        ? `Schlüssel-Einschränkung: in der Google Cloud Console bei den Websites ${location.origin}/* ergänzen.`
-        : /not been used|disabled|not enabled|PERMISSION_DENIED/i.test(msg)
-          ? 'im Google-Cloud-Projekt die „Places API (New)“ aktivieren und beim Schlüssel freigeben.'
-          : 'gerade keine Verbindung zu Google.';
       info.setContent(`<div class="popup">
-        <span class="popup-addr">Details nicht verfügbar – ${escapeHtml(hint)}</span>
+        <span class="popup-addr">Details nicht verfügbar – ${escapeHtml(placesErrorHint(err))}</span>
         <a class="popup-link" href="${escapeHtml(fallbackUrl)}" target="_blank" rel="noopener">In Google Maps öffnen ↗</a>
       </div>`);
       return;
@@ -502,5 +506,68 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     fitPoints(route.points, 14);
   }
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
+  // --- Suche (Places Autocomplete) ----------------------------------------------------------------
+  // Vorschläge zu einem Suchtext, nur auf Mallorca (samt Cabrera) – sonst kämen bei „Café“ auch Treffer
+  // aus Ibiza oder Paris. Ein Sitzungs-Token fasst
+  // die Tipp-Anfragen bis zum Öffnen eines Treffers zusammen (so rechnet Google sie als eine Suche ab).
+  let searchToken = null;
+  const predictions = new Map();
+  let searchMarker = null;
+
+  async function searchPlaces(input) {
+    try {
+      const { AutocompleteSuggestion, AutocompleteSessionToken } = await google.maps.importLibrary('places');
+      searchToken ||= new AutocompleteSessionToken();
+      const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
+        input, sessionToken: searchToken, language: 'de', region: 'es', locationRestriction: SEARCH_AREA,
+      });
+      predictions.clear();
+      return suggestions.map((s) => s.placePrediction).filter(Boolean).slice(0, 5).map((p) => {
+        predictions.set(p.placeId, p);
+        return { placeId: p.placeId, name: p.mainText?.text || p.text?.text || '', sub: p.secondaryText?.text || '' };
+      });
+    } catch (err) {
+      console.warn('Places-Suche:', err);
+      throw new Error(`Google-Suche nicht verfügbar – ${placesErrorHint(err)}`);
+    }
+  }
+
+  // Treffer öffnen: Details laden, Stecknadel setzen, hinfahren und das Detailfenster zeigen.
+  // Rückgabe: Name des Orts (für das Suchfeld). Fehler werden mit verständlichem Text geworfen.
+  async function openSearchResult(placeId) {
+    const prediction = predictions.get(placeId);
+    searchToken = null; // Sitzung endet mit dem Abruf der Details
+    let place;
+    try {
+      const { Place } = await google.maps.importLibrary('places');
+      place = prediction ? prediction.toPlace() : new Place({ id: placeId, requestedLanguage: 'de' });
+      await place.fetchFields({ fields: PLACE_FIELDS });
+    } catch (err) {
+      console.warn('Places API:', err);
+      throw new Error(`Details nicht verfügbar – ${placesErrorHint(err)}`);
+    }
+    const pos = place.location;
+    if (!pos) throw new Error('Für diesen Treffer kennt Google keine Position.');
+    const fallbackUrl = `https://www.google.com/maps/search/?api=1&query=${pos.lat()},${pos.lng()}&query_place_id=${encodeURIComponent(placeId)}`;
+    const content = googlePlaceContent(place, fallbackUrl);
+    clearSearchMarker();
+    searchMarker = new AdvancedMarkerElement({ map, position: pos, title: place.displayName || '', zIndex: 5000 });
+    searchMarker.addListener('click', () => {
+      info.setContent(content);
+      info.setPosition(pos);
+      info.open({ shouldFocus: false, map });
+    });
+    centerOn([pos.lat(), pos.lng()], Math.max(map.getZoom(), 16));
+    info.setContent(content);
+    info.setPosition(pos);
+    info.open({ shouldFocus: false, map });
+    return place.displayName || '';
+  }
+
+  function clearSearchMarker() {
+    if (searchMarker) searchMarker.map = null;
+    searchMarker = null;
+  }
+
+  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, searchPlaces, openSearchResult, clearSearchMarker, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
 }
