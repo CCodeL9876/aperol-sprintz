@@ -1417,3 +1417,11 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) {
   .code-dialog .dialog-inner.is-shaking { animation: none; }
 }
+
+/* Demo-Kennzeichen in der Kopfzeile */
+.demo-badge {
+  flex: none; margin: 0 auto 0 10px; padding: 3px 10px; cursor: pointer;
+  border: 0; border-radius: 999px; background: var(--orange-tint); color: var(--orange-ink);
+  font: 700 12px var(--font-body); letter-spacing: 0.06em; text-transform: uppercase;
+}
+.demo-badge:hover { background: var(--orange); color: #FFFFFF; }

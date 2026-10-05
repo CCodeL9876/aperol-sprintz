@@ -54,6 +54,14 @@ export const forgetTripCode = () => writePref('tripCode', null);
 // anders als UTF-8, Supabase antwortet dann mit einem Fehler; „€“ senden sie gar nicht).
 export const validTripCodeChars = (code) => /^[\x20-\x7E]+$/.test(code);
 
+// Der Reise-Link gehört zu keiner eingetragenen Reise (z. B. alter oder ausgedachter Link)
+export class TripUnknownError extends Error {
+  constructor() {
+    super('Diese Reise gibt es nicht');
+    this.code = 'TRIP_UNKNOWN';
+  }
+}
+
 // Die Reise ist mit einem Zugangscode geschützt und der Code fehlt oder ist falsch
 export class CodeRequiredError extends Error {
   constructor(wrong) {
@@ -101,6 +109,42 @@ export async function expandMapsLinks(text) {
     });
   }
   return { text: out, resolved, failed: links.length - resolved };
+}
+
+// Demo-Ansicht ohne Reise-Link: Beispieldaten nur im Speicher dieser Seite. Nichts wird gespeichert und nichts
+// geht an die Datenbank – nach dem Neuladen ist alles wieder wie am Anfang. load() liefert den aktuellen Stand,
+// damit ein Neuzeichnen die Demo nicht leert.
+export class DemoBackend {
+  kind = 'demo';
+
+  constructor(getState) {
+    this.getState = getState;
+    this.started = false;
+  }
+
+  async load() {
+    if (!this.started) {
+      this.started = true;
+      return { places: [], routes: [], airbnb: null, customCategories: [], participants: [], expenses: [] };
+    }
+    const st = this.getState();
+    return { places: st.places, routes: st.routes, airbnb: st.airbnb, customCategories: st.customCategories, participants: st.participants, expenses: st.expenses };
+  }
+
+  async addPlaces() {}
+  async updatePlace() {}
+  async deletePlace() {}
+  async deleteAllPlaces() {}
+  async addRoutes() {}
+  async updateRoute() {}
+  async deleteRoute() {}
+  async deleteAllRoutes() {}
+  async saveSettings() {}
+  async saveParticipants() {}
+  async changeParticipants() { return null; }
+  async addExpenses() {}
+  async updateExpense() {}
+  async deleteExpense() {}
 }
 
 export class LocalBackend {
@@ -287,6 +331,7 @@ export class SharedBackend {
     // ab – sonst sähe die Reise bei einem kurzen Aussetzer leer aus.
     if (access.error && access.error.code !== 'PGRST202') throw new Error(access.error.message || 'Zugangsprüfung fehlgeschlagen');
     const status = access.error ? 'none' : access.data;
+    if (status === 'unknown') throw new TripUnknownError();
     if (status === 'wrong') throw new CodeRequiredError(Boolean(this.code));
     this.codeProtected = status === 'ok';
     const [places, routes, settings, expenses] = await Promise.all([

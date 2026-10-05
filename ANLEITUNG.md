@@ -90,22 +90,34 @@ an, gibt nur die lange Google-Maps-Adresse zurück und speichert nichts.
 
 Ist die Funktion (noch) nicht eingerichtet, sucht die App solche Orte über den Namen und weist im Import darauf hin.
 
-## 2c. Zugangscode für die Reise (optional)
+## 2c. Zugangscode – nur eure Reise und eine Demo
 
-Zusätzlich zum geheimen Reise-Link lässt sich ein Code festlegen. Dann liefert die Datenbank nur noch mit
-dem richtigen Code Daten – auch wer den Link bekommt, sieht ohne Code nur die Code-Abfrage. Gespeichert wird
-nur eine bcrypt-Prüfsumme in der Tabelle `trip_access`, nie der Code selbst.
+Erreichbar sind nur Reisen, die in der Tabelle `trip_access` eingetragen sind, und nur mit Reise-Link **und**
+Zugangscode. Alles andere zeigt die Demo-Ansicht mit Beispieldaten (nichts wird gespeichert). Über die App lassen
+sich keine neuen Reisen anlegen und Codes nur ändern, nicht entfernen. Gespeichert wird nur eine bcrypt-Prüfsumme.
 
-1. Den kompletten Inhalt von `supabase/schema.sql` im Supabase SQL Editor ausführen (ergänzt die Tabelle,
-   die Prüffunktionen und erweitert die Zugriffsregeln – bestehende Daten bleiben unverändert).
-2. Die aktuelle App-Version hochladen (`./deploy.sh`) und auf allen Handys einmal neu laden.
-3. In der App: **Teilen → Zugangscode festlegen**, Code zweimal eingeben (mind. 6 Zeichen, z. B. ein Wort mit Zahl).
-4. Den Code den Mitreisenden **getrennt vom Link** sagen. Jede Person gibt ihn einmal pro Gerät ein.
+- **Eure Reise:** `https://ccodel9876.github.io/aperol-sprintz/#reise=…` + Code
+- **Demo-Link:** `https://ccodel9876.github.io/aperol-sprintz/#demo` (zeigt immer die Demo)
 
-Ändern oder entfernen geht unter **Teilen → Zugangscode ändern**; danach fragt die App bei allen anderen den
-neuen Code ab. „Auf diesem Gerät abmelden“ löscht den gespeicherten Code auf dem eigenen Handy.
-Wichtig: Wer den Code vergisst, kann ihn bei einer Mitreisenden erfragen oder im Supabase-Dashboard die Zeile
-der Reise in `trip_access` löschen – dann reicht wieder der Link.
+Einrichten bzw. aktualisieren:
+1. **Vorher prüfen:** In der App unter **Teilen** muss „Mit Zugangscode geschützt“ stehen. Sonst zuerst dort den
+   Code festlegen – nach Schritt 2 wäre die Reise ohne Code gesperrt.
+2. Den kompletten Inhalt von `supabase/schema.sql` **im Mallorca-Projekt** im SQL Editor ausführen.
+   (Nicht in Milano: dort gibt es keinen eingetragenen Code, die Reise wäre danach gesperrt.)
+3. Die aktuelle App hochladen (`./deploy.sh`) und auf allen Handys einmal neu laden.
+
+Code ändern: in der App **Teilen → Zugangscode ändern**. Danach fragt die App bei allen anderen den neuen Code ab.
+
+Reise ohne Code nachträglich eintragen oder eine neue Reise anlegen (im SQL Editor, Werte ersetzen):
+```sql
+-- neuen Reise-Schlüssel erzeugen (nur für eine neue Reise):
+select encode(extensions.gen_random_bytes(20), 'hex');
+-- Reise mit Code eintragen:
+insert into public.trip_access (trip_key, code_hash)
+values ('REISE-SCHLÜSSEL', extensions.crypt('CODE', extensions.gen_salt('bf', 8)));
+```
+Code vergessen: Mitreisende fragen – oder die Zeile in `trip_access` wie oben mit neuem Code ersetzen
+(`update public.trip_access set code_hash = extensions.crypt('NEUER-CODE', extensions.gen_salt('bf', 8)) where trip_key = '…';`).
 
 ## 3. App auf GitHub Pages veröffentlichen
 

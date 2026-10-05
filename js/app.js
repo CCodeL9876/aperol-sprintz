@@ -3,7 +3,7 @@ import { haversineKm, hasCoords, parseCoords, formatKm, geocode, formatReservati
 import { parseFile, parseGeoJSON, parseLinks, assignCategory, buildGpx } from './importers.js';
 import { loadUi, saveUi, readPref, writePref, downloadBackup, newId, newTripKey, loadLocalBackup, clearLocalBackup } from './store.js';
 import { expandMapsLinks, hasShortMapsLinks,
-  LocalBackend, SharedBackend, sharingConfigured, tripKeyFromUrl,
+  DemoBackend, SharedBackend, sharingConfigured, tripKeyFromUrl,
   rememberedTripKey, rememberTripKey, forgetTripKey, shareUrl, rememberTripCode, forgetTripCode, validTripCodeChars,
 } from './backend.js';
 import { createMap } from './map.js';
@@ -33,7 +33,10 @@ const state = {
   ui: loadUi(),
 };
 
-let backend = new LocalBackend(() => state);
+// Ohne gültigen Reise-Link läuft die Demo (Beispieldaten nur im Speicher); mit Link + Code die gemeinsame Reise
+let backend = new DemoBackend(() => state);
+// „…/#demo“ zeigt immer die Demo – auch auf Geräten, die sich eine Reise gemerkt haben (die bleibt gemerkt)
+const demoForced = /(?:^#|&)demo\b/i.test(location.hash);
 let activeId = null;
 let pickMode = false;
 let airbnbFormAuto = false; // Unterkunft-Formular nur geöffnet, weil noch keine Unterkunft eingetragen war
@@ -2023,7 +2026,14 @@ async function geocodeMissing(ids) {
   }
 }
 
-async function loadSample() {
+// Demo: Beispieldaten laden (nur im Speicher) und als Demo kennzeichnen
+async function startDemo() {
+  await refresh({ fit: true });
+  if (!state.places.length) await loadSample({ quiet: true });
+  renderShareState();
+}
+
+async function loadSample({ quiet = false } = {}) {
   try {
     const res = await fetch('data/sample-places.json');
     const data = await res.json();
@@ -2034,7 +2044,7 @@ async function loadSample() {
     }
     importDialog.close();
     render({ fit: true });
-    toast(added.length ? `${added.length} Beispielorte geladen` : 'Beispielorte sind schon da');
+    if (!quiet) toast(added.length ? `${added.length} Beispielorte geladen` : 'Beispielorte sind schon da');
   } catch (err) {
     toast(`Beispiele konnten nicht geladen werden (${err.message})`);
   }
@@ -2118,6 +2128,7 @@ function renderShareState() {
   const shared = backend.kind === 'shared';
   $('#btn-share').classList.toggle('is-shared', shared);
   $('#btn-share .btn-label').textContent = shared ? 'Gemeinsam' : 'Teilen';
+  $('#demo-badge').hidden = backend.kind !== 'demo';
   if (shareDialog.open) renderShareDialog();
 }
 
@@ -2140,15 +2151,12 @@ function renderShareDialog() {
         <button id="btn-code-manage" class="btn-link" type="button">${backend.codeProtected ? 'Zugangscode ändern' : 'Zugangscode festlegen'}</button>
       </div>
       <button id="btn-leave-trip" class="btn-link muted" type="button">Reise auf diesem Gerät verlassen</button>`;
-  } else if (sharingConfigured()) {
-    const n = state.places.length;
-    body.innerHTML = `
-      <p class="share-text">${n ? `Deine ${n} Orte liegen` : 'Deine Orte liegen'} gerade nur in diesem Browser. Starte eine gemeinsame Reise: Die Orte werden hochgeladen, und alle mit dem Link sehen dieselbe Liste – auf jedem Gerät, auch unterwegs.</p>
-      <button id="btn-start-trip" class="btn btn-primary" type="button">Gemeinsame Reise starten</button>`;
   } else {
+    const remembered = rememberedTripKey();
     body.innerHTML = `
-      <p class="share-text">Damit andere mitplanen können, braucht die App eine kleine Datenbank (Supabase, kostenlos). Die Einrichtung dauert etwa 15 Minuten – Schritt für Schritt in <strong>ANLEITUNG.md</strong> im Projektordner.</p>
-      <p class="hint">Bis dahin bleiben deine Orte in diesem Browser gespeichert.</p>`;
+      <p class="share-text"><strong>Demo-Ansicht:</strong> Du siehst Beispieldaten. Änderungen werden nicht gespeichert und sind nach dem Neuladen wieder weg.</p>
+      <p class="share-text">Für eure gemeinsame Reise brauchst du den Reise-Link und den Zugangscode von deinen Mitreisenden.</p>
+      ${remembered && demoForced ? `<a class="btn btn-primary" href="${escapeHtml(shareUrl(remembered))}">Zurück zu eurer Reise</a>` : ''}`;
   }
 }
 
@@ -2156,37 +2164,6 @@ function openShare() {
   $('#member-name').value = memberName();
   renderShareDialog();
   shareDialog.showModal();
-}
-
-async function startTrip() {
-  // Noch eine andere Reise auf diesem Gerät gespeichert (z. B. Code-Abfrage nicht beantwortet)? Nicht still ersetzen.
-  const previous = rememberedTripKey();
-  if (previous && !confirm('Auf diesem Gerät ist bereits eine gemeinsame Reise gespeichert. Eine neue Reise starten?\n\nDie bisherige bleibt erhalten, ist hier aber nur noch über ihren ursprünglichen Link erreichbar. Zum Zurückkehren: „Abbrechen“ und die Seite neu laden.')) return;
-  const btn = $('#btn-start-trip');
-  btn.disabled = true;
-  btn.textContent = 'Wird eingerichtet …';
-  try {
-    const key = newTripKey();
-    const shared = await SharedBackend.connect(key);
-    const by = memberName();
-    const places = state.places.map((p) => ({ ...p, addedBy: p.addedBy || by }));
-    await shared.saveSettings({ airbnb: state.airbnb, customCategories: state.customCategories });
-    if (places.length) await shared.addPlaces(places);
-    // Kasse mitnehmen; fehlt die Tabelle in Supabase noch, startet die Reise trotzdem
-    try {
-      if (state.participants.length) await shared.saveParticipants(state.participants);
-      if (state.expenses.length) await shared.addExpenses(state.expenses.map((x) => ({ ...x, addedBy: x.addedBy || by })));
-    } catch (err) {
-      toast(`Ausgaben wurden nicht hochgeladen: ${err.message}`);
-    }
-    switchTo(shared);
-    toast('Gemeinsame Reise gestartet – jetzt den Link teilen');
-    await refresh({ fit: true });
-  } catch (err) {
-    toast(`Reise konnte nicht gestartet werden: ${err.message}`);
-    btn.disabled = false;
-    btn.textContent = 'Gemeinsame Reise starten';
-  }
 }
 
 function switchTo(next) {
@@ -2202,11 +2179,11 @@ function switchTo(next) {
 }
 
 async function leaveTrip() {
-  if (!confirm('Reise auf diesem Gerät verlassen? Die gemeinsamen Orte bleiben erhalten – du kommst über den Link jederzeit zurück.')) return;
+  if (!confirm('Reise auf diesem Gerät verlassen? Die gemeinsamen Orte bleiben erhalten – du kommst über den Link und den Zugangscode jederzeit zurück.')) return;
   forgetTripCode();
-  switchTo(new LocalBackend(() => state));
-  await refresh({ fit: true });
-  toast('Du siehst wieder deine lokalen Orte');
+  switchTo(new DemoBackend(() => state));
+  await startDemo();
+  toast('Reise auf diesem Gerät verlassen – du siehst die Demo');
 }
 
 async function copyLink() {
@@ -2221,9 +2198,9 @@ async function copyLink() {
 }
 
 $('#btn-share').addEventListener('click', openShare);
+$('#demo-badge').addEventListener('click', openShare);
 $('#share-body').addEventListener('click', (e) => {
   const id = e.target.closest('button')?.id;
-  if (id === 'btn-start-trip') startTrip();
   if (id === 'btn-copy-link') copyLink();
   if (id === 'btn-leave-trip') leaveTrip();
   if (id === 'btn-code-manage') openCodeManage();
@@ -2254,6 +2231,7 @@ setInterval(reopenCodeDialog, 400);
 function showCodeLogin(key, wrong = false) {
   codeTripKey = key;
   codeUnlocked = false;
+  $('#demo-badge').hidden = true; // hinter der Code-Abfrage keine „Demo“ anzeigen
   codeAttempts = 0;
   $('#code-input').classList.remove('is-wrong');
   $$('dialog[open]').forEach((d) => { if (d !== codeDialog) d.close(); });
@@ -2322,9 +2300,9 @@ function openCodeManage() {
   if (backend.kind !== 'shared') return;
   const on = Boolean(backend.codeProtected);
   $('#code-manage-status').textContent = on
-    ? 'Diese Reise ist mit einem Zugangscode geschützt. Hier kannst du ihn ändern oder entfernen. Nach einer Änderung müssen alle anderen den neuen Code einmal eingeben.'
+    ? 'Diese Reise ist mit einem Zugangscode geschützt. Hier kannst du ihn ändern. Danach müssen alle anderen den neuen Code einmal eingeben.'
     : 'Noch kein Zugangscode: Wer den Reise-Link hat, sieht alles. Mit einem Code braucht man zusätzlich den Code – teile ihn getrennt vom Link.';
-  $('#code-remove').hidden = !on;
+  $('#code-remove').hidden = true; // Code ist Pflicht – nur ändern, nicht entfernen
   $('#code-logout').hidden = !on;
   $('#code-save').textContent = on ? 'Code ändern' : 'Code speichern';
   $('#code-new').value = '';
@@ -2538,22 +2516,25 @@ async function boot() {
   } catch (err) {
     console.error(err);
   }
-  const key = tripKeyFromUrl() || rememberedTripKey();
-  if (key) {
-    if (!sharingConfigured()) {
-      toast('Dieser Link gehört zu einer gemeinsamen Reise, aber die Datenbank ist hier nicht eingerichtet.');
-    } else {
-      try {
-        switchTo(await SharedBackend.connect(key));
-      } catch (err) {
-        if (err.code === 'CODE_REQUIRED') showCodeLogin(key, err.wrong);
-        else toast(`Gemeinsame Reise nicht erreichbar: ${err.message}`);
-      }
+  const key = demoForced ? null : tripKeyFromUrl() || rememberedTripKey();
+  if (key && sharingConfigured()) {
+    try {
+      switchTo(await SharedBackend.connect(key));
+    } catch (err) {
+      if (err.code === 'CODE_REQUIRED') showCodeLogin(key, err.wrong);
+      else if (err.code === 'TRIP_UNKNOWN') {
+        // Alter oder ausgedachter Link: vergessen und die Demo zeigen
+        forgetTripKey();
+        forgetTripCode();
+        history.replaceState(null, '', location.pathname);
+        toast('Dieser Reise-Link ist nicht gültig – du siehst die Demo.', { sticky: true });
+      } else toast(`Gemeinsame Reise nicht erreichbar: ${err.message}`);
     }
   }
   if (!codeDialog.open) {
     if (!readPref('introHidden')) openIntro();
-    await refresh({ fit: true });
+    if (backend.kind === 'shared') await refresh({ fit: true });
+    else await startDemo();
   }
 
   // Gemeinsame Reise: regelmäßig und beim Zurückkehren in die App abgleichen.
@@ -2565,7 +2546,7 @@ async function boot() {
   });
   window.addEventListener('hashchange', () => {
     const next = tripKeyFromUrl();
-    if (next && next !== backend.key) location.reload();
+    if ((next && next !== backend.key) || /(?:^#|&)demo\b/i.test(location.hash) !== demoForced) location.reload();
   });
 }
 

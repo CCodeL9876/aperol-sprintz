@@ -112,9 +112,10 @@ as $$
   select nullif(current_setting('request.headers', true)::json ->> 'x-trip-key', '')
 $$;
 
--- Zugangscode pro Reise (optional): Ist für eine Reise ein Code gesetzt, liefert die Datenbank nur noch
--- Daten, wenn die App zusätzlich zum Reise-Schlüssel den richtigen Code mitschickt (Header "x-trip-code").
--- Gespeichert wird nur eine bcrypt-Prüfsumme, nie der Code selbst. Ohne Code gilt wie bisher der Reise-Schlüssel.
+-- Zugangscode pro Reise – Pflicht: Erreichbar sind nur Reisen, die in trip_access eingetragen sind, und nur mit
+-- dem richtigen Code (Header "x-trip-code") zusätzlich zum Reise-Schlüssel. Neue Reisen lassen sich über die App
+-- nicht anlegen; Codes nur ändern, nicht entfernen. Gespeichert wird nur eine bcrypt-Prüfsumme, nie der Code.
+-- ACHTUNG: nur im Mallorca-Projekt ausführen – Reisen ohne Eintrag in trip_access sind danach gesperrt.
 create extension if not exists pgcrypto with schema extensions;
 
 create table if not exists public.trip_access (
@@ -135,7 +136,7 @@ as $$
   select nullif(current_setting('request.headers', true)::json ->> 'x-trip-code', '')
 $$;
 
--- true, wenn für die Reise kein Code gesetzt ist oder der mitgeschickte Code stimmt.
+-- true nur, wenn die Reise eingetragen ist und der mitgeschickte Code stimmt (unbekannte Reise → false).
 -- Ein falscher Code verzögert die Antwort, damit sich Codes nicht schnell durchprobieren lassen.
 create or replace function public.trip_code_ok()
 returns boolean
@@ -149,7 +150,7 @@ declare
 begin
   select code_hash into stored from public.trip_access where trip_key = public.request_trip_key();
   if stored is null then
-    return true;
+    return false;
   end if;
   if extensions.crypt(coalesce(public.request_trip_code(), ''), stored) = stored then
     return true;
@@ -159,7 +160,7 @@ begin
 end
 $$;
 
--- Für die App: 'none' (kein Code gesetzt), 'ok' (Code stimmt) oder 'wrong' (Code fehlt/falsch)
+-- Für die App: 'unknown' (keine eingetragene Reise), 'ok' (Code stimmt) oder 'wrong' (Code fehlt/falsch)
 create or replace function public.trip_code_status()
 returns text
 language plpgsql
@@ -170,13 +171,14 @@ as $$
 begin
   if public.request_trip_key() is null
      or not exists (select 1 from public.trip_access where trip_key = public.request_trip_key()) then
-    return 'none';
+    return 'unknown';
   end if;
   return case when public.trip_code_ok() then 'ok' else 'wrong' end;
 end
 $$;
 
--- Code setzen, ändern (alter Code nötig) oder mit leerem Text entfernen
+-- Code einer eingetragenen Reise ändern (alter Code nötig). Neue Reisen anlegen oder Codes entfernen geht nicht –
+-- eine neue Reise trägt man bei Bedarf hier im SQL Editor ein (siehe ANLEITUNG.md, Abschnitt 2c).
 create or replace function public.set_trip_code(new_code text)
 returns boolean
 language plpgsql
@@ -190,12 +192,14 @@ begin
   if k is null or char_length(k) < 32 then
     raise exception 'kein gültiger Reise-Schlüssel';
   end if;
+  if not exists (select 1 from public.trip_access where trip_key = k) then
+    raise exception 'diese Reise ist nicht eingetragen';
+  end if;
   if not public.trip_code_ok() then
     raise exception 'der bisherige Zugangscode stimmt nicht';
   end if;
   if coalesce(new_code, '') = '' then
-    delete from public.trip_access where trip_key = k;
-    return true;
+    raise exception 'der Zugangscode kann nur geändert, nicht entfernt werden';
   end if;
   if char_length(new_code) < 6 or char_length(new_code) > 64 then
     raise exception 'der Code muss 6 bis 64 Zeichen lang sein';
@@ -204,9 +208,9 @@ begin
   if new_code !~ '^[ -~]+$' then
     raise exception 'bitte nur Buchstaben ohne Umlaute, Ziffern und einfache Satzzeichen';
   end if;
-  insert into public.trip_access (trip_key, code_hash, updated_at)
-  values (k, extensions.crypt(new_code, extensions.gen_salt('bf', 8)), now())
-  on conflict (trip_key) do update set code_hash = excluded.code_hash, updated_at = now();
+  update public.trip_access
+     set code_hash = extensions.crypt(new_code, extensions.gen_salt('bf', 8)), updated_at = now()
+   where trip_key = k;
   return true;
 end
 $$;
