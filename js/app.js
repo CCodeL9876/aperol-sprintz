@@ -2034,6 +2034,7 @@ $('#code-form').addEventListener('submit', async (e) => {
     rememberTripCode(code);
     switchTo(shared);
     codeDialog.close();
+    if (!readPref('introHidden')) openIntro();
     lastSignature = '';
     await refresh({ fit: true });
   } catch (err) {
@@ -2279,7 +2280,10 @@ async function boot() {
       }
     }
   }
-  if (!codeDialog.open) await refresh({ fit: true });
+  if (!codeDialog.open) {
+    if (!readPref('introHidden')) openIntro();
+    await refresh({ fit: true });
+  }
 
   // Gemeinsame Reise: regelmäßig und beim Zurückkehren in die App abgleichen.
   setInterval(() => {
@@ -2302,7 +2306,8 @@ function openIntro() {
   introDialog.showModal();
 }
 introDialog.addEventListener('close', () => writePref('introHidden', $('#intro-hide').checked || null));
-if (!readPref('introHidden')) openIntro();
+// Geöffnet wird es erst in boot(), sobald klar ist, ob die Reise einen Zugangscode verlangt – sonst blitzt es
+// vor der Code-Abfrage kurz auf. Nach dem richtigen Code erscheint es dann (siehe Zugangscode).
 
 // Welche Version läuft gerade? (Zahl aus index.html, von deploy.sh erhöht) – hilft zu erkennen,
 // ob z. B. die App auf dem Home-Bildschirm noch einen alten Stand zeigt.

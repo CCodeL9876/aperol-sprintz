@@ -244,3 +244,6 @@ create policy "Nur mit Reise-Schlüssel" on public.expenses
   with check (trip_key = (select public.request_trip_key()) and (select public.trip_code_ok()));
 
 grant select, insert, update, delete on public.places, public.routes, public.route_files, public.trip_settings, public.expenses to anon, authenticated;
+
+-- Supabase die neuen Funktionen und Tabellen sofort bekannt machen (sonst ggf. erst nach einigen Minuten)
+notify pgrst, 'reload schema';
