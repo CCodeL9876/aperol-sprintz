@@ -193,7 +193,7 @@ const mapView = mapVariant === 'google' ? createGoogleMapView($('#map')) : creat
 if (mapVariant === 'osm') mountMapSwitch('osm');
 
 // Schalter „Google | OSM“ unten rechts auf der Karte. Bei Google sitzt er vorne in der Knopfreihe von
-// map-google.js (Satellit, Radwege), bei OpenStreetMap in einer eigenen Reihe. shown = angezeigte Karte.
+// map-google.js (Satellit), bei OpenStreetMap in einer eigenen Reihe. shown = angezeigte Karte.
 function mountMapSwitch(shown) {
   if (!GOOGLE_MAPS_API_KEY) return;
   const parent = $('#map').parentElement;

@@ -93,24 +93,17 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
   let routeShapes = [];
   let zTop = 10;
 
-  // --- Kartenart & Radwege: eigene Knöpfe, damit sie nicht unter Leiste/Blatt verschwinden ----------
+  // --- Kartenart: eigener Knopf, damit er nicht unter Leiste/Blatt verschwindet ------------------------
   const tools = document.createElement('div');
   tools.className = 'gmap-tools';
-  tools.innerHTML = `
-    <button type="button" data-tool="satellite" aria-pressed="false">Satellit</button>
-    <button type="button" data-tool="bike" aria-pressed="false">${icon('bike', { size: 14, stroke: 2 })} Radwege</button>`;
+  tools.innerHTML = '<button type="button" data-tool="satellite" aria-pressed="false">Satellit</button>';
   el.parentElement.append(tools);
-  let bikeLayer = null;
   tools.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-tool]');
     if (!btn) return;
     const on = btn.getAttribute('aria-pressed') !== 'true';
     btn.setAttribute('aria-pressed', String(on));
     if (btn.dataset.tool === 'satellite') map.setMapTypeId(on ? 'hybrid' : 'roadmap');
-    if (btn.dataset.tool === 'bike') {
-      bikeLayer ||= new google.maps.BicyclingLayer();
-      bikeLayer.setMap(on ? map : null);
-    }
   });
 
   // --- Popups nicht unter Boxen oder Listen-Blatt -----------------------------------------------------

@@ -242,7 +242,7 @@ dafür ist kein zusätzlicher Schritt nötig.
 ## 5. Google Maps (Standardkarte)
 
 Mit eingetragenem API-Schlüssel zeigt die App standardmässig Google Maps; ohne Schlüssel die OpenStreetMap-Karte.
-Die Google-Karte bietet: Google-Kartenbild, Satellit, Radwege-Ebene, antippbare Restaurants/Cafés mit Bewertung und
+Die Google-Karte bietet: Google-Kartenbild, Satellit, antippbare Restaurants/Cafés mit Bewertung und
 Öffnungszeiten sowie „Zu unseren Orten hinzufügen“.
 
 **Einmalig einrichten (ca. 15 Minuten):**
