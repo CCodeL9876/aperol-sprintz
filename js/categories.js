@@ -49,7 +49,7 @@ export const FALLBACK_CATEGORY = 'sonstiges';
 // Eigene "Art" für importierte GPX-Strecken (Linien statt Punkte) – bewusst NICHT Teil von
 // DEFAULT_CATEGORIES, damit sie nicht in der Kategorie-Auswahl einzelner Orte auftaucht.
 // Gleiche Farbfamilie wie „Rennrad-Hotspot“ (Icon unterscheidet Punkt vs. Strecke).
-export const ROUTE_CATEGORY = { id: 'rennrad-route', label: 'Rennrad-Route', icon: 'route', color: '#8FB783', ink: '#3F6B34' };
+export const ROUTE_CATEGORY = { id: 'rennrad-route', label: 'Espresso-Etappe', icon: 'route', color: '#8FB783', ink: '#3F6B34' };
 
 // Jede Route bekommt ihre eigene Farbe (nach Reihenfolge in der Liste), damit sich überschneidende
 // Strecken auf der Karte auseinanderhalten lassen. ink = Linie auf der Karte, color = helle Fläche

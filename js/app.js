@@ -533,31 +533,32 @@ async function ensureWeather() {
   }
 }
 
-function weatherHtml(route) {
+// Wetter-Kurzfassung für die zugeklappte Zeile: höchste Temperatur und Wind; orange, wenn es ungemütlich wird
+function routeWeather(route) {
   const w = weather?.byCoord?.[startKey(route)];
-  if (!w || weather.day !== weatherDay().day) return '';
-  // Auffällig, wenn es fürs Rennrad ungemütlich wird: viel Wind, starke Böen oder wahrscheinlicher Regen
-  const rough = w.wind >= 30 || (w.gust ?? 0) >= 45 || (w.rain ?? 0) >= 50;
-  const parts = [
+  if (!w || weather.day !== weatherDay().day) return null;
+  return { ...w, rough: w.wind >= 30 || (w.gust ?? 0) >= 45 || (w.rain ?? 0) >= 50 };
+}
+function weatherPill(route) {
+  const w = routeWeather(route);
+  if (!w) return '';
+  return `<span class="route-wx${w.rough ? ' is-rough' : ''}" title="${weather.label} 9–16 Uhr am Start">${icon('wind', { size: 12, stroke: 2.2 })}${w.tMax}° · ${w.wind} km/h</span>`;
+}
+function weatherDetail(route) {
+  const w = routeWeather(route);
+  if (!w) return weatherLoading ? 'wird geladen …' : 'gerade nicht verfügbar';
+  return [
     `${w.tMin === w.tMax ? w.tMax : `${w.tMin}–${w.tMax}`}°`,
     w.rain != null ? `Regen ${w.rain} %` : '',
     `Wind ${w.wind} km/h${w.dir != null ? ` aus ${compass(w.dir)}` : ''}${w.gust != null ? `, Böen ${w.gust}` : ''}`,
-  ].filter(Boolean);
-  return `<div class="route-extra route-weather${rough ? ' is-rough' : ''}" title="Startpunkt, ${weather.label.toLowerCase()} 9–16 Uhr (Open-Meteo)">
-    ${icon('wind', { size: 14, stroke: 2 })}<span><strong>${weather.label}:</strong> ${parts.join(' · ')}</span></div>`;
+  ].filter(Boolean).join(' · ');
 }
 
-function stopsHtml(route) {
-  const stops = stopsAlong(route);
-  if (!stops.length) return '';
-  const shown = stops.slice(0, 4);
-  return `<div class="route-extra route-stops">${icon('coffee', { size: 14, stroke: 2 })}<span class="route-stops-label">Unterwegs:</span>
-    ${shown.map((s) => `<button type="button" class="route-stop" data-action="show-stop" data-place="${escapeHtml(s.place.id)}" title="${Math.round(s.distM)} m neben der Strecke">${escapeHtml(s.place.name)}</button>`).join('')}
-    ${stops.length > shown.length ? `<span class="muted">+${stops.length - shown.length}</span>` : ''}</div>`;
-}
+// Espresso-Etappen: eigener Abschnitt unter den Orten. Zugeklappt nur Name, Kennzahlen und Wetter-Etikett;
+// ein Tipp klappt die Details auf (Wetter, Stopps, Links, Aktionen) – wie bei den Orten, immer nur eine.
+// Ein- und ausblenden auf der Karte macht der Schalter rechts (state.ui.visibleRoutes, standardmäßig leer).
+let expandedRouteId = null;
 
-// Rennrad-Routen: eigener Abschnitt unter den Orten, gleicher Aufbau wie die Ortsliste, aber jede
-// Zeile ist ein Kippschalter – standardmäßig ist state.ui.visibleRoutes leer, also keine Route auf der Karte.
 function renderRoutes() {
   const list = $('#route-list');
   if (!list) return; // Null-sicher: altes index.html im Cache
@@ -566,7 +567,7 @@ function renderRoutes() {
   const visible = new Set(state.ui.visibleRoutes);
   if (count) {
     count.textContent = state.routes.length
-      ? `${visible.size} von ${state.routes.length} ${state.routes.length === 1 ? 'Route' : 'Routen'} eingeblendet`
+      ? `${visible.size} von ${state.routes.length} ${state.routes.length === 1 ? 'Etappe' : 'Etappen'} eingeblendet`
       : '';
   }
   if (empty) empty.hidden = state.routes.length > 0;
@@ -575,10 +576,11 @@ function renderRoutes() {
     speedBox.hidden = !state.routes.length;
     $('#bike-speed').value = String(bikeSpeed());
   }
+  if (expandedRouteId && !state.routes.some((r) => r.id === expandedRouteId)) expandedRouteId = null;
   // Offenes Link-Feld übersteht das Neuzeichnen (z. B. Abgleich alle 20 s) samt Eingabe und Fokus
   const draftInput = $('.route-link-form input', list);
   const draft = draftInput ? { value: draftInput.value, focused: document.activeElement === draftInput } : null;
-  if (editingRouteLink && !state.routes.some((r) => r.id === editingRouteLink)) editingRouteLink = null;
+  if (editingRouteLink && editingRouteLink !== expandedRouteId) editingRouteLink = null;
   const linkForm = (r, field) => {
     const activity = field === 'activityUrl';
     // novalidate: Links ohne „https://“ (z. B. „strava.com/…“) ergänzt normalizeLink – der Browser würde sie sonst still ablehnen
@@ -588,59 +590,63 @@ function renderRoutes() {
           <button class="btn-link muted" type="button" data-action="cancel-route-link">Abbrechen</button>
         </form>`;
   };
+  const linkHtml = (url, label, action) => `<a class="route-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">${label} ↗</a>
+    <button class="btn-link muted" type="button" data-action="${action}">Ändern</button>`;
+
   list.innerHTML = state.routes.map((r, i) => {
     const on = visible.has(r.id);
+    const open = expandedRouteId === r.id;
     const colors = { ...ROUTE_CATEGORY, ...routeColor(i) }; // gleiche Farbe wie die Linie auf der Karte
     const hm = formatHm(r.elevationGainM);
     const hours = rideHours(r);
-    const url = safeHttpUrl(r.url);
-    const activity = safeHttpUrl(r.activityUrl);
-    const editing = editingRouteLink === r.id ? editingRouteField : null;
-    const linkLine = editing === 'url'
-      ? linkForm(r, 'url')
-      : url
-        ? `<div class="route-link-line">
-            <a class="route-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">${icon('link', { size: 13, stroke: 2 })}<span>${escapeHtml(linkLabel(url))}</span> ↗</a>
-            <button class="btn-link muted" type="button" data-action="edit-route-link">Ändern</button>
-          </div>`
-        : `<div class="route-link-line">
-            <button class="btn-link muted route-link-add" type="button" data-action="edit-route-link">${icon('link', { size: 13, stroke: 2 })}Link hinzufügen</button>
-          </div>`;
-    // Gefahren: Link zur Aktivität (Strava …) nachtragen
-    const activityLine = !r.ridden ? ''
-      : editing === 'activityUrl' ? linkForm(r, 'activityUrl')
-      : activity
-        ? `<div class="route-link-line">
-            <a class="route-link" href="${escapeHtml(activity)}" target="_blank" rel="noopener">${icon('check', { size: 13, stroke: 2.6 })}<span>Gefahren · ${escapeHtml(linkLabel(activity))}</span> ↗</a>
-            <button class="btn-link muted" type="button" data-action="edit-activity-link">Ändern</button>
-          </div>`
-        : `<div class="route-link-line">
-            <button class="btn-link muted route-link-add" type="button" data-action="edit-activity-link">${icon('check', { size: 13, stroke: 2.6 })}Aktivität verlinken (Strava …)</button>
-          </div>`;
-    // Symbol und Text je als Einheit, damit beim Umbrechen nichts auseinanderfällt
-    const meta = [
-      hm ? `<span class="route-meta-part">${icon('trending-up', { size: 13, stroke: 2.2 })} ${hm}</span>` : '',
-      hours != null ? `<span class="route-meta-part">${icon('clock', { size: 13, stroke: 2.2 })} ${formatDuration(hours)}</span>` : '',
+    // Kennzahlen in einer Zeile; Symbol/Wert jeweils als Einheit, damit beim Umbrechen nichts auseinanderfällt
+    const stats = [
+      r.distanceKm != null ? `<span class="route-meta-part">${formatKm(r.distanceKm)}</span>` : '',
+      hm ? `<span class="route-meta-part">${icon('trending-up', { size: 13, stroke: 2.2 })}${hm}</span>` : '',
+      hours != null ? `<span class="route-meta-part">${icon('clock', { size: 13, stroke: 2.2 })}${formatDuration(hours)}</span>` : '',
     ].filter(Boolean).join('<span class="route-meta-sep">·</span>') || escapeHtml(ROUTE_CATEGORY.label);
-    return `<li class="place route-item${on ? ' is-on' : ''}${r.ridden ? ' is-ridden' : ''}" data-id="${r.id}" style="${categoryStyle(colors)}">
+
+    let details = '';
+    if (open) {
+      const editing = editingRouteLink === r.id ? editingRouteField : null;
+      const stops = stopsAlong(r);
+      const url = safeHttpUrl(r.url);
+      const activity = safeHttpUrl(r.activityUrl);
+      const tour = url ? linkHtml(url, escapeHtml(linkLabel(url)), 'edit-route-link')
+        : `<button class="btn-link muted route-link-add" type="button" data-action="edit-route-link">${icon('link', { size: 13, stroke: 2 })}Tour-Link</button>`;
+      const ridden = !r.ridden ? ''
+        : activity ? linkHtml(activity, `${icon('check', { size: 13, stroke: 2.6 })}Gefahren · ${escapeHtml(linkLabel(activity))}`, 'edit-activity-link')
+        : `<button class="btn-link muted route-link-add" type="button" data-action="edit-activity-link">${icon('check', { size: 13, stroke: 2.6 })}Aktivität verlinken</button>`;
+      details = `<div class="route-details">
+        <div class="route-detail"><span class="route-detail-label">Wetter</span>
+          <span><span class="${routeWeather(r)?.rough ? 'route-detail-warn' : ''}">${weatherDetail(r)}</span>
+          <span class="muted">(${escapeHtml((weather?.label || weatherDay().label).toLowerCase())} 9–16 Uhr am Start)</span></span></div>
+        <div class="route-detail"><span class="route-detail-label">Unterwegs</span>
+          <span class="route-stop-list">${stops.length
+            ? stops.map((st) => `<button type="button" class="route-stop" data-action="show-stop" data-place="${escapeHtml(st.place.id)}" title="${Math.round(st.distM)} m neben der Strecke">${escapeHtml(st.place.name)}</button>`).join('')
+            : '<span class="muted">keine Kaffees oder Hotspots in der Nähe</span>'}</span></div>
+        <div class="route-detail"><span class="route-detail-label">Links</span>
+          ${editing ? linkForm(r, editing) : `<span class="route-links">${tour}${ridden ? `<span class="route-meta-sep">·</span>${ridden}` : ''}</span>`}</div>
+        <div class="route-detail-actions">
+          <button type="button" class="btn btn-small" data-action="show-route">${icon('route', { size: 14, stroke: 2 })}Auf der Karte zeigen</button>
+          <button type="button" class="route-action" data-action="download-route" aria-label="Etappe „${escapeHtml(r.name)}“ als GPX herunterladen" title="Als GPX herunterladen">${icon('download', { size: 15, stroke: 1.9 })}</button>
+          <button type="button" class="route-action is-danger" data-action="delete-route" aria-label="Etappe „${escapeHtml(r.name)}“ entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
+        </div>
+      </div>`;
+    }
+    return `<li class="place route-item${on ? ' is-on' : ''}${r.ridden ? ' is-ridden' : ''}${open ? ' is-open' : ''}" data-id="${r.id}" style="${categoryStyle(colors)}">
       <div class="route-row">
-      <button type="button" class="visit-toggle" data-action="ridden" aria-pressed="${!!r.ridden}" aria-label="${escapeHtml(r.name)} gefahren" title="${r.ridden ? 'Gefahren – antippen zum Entfernen' : 'Als gefahren markieren'}">${icon('check', { size: 16, stroke: 3 })}</button>
-      <button type="button" class="place-main" data-action="toggle-route" aria-pressed="${on}" title="${on ? 'Auf der Karte ausblenden' : 'Auf der Karte einblenden'}">
-        <span class="place-icon" aria-hidden="true">${categoryIcon(ROUTE_CATEGORY, { size: 18, stroke: 1.7 })}</span>
-        <span class="place-body">
-          <span class="place-name">${escapeHtml(r.name)}</span>
-          <span class="place-meta">${meta}</span>
-        </span>
-        ${r.distanceKm != null ? `<span class="place-dist">${distanceHtml(r.distanceKm)}</span>` : ''}
-        <span class="route-switch" aria-hidden="true"></span>
-      </button>
-      <button type="button" class="route-action" data-action="download-route" aria-label="Route „${escapeHtml(r.name)}“ als GPX herunterladen" title="Als GPX herunterladen">${icon('download', { size: 15, stroke: 1.9 })}</button>
-      <button type="button" class="route-action is-danger" data-action="delete-route" aria-label="Route „${escapeHtml(r.name)}“ entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
+        <button type="button" class="visit-toggle" data-action="ridden" aria-pressed="${!!r.ridden}" aria-label="${escapeHtml(r.name)} gefahren" title="${r.ridden ? 'Gefahren – antippen zum Entfernen' : 'Als gefahren markieren'}">${icon('check', { size: 16, stroke: 3 })}</button>
+        <button type="button" class="place-main" data-action="expand-route" aria-expanded="${open}">
+          <span class="place-icon" aria-hidden="true">${categoryIcon(ROUTE_CATEGORY, { size: 18, stroke: 1.7 })}</span>
+          <span class="place-body">
+            <span class="place-name">${escapeHtml(r.name)}</span>
+            <span class="place-meta route-stats">${stats}${weatherPill(r)}</span>
+          </span>
+        </button>
+        <button type="button" class="route-switch-btn" data-action="toggle-route" role="switch" aria-checked="${on}" aria-label="„${escapeHtml(r.name)}“ auf der Karte ${on ? 'ausblenden' : 'einblenden'}" title="${on ? 'Auf der Karte ausblenden' : 'Auf der Karte einblenden'}"><span class="route-switch" aria-hidden="true"></span></button>
       </div>
-      ${weatherHtml(r)}
-      ${stopsHtml(r)}
-      ${linkLine}
-      ${activityLine}
+      ${details}
     </li>`;
   }).join('');
   const input = $('.route-link-form input', list);
@@ -694,7 +700,7 @@ async function downloadRouteGpx(route) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  if (reduced) toast('GPX aus den Kartenpunkten erstellt (ohne Höhen) – für volle Genauigkeit Route neu importieren.');
+  if (reduced) toast('GPX aus den Kartenpunkten erstellt (ohne Höhen) – für volle Genauigkeit Etappe neu importieren.');
 }
 
 // Höhenmeter bergauf, z. B. „1.230 Hm“; leer bei Routen ohne Höhendaten (ältere Importe, GPX ohne <ele>)
@@ -1707,6 +1713,19 @@ $('#route-list')?.addEventListener('click', async (e) => {
       mapView.fitToRoute(route);
     }
   }
+  if (action === 'expand-route') {
+    expandedRouteId = expandedRouteId === id ? null : id;
+    editingRouteLink = null;
+    renderRoutes();
+    return;
+  }
+  if (action === 'show-route') {
+    if (!state.ui.visibleRoutes.includes(id)) state.ui.visibleRoutes = [...state.ui.visibleRoutes, id];
+    render();
+    if (isMobile() && sheetState() === 'full') setSheet('half');
+    mapView.fitToRoute(route);
+    return;
+  }
   if (action === 'edit-route-link' || action === 'edit-activity-link') {
     editingRouteLink = id;
     editingRouteField = action === 'edit-activity-link' ? 'activityUrl' : 'url';
@@ -1734,11 +1753,11 @@ $('#route-list')?.addEventListener('click', async (e) => {
   }
   if (action === 'download-route') await downloadRouteGpx(route);
   if (action === 'delete-route') {
-    if (!confirm(`Route „${route.name}“ entfernen?`)) return;
+    if (!confirm(`Etappe „${route.name}“ entfernen?`)) return;
     state.routes = state.routes.filter((r) => r.id !== id);
     state.ui.visibleRoutes = state.ui.visibleRoutes.filter((rid) => rid !== id);
     render();
-    persist((b) => b.deleteRoute(id), 'Route konnte nicht entfernt werden');
+    persist((b) => b.deleteRoute(id), 'Etappe konnte nicht entfernt werden');
   }
 });
 
@@ -1791,7 +1810,7 @@ async function restoreBackup() {
   const restoredRoutes = await restoreRoutes(backup.routes);
   clearLocalBackup();
   render({ fit: true });
-  toast(`${added.length} Orte${restoredRoutes ? ` und ${restoredRoutes} Route(n)` : ''} wiederhergestellt`);
+  toast(`${added.length} Orte${restoredRoutes ? ` und ${restoredRoutes} Etappe(n)` : ''} wiederhergestellt`);
 }
 
 $('#empty-state').addEventListener('click', (e) => {
@@ -1908,13 +1927,13 @@ async function addRoute(parsed, sourceLabel) {
   state.routes.push(route);
   render();
   if (parsed.gpx) gpxCache.set(route.id, parsed.gpx);
-  const ok = await persist((b) => b.addRoutes([route], { [route.id]: parsed.gpx }), 'Route konnte nicht gespeichert werden');
+  const ok = await persist((b) => b.addRoutes([route], { [route.id]: parsed.gpx }), 'Etappe konnte nicht gespeichert werden');
   if (!ok) {
     state.routes = state.routes.filter((r) => r.id !== route.id);
     render();
     return;
   }
-  log(`${sourceLabel}: Route „${route.name}“ importiert (${formatKm(route.distanceKm)}${route.elevationGainM != null ? `, ${formatHm(route.elevationGainM)}` : ''}, standardmäßig ausgeblendet).`, 'ok');
+  log(`${sourceLabel}: Etappe „${route.name}“ importiert (${formatKm(route.distanceKm)}${route.elevationGainM != null ? `, ${formatHm(route.elevationGainM)}` : ''}, standardmäßig ausgeblendet).`, 'ok');
 }
 
 async function handleFiles(files) {
@@ -1935,7 +1954,7 @@ async function handleFiles(files) {
         if (!state.airbnb && b.airbnb) state.airbnb = b.airbnb;
         await persistSettings();
         const restoredRoutes = await restoreRoutes(b.routes);
-        if (restoredRoutes) log(`${file.name}: ${restoredRoutes} Route(n) aus dem Backup übernommen.`, 'ok');
+        if (restoredRoutes) log(`${file.name}: ${restoredRoutes} Etappe(n) aus dem Backup übernommen.`, 'ok');
         if (!state.participants.length && b.participants?.length) {
           state.participants = sanitizeParticipants(b.participants);
           await persist((be) => be.saveParticipants(state.participants), 'Teilnehmende konnten nicht übernommen werden');

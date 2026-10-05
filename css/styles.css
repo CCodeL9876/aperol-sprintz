@@ -715,7 +715,32 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 }
 .route-stop:hover { background: var(--green-tint); color: var(--green); }
 .route-item .visit-toggle { margin-left: 8px; }
-.route-item.is-ridden:not(.is-on) .place-main { opacity: 0.55; }
+.route-item.is-ridden:not(.is-on):not(.is-open) .place-main { opacity: 0.55; }
+
+/* Zugeklappte Zeile: Kennzahlen + Wetter-Etikett; Schalter rechts blendet die Strecke ein/aus */
+.route-stats { gap: 2px 4px; }
+.route-switch-btn { flex: none; display: grid; place-items: center; align-self: stretch; padding: 0 12px 0 6px; border: 0; background: none; cursor: pointer; }
+.route-wx {
+  display: inline-flex; align-items: center; gap: 3px; margin-left: 6px;
+  padding: 1px 8px 1px 6px; border-radius: 999px; white-space: nowrap;
+  background: var(--sky); color: var(--text); font-size: 11.5px; font-weight: 700;
+}
+.route-item .route-wx .icon { flex: none; color: inherit; }
+.route-wx.is-rough { background: var(--orange-tint); color: var(--orange-ink); }
+.route-item.is-open::before { background: var(--card); border-color: var(--ci, var(--green)); }
+/* Aufgeklappt: Details mit Bezeichnung links, sauber untereinander */
+.route-details {
+  display: grid; gap: 8px; margin: 0 12px 12px 58px; padding-top: 10px;
+  border-top: 1.5px dashed var(--line); font-size: 13px; color: var(--text-soft);
+}
+.route-detail { display: grid; grid-template-columns: 92px 1fr; gap: 8px; align-items: baseline; }
+.route-detail-label { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.route-detail-warn { color: var(--orange-ink); font-weight: 600; }
+.route-stop-list, .route-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
+.route-details .route-link-form { grid-column: 2; padding: 0; }
+.route-details .route-link { font-size: 13px; }
+.route-detail-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
+.route-detail-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
 
 .cat-select {
   min-height: 32px; height: 32px; width: auto; max-width: 100%;
@@ -1291,6 +1316,8 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   .place-list { margin: 0 -8px; }
   .place-details { padding-left: 12px; }
   .route-link-line, .route-link-form, .route-extra { padding-left: 12px; }
+  .route-details { margin-left: 12px; }
+  .route-detail { grid-template-columns: 78px 1fr; }
   /* Fingergerechte Tippflächen (mind. ~40px) für die kleinen Knöpfe in Orts- und Routenliste */
   .route-action { width: 40px; height: 40px; }
   .gf-toggle { min-width: 40px; height: 40px; margin-right: 2px; }
