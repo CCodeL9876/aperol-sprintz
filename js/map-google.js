@@ -61,7 +61,7 @@ const PLACE_FIELDS = [
   'websiteURI', 'googleMapsURI', 'types', 'primaryType', 'primaryTypeDisplayName', 'nationalPhoneNumber',
 ];
 
-export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerClick, getInsets, onAddPlace, onError, routePopup }) {
+export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerClick, getInsets, onAddPlace, onError, routePopup, onLocateMessage }) {
   // Ungültiger Schlüssel oder nicht freigegebene Adresse: Google ruft diese globale Funktion auf
   window.gm_authFailure = () => onError?.('Google Maps lehnt den API-Schlüssel ab – Einschränkungen (Website-Adressen) in der Google Cloud Console prüfen.');
   await loadGoogleMaps(apiKey);
@@ -113,6 +113,179 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     }
   });
 
+  // --- Popups nicht unter Boxen oder Listen-Blatt -----------------------------------------------------
+  // Googles Popup kennt die Boxen oben und das Blatt unten nicht und schiebt sich nur in den Kartenrand.
+  // Nach dem Öffnen daher prüfen und die Karte so verschieben, dass es im freien Teil liegt.
+  info.addListener('domready', () => {
+    requestAnimationFrame(() => {
+      const box = el.querySelector('.gm-style-iw-c');
+      if (!box) return;
+      const r = box.getBoundingClientRect();
+      const m = el.getBoundingClientRect();
+      const { top, bottom } = insets();
+      const freeTop = m.top + top + 12;
+      const freeBottom = m.bottom - bottom - 12;
+      if (r.top < freeTop) map.panBy(0, -(freeTop - r.top));
+      else if (r.bottom > freeBottom && r.height < freeBottom - freeTop) map.panBy(0, r.bottom - freeBottom);
+    });
+  });
+
+  // --- Live-Standort (wie in map.js) ------------------------------------------------------------------
+  // Knopf über den Zoom-Knöpfen. 1. Tipp: Standort verfolgen, die Karte läuft beim Gehen mit. Verschiebt
+  // man die Karte selbst, hört das Mitlaufen auf; ein Tipp springt zurück. Tipp in der Mitte: ausschalten.
+  // Die Position bleibt im Browser. Dazu ein Blickrichtungs-Kegel aus dem Kompass.
+  let locating = false;
+  let firstFix = false;
+  let following = false;
+  let meLatLng = null;
+  let meMarker = null;
+  let meCircle = null;
+  let watchId = null;
+  const locateBtn = document.createElement('button');
+  locateBtn.type = 'button';
+  locateBtn.className = 'locate-btn gmap-locate';
+  locateBtn.setAttribute('aria-label', 'Mein Standort');
+  locateBtn.innerHTML = icon('locate', { size: 20, stroke: 2.2 });
+  el.parentElement.append(locateBtn);
+  const setLocateState = (state) => {
+    locateBtn.classList.toggle('is-waiting', state === 'waiting');
+    locateBtn.setAttribute('aria-pressed', String(state !== 'off'));
+    locateBtn.title = state === 'off' ? 'Mein Standort' : 'Standort: nochmals tippen zum Zentrieren bzw. Ausschalten';
+  };
+  setLocateState('off');
+
+  let headingOn = false;
+  let headingAngle = null;
+  let headingFrame = 0;
+  function applyHeading() {
+    headingFrame = 0;
+    const wrap = meMarker?.content?.querySelector('.me-wrap');
+    if (!wrap || headingAngle == null) return;
+    wrap.classList.add('has-heading');
+    wrap.style.setProperty('--heading', `${headingAngle}deg`);
+  }
+  function onOrientation(e) {
+    let h = null;
+    if (typeof e.webkitCompassHeading === 'number' && !Number.isNaN(e.webkitCompassHeading)) h = e.webkitCompassHeading;
+    else if (e.absolute && typeof e.alpha === 'number') h = 360 - e.alpha;
+    if (h == null) return;
+    const screenAngle = screen.orientation?.angle ?? window.orientation ?? 0;
+    h = (h + screenAngle + 360) % 360;
+    headingAngle = headingAngle == null ? h : headingAngle + ((h - headingAngle + 540) % 360) - 180;
+    if (!headingFrame) headingFrame = requestAnimationFrame(applyHeading);
+  }
+  // Muss synchron aus dem Tipp heraus starten (iOS fragt sonst nicht nach)
+  async function startHeading() {
+    if (headingOn || typeof window.DeviceOrientationEvent === 'undefined') return;
+    headingOn = true;
+    try {
+      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const answer = await DeviceOrientationEvent.requestPermission();
+        if (answer !== 'granted') {
+          headingOn = false;
+          onLocateMessage?.('heading-denied');
+          return;
+        }
+      }
+    } catch {
+      headingOn = false;
+      return;
+    }
+    if (!locating) { headingOn = false; return; }
+    window.addEventListener('deviceorientationabsolute', onOrientation);
+    window.addEventListener('deviceorientation', onOrientation);
+  }
+  function stopHeading() {
+    headingOn = false;
+    headingAngle = null;
+    window.removeEventListener('deviceorientationabsolute', onOrientation);
+    window.removeEventListener('deviceorientation', onOrientation);
+  }
+
+  function stopLocate() {
+    stopHeading();
+    locating = false;
+    following = false;
+    meLatLng = null;
+    if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    if (meMarker) meMarker.map = null;
+    meCircle?.setMap(null);
+    meMarker = meCircle = null;
+    setLocateState('off');
+  }
+
+  // Liegt der Standort schon in der Mitte des freien Kartenteils (unter Boxen, über dem Blatt)?
+  function meIsCentered() {
+    const proj = map.getProjection();
+    if (!meLatLng || !proj) return false;
+    const { top, right, bottom, left } = insets();
+    const scale = 2 ** map.getZoom();
+    const p = proj.fromLatLngToPoint(new google.maps.LatLng(meLatLng));
+    const c = proj.fromLatLngToPoint(map.getCenter());
+    const dx = (p.x - c.x) * scale - (left - right) / 2;
+    const dy = (p.y - c.y) * scale - (top - bottom) / 2;
+    return Math.hypot(dx, dy) < 40;
+  }
+
+  function onPosition(pos) {
+    if (!locating) return;
+    meLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    const accuracy = pos.coords.accuracy || 0;
+    if (!meMarker) {
+      meCircle = new google.maps.Circle({
+        map, center: meLatLng, radius: accuracy, clickable: false, zIndex: 1,
+        fillColor: '#2F6FD6', fillOpacity: 0.12, strokeColor: '#2F6FD6', strokeOpacity: 0.6, strokeWeight: 1.5,
+      });
+      const content = document.createElement('div');
+      content.className = 'gmap-me';
+      // Kegel (Blickrichtung) hinter dem Punkt; erscheint erst, wenn der Kompass Werte liefert
+      content.innerHTML = '<div class="me-wrap"><svg class="me-heading" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="me-beam-g" x1="0" y1="1" x2="0" y2="0"><stop offset=".45" stop-color="#2F6FD6" stop-opacity=".75"/><stop offset="1" stop-color="#2F6FD6" stop-opacity="0"/></linearGradient></defs><path d="M60 60 33 6a60 60 0 0 1 54 0Z" fill="url(#me-beam-g)"/></svg><div class="me-dot"></div></div>';
+      meMarker = new AdvancedMarkerElement({ map, position: meLatLng, content, zIndex: 3000 });
+      applyHeading();
+    } else {
+      meMarker.position = meLatLng;
+      meCircle.setCenter(meLatLng);
+      meCircle.setRadius(accuracy);
+    }
+    if (firstFix) {
+      firstFix = false;
+      following = true;
+      setLocateState('on');
+      centerOn([meLatLng.lat, meLatLng.lng], Math.max(map.getZoom(), 16));
+    } else if (following && !meIsCentered()) {
+      centerOn([meLatLng.lat, meLatLng.lng], map.getZoom());
+    }
+  }
+
+  function onPositionError(err) {
+    if (!locating) return;
+    // Bei laufender Verfolgung kurze Aussetzer ignorieren – nur beim Start melden
+    if (!firstFix && meLatLng && err.code !== 1) return;
+    stopLocate();
+    onLocateMessage?.(err.code === 1 ? 'denied' : 'unavailable', err.message);
+  }
+
+  function toggleLocate() {
+    if (!locating) {
+      if (!navigator.geolocation) return onLocateMessage?.('unsupported');
+      locating = true;
+      firstFix = true;
+      startHeading();
+      setLocateState('waiting');
+      watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 });
+      return;
+    }
+    if (meLatLng && (!following || !meIsCentered())) {
+      following = true;
+      return centerOn([meLatLng.lat, meLatLng.lng], Math.max(map.getZoom(), 16));
+    }
+    stopLocate();
+  }
+  locateBtn.addEventListener('click', toggleLocate);
+  // Selbst verschoben → nicht mehr mitlaufen (bis zum nächsten Tipp auf den Knopf)
+  map.addListener('dragstart', () => { following = false; });
+
   // --- Klicks: eigene Karte vs. Google-Orte ---------------------------------------------------------
   map.addListener('click', (e) => {
     const ll = { lat: e.latLng.lat(), lng: e.latLng.lng() };
@@ -129,7 +302,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
   async function showGooglePlace(placeId, latLng) {
     info.setContent('<div class="popup"><span class="popup-addr">Lade Details …</span></div>');
     info.setPosition(latLng);
-    info.open({ map });
+    info.open({ shouldFocus: false, map });
     const fallbackUrl = `https://www.google.com/maps/search/?api=1&query=${latLng.lat()},${latLng.lng()}&query_place_id=${encodeURIComponent(placeId)}`;
     let place;
     try {
@@ -226,7 +399,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     const entry = markers.get(id);
     if (!entry) return;
     info.setContent(popupHtml(entry.place, entry.cat));
-    info.open({ map, anchor: entry.marker });
+    info.open({ shouldFocus: false, map, anchor: entry.marker });
   }
 
   function setPlaces(places, catOf, currentId) {
@@ -287,7 +460,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     airbnbMarker = new AdvancedMarkerElement({ map, position: toLatLng(airbnb), content, title: 'Unser Airbnb', zIndex: 2000 });
     airbnbMarker.addListener('click', () => {
       info.setContent(airbnbPopupHtml(airbnb));
-      info.open({ map, anchor: airbnbMarker });
+      info.open({ shouldFocus: false, map, anchor: airbnbMarker });
     });
   }
 
@@ -300,24 +473,27 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       const color = r.color || ROUTE_CATEGORY.ink;
       const path = r.points.map(toLatLng);
       const casing = new google.maps.Polyline({ map, path, strokeColor: '#FFFFFF', strokeOpacity: 0.9, strokeWeight: 6, clickable: false, zIndex: ++zTop });
-      const line = new google.maps.Polyline({ map, path, strokeColor: color, strokeOpacity: 0.95, strokeWeight: 3.5, zIndex: ++zTop });
+      const line = new google.maps.Polyline({ map, path, strokeColor: color, strokeOpacity: 0.95, strokeWeight: 3.5, clickable: false, zIndex: ++zTop });
+      // Unsichtbare, breite Tippfläche – die schmale Linie trifft man auf dem Handy kaum
+      const hit = new google.maps.Polyline({ map, path, strokeColor: color, strokeOpacity: 0.01, strokeWeight: 22, zIndex: ++zTop });
       const raise = () => {
         casing.setOptions({ zIndex: ++zTop, strokeWeight: 8 });
         line.setOptions({ zIndex: ++zTop, strokeWeight: 5.5 });
+        hit.setOptions({ zIndex: ++zTop });
       };
       const lower = () => {
         casing.setOptions({ strokeWeight: 6 });
         line.setOptions({ strokeWeight: 3.5 });
       };
-      line.addListener('mouseover', raise);
-      line.addListener('mouseout', lower);
-      line.addListener('click', (e) => {
+      hit.addListener('mouseover', raise);
+      hit.addListener('mouseout', lower);
+      hit.addListener('click', (e) => {
         raise();
         info.setContent(routePopup ? routePopup(r, color) : routePopupHtml(r, color));
         info.setPosition(e.latLng);
-        info.open({ map });
+        info.open({ shouldFocus: false, map });
       });
-      routeShapes.push(casing, line);
+      routeShapes.push(casing, line, hit);
     }
   }
 
@@ -327,5 +503,5 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     fitPoints(route.points, 14);
   }
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, invalidate: () => {} };
+  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
 }

@@ -195,7 +195,7 @@ const mapView = mapVariant === 'google' ? createGoogleMapView($('#map')) : creat
 function createGoogleMapView(el) {
   let impl = null;
   const view = { map: { getZoom: () => impl?.map.getZoom() ?? 9 } };
-  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'invalidate']) {
+  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'locate', 'invalidate']) {
     view[k] = (...args) => impl?.[k](...args);
   }
   const ready = (m) => {

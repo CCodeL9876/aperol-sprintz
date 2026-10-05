@@ -539,6 +539,10 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   box-shadow: var(--shadow);
 }
 .gmap-tools button[aria-pressed="true"] { background: var(--green); color: #FFFFFF; }
+/* Google-Karte: Standort-Knopf über den Zoom-Knöpfen; Standort-Punkt mittig verankert (Google setzt
+   Marker sonst mit der Unterkante auf die Position) */
+.locate-btn.gmap-locate { position: absolute; z-index: 900; right: 10px; bottom: 120px; margin: 0 !important; }
+.gmap-me { transform: translateY(50%); pointer-events: none; }
 
 .popup-star, .popup-visited, .popup-res, .popup-gf {
   display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; margin-top: 4px;
@@ -1283,6 +1287,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   .locate-btn { margin: 0 10px 10px 0 !important; }
   .pick-banner { top: auto; bottom: calc(var(--sheet-h) + 12px); font-size: 13px; }
   .gmap-tools { right: 10px; bottom: calc(var(--sheet-h) + 12px); transition: bottom 0.25s ease; }
+  .locate-btn.gmap-locate { right: 10px; bottom: calc(var(--sheet-h) + 60px); transition: bottom 0.25s ease; }
 
   .sidebar {
     position: absolute; z-index: 950;
