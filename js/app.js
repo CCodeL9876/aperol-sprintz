@@ -2008,10 +2008,13 @@ $('#share-body').addEventListener('click', (e) => {
 
 const codeDialog = $('#code-dialog');
 let codeTripKey = null;
+let codeAttempts = 0; // falsche Versuche seit dem Öffnen der Abfrage – macht jeden neuen Fehlversuch sichtbar
 codeDialog.addEventListener('cancel', (e) => e.preventDefault()); // Esc schliesst die Abfrage nicht
 
 function showCodeLogin(key, wrong = false) {
   codeTripKey = key;
+  codeAttempts = 0;
+  $('#code-input').classList.remove('is-wrong');
   $$('dialog[open]').forEach((d) => { if (d !== codeDialog) d.close(); });
   $('#code-error').textContent = wrong ? 'Der Code auf diesem Gerät stimmt nicht (mehr) – bitte den aktuellen Code eingeben.' : '';
   $('#code-input').value = '';
@@ -2023,6 +2026,7 @@ const toggleCodeVisible = (checkbox, inputs) => checkbox.addEventListener('chang
   inputs.forEach((sel) => { $(sel).type = checkbox.checked ? 'text' : 'password'; });
 });
 toggleCodeVisible($('#code-show'), ['#code-input']);
+$('#code-input').addEventListener('input', (e) => e.target.classList.remove('is-wrong'));
 
 $('#code-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -2033,6 +2037,10 @@ $('#code-form').addEventListener('submit', async (e) => {
     return;
   }
   const btn = $('#code-submit');
+  const input = $('#code-input');
+  // Alte Meldung sofort weg, damit sichtbar ist, dass dieser Versuch neu geprüft wird
+  $('#code-error').textContent = '';
+  input.classList.remove('is-wrong');
   btn.disabled = true;
   btn.textContent = 'Prüfe …';
   try {
@@ -2044,10 +2052,24 @@ $('#code-form').addEventListener('submit', async (e) => {
     lastSignature = '';
     await refresh({ fit: true });
   } catch (err) {
-    $('#code-error').textContent = err.code === 'CODE_REQUIRED' ? 'Dieser Code stimmt nicht.' : `Keine Verbindung: ${err.message}`;
+    if (err.code === 'CODE_REQUIRED') {
+      codeAttempts++;
+      $('#code-error').textContent = codeAttempts > 1 ? `Dieser Code stimmt nicht (${codeAttempts}. Versuch).` : 'Dieser Code stimmt nicht.';
+      // Fenster kurz schütteln (Animation neu starten), Feld rot markieren und für den nächsten Versuch leeren
+      const box = codeDialog.querySelector('.dialog-inner');
+      box.classList.remove('is-shaking');
+      void box.offsetWidth;
+      box.classList.add('is-shaking');
+      input.classList.add('is-wrong');
+      input.value = '';
+      navigator.vibrate?.(120);
+    } else {
+      $('#code-error').textContent = `Keine Verbindung: ${err.message}`;
+    }
   } finally {
     btn.disabled = false;
     btn.textContent = 'Öffnen';
+    input.focus();
   }
 });
 
