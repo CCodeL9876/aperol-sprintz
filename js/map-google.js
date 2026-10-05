@@ -61,7 +61,7 @@ const PLACE_FIELDS = [
   'websiteURI', 'googleMapsURI', 'types', 'primaryType', 'primaryTypeDisplayName', 'nationalPhoneNumber',
 ];
 
-export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerClick, getInsets, onAddPlace, onError }) {
+export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerClick, getInsets, onAddPlace, onError, routePopup }) {
   // Ungültiger Schlüssel oder nicht freigegebene Adresse: Google ruft diese globale Funktion auf
   window.gm_authFailure = () => onError?.('Google Maps lehnt den API-Schlüssel ab – Einschränkungen (Website-Adressen) in der Google Cloud Console prüfen.');
   await loadGoogleMaps(apiKey);
@@ -313,7 +313,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       line.addListener('mouseout', lower);
       line.addListener('click', (e) => {
         raise();
-        info.setContent(routePopupHtml(r, color));
+        info.setContent(routePopup ? routePopup(r, color) : routePopupHtml(r, color));
         info.setPosition(e.latLng);
         info.open({ map });
       });

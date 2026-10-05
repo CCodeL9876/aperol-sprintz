@@ -161,6 +161,8 @@ async function refresh({ fit = false } = {}) {
 // --- Karte -------------------------------------------------------------------------
 
 const mapOptions = {
+  // Popup beim Antippen einer eingeblendeten Etappe: alle Angaben wie in der aufgeklappten Liste
+  routePopup: (r, color) => routePopupHtml(r, color),
   // true = Klick verarbeitet (die Google-Variante zeigt sonst Details zu angetippten Google-Orten)
   onMapClick: (latlng) => {
     if (!pickMode) return false;
@@ -556,6 +558,58 @@ function weatherDetail(route) {
     `Wind ${w.wind} km/h${w.dir != null ? ` aus ${compass(w.dir)}` : ''}${w.gust != null ? `, Böen ${w.gust}` : ''}`,
   ].filter(Boolean).join(' · ');
 }
+
+// Popup einer Etappe auf der Karte: Kennzahlen, Wetter, Kaffee-Stopps, Links und „Details in der Liste“.
+// Wird beim Antippen frisch erzeugt (siehe map.js); Klicks darin verarbeitet der Listener weiter unten.
+function routePopupHtml(r, color) {
+  const hm = formatHm(r.elevationGainM);
+  const hours = rideHours(r);
+  const stats = [
+    r.distanceKm != null ? formatKm(r.distanceKm) : '',
+    hm ? `${icon('trending-up', { size: 12, stroke: 2.2 })}${hm}` : '',
+    hours != null ? `${icon('clock', { size: 12, stroke: 2.2 })}${formatDuration(hours)}` : '',
+  ].filter(Boolean).map((t) => `<span class="route-meta-part">${t}</span>`).join('<span class="route-meta-sep">·</span>');
+  const w = routeWeather(r);
+  const stops = stopsAlong(r);
+  const url = safeHttpUrl(r.url);
+  const activity = safeHttpUrl(r.activityUrl);
+  const links = [
+    url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">Tour ↗</a>` : '',
+    r.ridden ? (activity ? `<a href="${escapeHtml(activity)}" target="_blank" rel="noopener">${icon('check', { size: 12, stroke: 2.6 })}Gefahren ↗</a>` : `<span>${icon('check', { size: 12, stroke: 2.6 })}Gefahren</span>`) : '',
+  ].filter(Boolean).join('<span class="route-meta-sep">·</span>');
+  return `<div class="popup route-popup">
+    <span class="popup-cat" style="${categoryStyle({ ...ROUTE_CATEGORY, ink: color })}">${escapeHtml(ROUTE_CATEGORY.label)}</span>
+    <strong class="popup-name">${escapeHtml(r.name)}</strong>
+    ${stats ? `<span class="route-popup-stats">${stats}</span>` : ''}
+    ${w ? `<span class="route-popup-row${w.rough ? ' is-rough' : ''}">${icon('wind', { size: 13, stroke: 2 })}<span><strong>${escapeHtml(weather.label)}:</strong> ${weatherDetail(r)}</span></span>` : ''}
+    ${stops.length ? `<span class="route-popup-row">${icon('coffee', { size: 13, stroke: 2 })}<span class="route-popup-stops">${stops.map((st) => `<button type="button" class="route-stop" data-popup-stop="${escapeHtml(st.place.id)}">${escapeHtml(st.place.name)}</button>`).join('')}</span></span>` : ''}
+    ${links ? `<span class="route-popup-links">${links}</span>` : ''}
+    <button type="button" class="popup-link route-popup-more" data-popup-route="${escapeHtml(r.id)}">Details in der Liste ${icon('arrow-right', { size: 12, stroke: 2.4 })}</button>
+  </div>`;
+}
+
+// Klicks im Etappen-Popup. Capture-Phase, weil Leaflet Klicks in Popups nicht weiterreicht.
+document.addEventListener('click', (e) => {
+  const stop = e.target.closest('[data-popup-stop]');
+  const more = e.target.closest('[data-popup-route]');
+  if (!stop && !more) return;
+  e.preventDefault();
+  if (stop) {
+    const id = stop.dataset.popupStop;
+    if (!state.places.some((p) => p.id === id)) return;
+    if (!lastVisible.some((p) => p.id === id)) resetFilters();
+    selectPlace(id, { fly: true, scrollList: true });
+    return;
+  }
+  const id = more.dataset.popupRoute;
+  if (!state.routes.some((r) => r.id === id)) return;
+  mapView.map.closePopup?.();
+  expandedRouteId = id;
+  editingRouteLink = null;
+  renderRoutes();
+  if (isMobile() && sheetState() === 'hidden') setSheet('half');
+  $(`#route-list li[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}, true);
 
 // Espresso-Etappen: eigener Abschnitt unter den Orten. Zugeklappt nur Name, Kennzahlen und Wetter-Etikett;
 // ein Tipp klappt die Details auf (Wetter, Stopps, Links, Aktionen) – wie bei den Orten, immer nur eine.

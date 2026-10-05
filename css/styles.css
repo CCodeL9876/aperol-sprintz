@@ -1425,3 +1425,15 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   font: 700 12px var(--font-body); letter-spacing: 0.06em; text-transform: uppercase;
 }
 .demo-badge:hover { background: var(--orange); color: #FFFFFF; }
+
+/* Popup einer Etappe auf der Karte */
+.route-popup { gap: 6px; min-width: 220px; }
+.route-popup-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; font-size: 12.5px; font-weight: 600; color: var(--text-soft); }
+.route-popup-stats .icon { flex: none; }
+.route-popup-row { display: flex; align-items: flex-start; gap: 6px; font-size: 12.5px; line-height: 1.4; color: var(--text-soft); }
+.route-popup-row > .icon { flex: none; margin-top: 2px; color: var(--green); }
+.route-popup-row.is-rough, .route-popup-row.is-rough > .icon { color: var(--orange-ink); }
+.route-popup-stops { display: flex; flex-wrap: wrap; gap: 4px; }
+.route-popup-links { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; font-size: 12.5px; font-weight: 700; }
+.route-popup-links a, .route-popup-links span { display: inline-flex; align-items: center; gap: 3px; color: var(--green); }
+.route-popup-more { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; padding: 0; border: 0; background: none; cursor: pointer; font: inherit; font-size: 12.5px; }

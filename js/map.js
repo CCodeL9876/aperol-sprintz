@@ -75,7 +75,7 @@ function createFallbackMap(el) {
   return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, centerOn: noop, invalidate: noop };
 }
 
-export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMessage }) {
+export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMessage, routePopup }) {
   if (typeof L === 'undefined') return createFallbackMap(el);
   const map = L.map(el, { zoomControl: false, attributionControl: true }).setView(MALLORCA.center, MALLORCA.zoom);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -373,9 +373,17 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
       if (!r.points?.length) continue;
       const color = r.color || ROUTE_CATEGORY.ink;
       const casing = L.polyline(r.points, { color: '#FFFFFF', weight: 6, opacity: 0.9, lineJoin: 'round', interactive: false }).addTo(routeLayer);
-      const line = L.polyline(r.points, { color, weight: 3.5, opacity: 0.95, lineJoin: 'round' })
-        .bindPopup(routePopupHtml(r, color), { closeButton: false, className: 'llocs-popup' })
-        .addTo(routeLayer);
+      const line = L.polyline(r.points, { color, weight: 3.5, opacity: 0.95, lineJoin: 'round' });
+      // Inhalt erst beim Öffnen erzeugen: so zeigt das Popup immer aktuelles Wetter, Tempo und Stopps.
+      // Dabei auch den Abstand zu den Boxen oben und der Liste unten setzen, damit die Karte das Popup
+      // nicht dahinter, sondern in den freien Teil schiebt.
+      line.bindPopup(() => {
+        const { top, right, bottom, left } = insets();
+        const popup = line.getPopup();
+        popup.options.autoPanPaddingTopLeft = L.point(left + 12, top + 12);
+        popup.options.autoPanPaddingBottomRight = L.point(right + 12, bottom + 12);
+        return routePopup ? routePopup(r, color) : routePopupHtml(r, color);
+      }, { closeButton: false, className: 'llocs-popup', maxWidth: 300 }).addTo(routeLayer);
       // Bei überlappenden Strecken: die berührte/angetippte Route nach vorne holen und hervorheben
       const raise = () => {
         casing.bringToFront();
