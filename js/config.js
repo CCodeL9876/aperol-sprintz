@@ -24,4 +24,4 @@ export const FIXED_AIRBNB = null;
 // Leer lassen = nur OpenStreetMap.
 export const GOOGLE_MAPS_API_KEY = 'AIzaSyDUaIdiA9_jRel67xyEPqdaQBqEY-ZQWmM';
 // Optional: eigene Map-ID aus der Google Cloud Console (für eigene Kartenstile). Leer = Googles Test-ID.
-export const GOOGLE_MAPS_MAP_ID = 'AIzaSyDUaIdiA9_jRel67xyEPqdaQBqEY-ZQWmM';
+export const GOOGLE_MAPS_MAP_ID = '';
