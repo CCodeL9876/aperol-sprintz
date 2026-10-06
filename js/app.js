@@ -286,7 +286,8 @@ function initMapSearch() {
   const input = $('#map-search-input');
   const list = $('#map-search-results');
   const clearBtn = $('#map-search-clear');
-  box.hidden = false;
+  // Sichtbar macht es renderShareState – in der Demo bleibt das Feld ausgeblendet
+  box.dataset.ready = '1';
   let items = [];
   let active = -1;
   let seq = 0;
@@ -2755,6 +2756,9 @@ function renderShareState() {
   $('#btn-share').classList.toggle('is-shared', shared);
   $('#btn-share .btn-label').textContent = shared ? 'Gemeinsam' : 'Teilen';
   $('#demo-badge').hidden = backend.kind !== 'demo';
+  const mapSearch = $('#map-search');
+  if (mapSearch.dataset.ready) mapSearch.hidden = backend.kind === 'demo';
+  $('#intro-map-search').hidden = backend.kind === 'demo';
   if (shareDialog.open) renderShareDialog();
 }
 
