@@ -309,11 +309,15 @@ function initMapSearch() {
     list.style.width = `${r.width}px`;
     list.style.maxHeight = `${Math.max(160, innerHeight - r.bottom - 24)}px`;
   };
+  // Handy: zugeklappt nur die Lupe – aufgeklappt, solange das Feld aktiv ist oder Treffer offen sind
+  // (die Darstellung gibt es nur unter 900 px, siehe .map-search.is-collapsed in styles.css)
+  const syncCollapsed = () => box.classList.toggle('is-collapsed', document.activeElement !== input && list.hidden);
   const close = () => {
     list.hidden = true;
     input.setAttribute('aria-expanded', 'false');
     input.removeAttribute('aria-activedescendant');
     active = -1;
+    syncCollapsed();
   };
   const row = (it, i, title, sub, iconHtml) => `<li role="option" id="msr-${i}" aria-selected="${i === active}">
       <button type="button" class="msr-item" data-i="${i}" tabindex="-1">${iconHtml}<span class="msr-text"><strong>${escapeHtml(title)}</strong>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}</span></button>
@@ -397,7 +401,12 @@ function initMapSearch() {
     const q = input.value.trim();
     timer = setTimeout(() => search(q), q.length < 2 ? 0 : 250); // nicht bei jedem Buchstaben fragen
   });
-  input.addEventListener('focus', () => { if (items.length) draw(); });
+  input.addEventListener('focus', () => {
+    syncCollapsed();
+    if (items.length) draw();
+  });
+  input.addEventListener('blur', syncCollapsed);
+  syncCollapsed();
   input.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       if (!items.length) return;

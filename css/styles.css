@@ -1462,6 +1462,14 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   }
   .panel-row > details[open] { grid-column: 1 / -1; }
   .panel-row > .map-search { grid-column: 1 / -1; }
+  /* Kartensuche zugeklappt: nur die Lupe links, ohne Text; beim Antippen volle Breite (initMapSearch in app.js) */
+  .panel-row > .map-search.is-collapsed { grid-column: 1; justify-self: start; }
+  .map-search.is-collapsed input { width: 46px; padding: 0; color: transparent; cursor: pointer; background-position: center; }
+  .map-search.is-collapsed input::placeholder { color: transparent; }
+  .map-search.is-collapsed .map-search-clear { display: none; }
+  /* Leere Flächen der Boxen-Reihe (z. B. neben der Lupe) lassen Tipps zur Karte durch */
+  .panel-row { pointer-events: none; }
+  .panel-row > * { pointer-events: auto; }
   .panel-row .panel.airbnb { padding: 10px 12px; }
   .panel-row .panel.cash { padding: 10px 12px; gap: 10px; }
   .panel-row .panel.cash .eyebrow { display: block; font-size: 10px; }
