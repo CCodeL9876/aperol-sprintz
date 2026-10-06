@@ -129,6 +129,28 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
   await new Promise((resolve) => gEvent.addListenerOnce(map, 'idle', resolve));
 
   const info = new InfoWindow({ maxWidth: 300 });
+
+  // Googles Fenster hat oben eine eigene Zeile, in der nur das ✕ steht – darunter begann unser Inhalt erst nach
+  // viel leerem Platz. Die Art (erste Zeile .popup-cat, z. B. „Rennrad-Hotspot“) kommt deshalb in diese Zeile,
+  // neben das ✕. infoSource: zuletzt übergebener Inhalt (zum Vergleichen in setPlaces).
+  let infoSource = null;
+  function setInfo(content) {
+    infoSource = content;
+    let node = content;
+    if (typeof content === 'string') {
+      const wrap = document.createElement('div');
+      wrap.innerHTML = content.trim();
+      node = wrap.firstElementChild || wrap;
+    }
+    // Einmal je Inhalt herauslösen (ein DOM-Inhalt wie das Google-Ort-Fenster wird wiederverwendet)
+    if (node.infoHeader === undefined) {
+      const cat = node.querySelector(':scope > .popup-cat');
+      cat?.remove();
+      node.infoHeader = cat || null;
+    }
+    info.setHeaderContent(node.infoHeader || '');
+    info.setContent(node);
+  }
   const markers = new Map();
   let airbnbMarker = null;
   let activeId = null;
@@ -349,7 +371,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
   });
 
   async function showGooglePlace(placeId, latLng) {
-    info.setContent('<div class="popup"><span class="popup-addr">Lade Details …</span></div>');
+    setInfo('<div class="popup"><span class="popup-addr">Lade Details …</span></div>');
     info.setPosition(latLng);
     info.open({ shouldFocus: false, map });
     const fallbackUrl = `https://www.google.com/maps/search/?api=1&query=${latLng.lat()},${latLng.lng()}&query_place_id=${encodeURIComponent(placeId)}`;
@@ -360,13 +382,13 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       await place.fetchFields({ fields: PLACE_FIELDS });
     } catch (err) {
       console.warn('Places API:', err);
-      info.setContent(`<div class="popup">
+      setInfo(`<div class="popup">
         <span class="popup-addr">Details nicht verfügbar – ${escapeHtml(placesErrorHint(err))}</span>
         <a class="popup-link" href="${escapeHtml(fallbackUrl)}" target="_blank" rel="noopener">In Google Maps öffnen ↗</a>
       </div>`);
       return;
     }
-    info.setContent(googlePlaceContent(place, fallbackUrl));
+    setInfo(googlePlaceContent(place, fallbackUrl));
   }
 
   function googlePlaceContent(place, fallbackUrl) {
@@ -448,7 +470,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     if (!entry) return;
     popupId = id;
     popupShown = popupHtml(entry.place, entry.cat);
-    info.setContent(popupShown);
+    setInfo(popupShown);
     info.open({ shouldFocus: false, map, anchor: entry.marker });
   }
 
@@ -500,14 +522,14 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       hiddenMarkers.set(id, entry);
     }
     // Offenes Detailfenster eines Orts: schliessen, wenn der Ort weggefiltert wurde, sonst Inhalt auffrischen
-    if (popupId && info.isOpen && info.getContent() === popupShown) {
+    if (popupId && info.isOpen && infoSource === popupShown) {
       const entry = markers.get(popupId);
       if (!entry) {
         info.close();
         popupId = null;
       } else {
         const html = popupHtml(entry.place, entry.cat);
-        if (html !== popupShown) info.setContent((popupShown = html));
+        if (html !== popupShown) setInfo((popupShown = html));
       }
     }
   }
@@ -554,7 +576,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     content.innerHTML = `<div class="home-pin" title="Unser Airbnb">${icon('home', { size: 15, stroke: 2.2 })}</div>`;
     airbnbMarker = new AdvancedMarkerElement({ map, position: toLatLng(airbnb), content, title: 'Unser Airbnb', zIndex: 2000 });
     airbnbMarker.addListener('click', () => {
-      info.setContent(airbnbPopupHtml(airbnbNow));
+      setInfo(airbnbPopupHtml(airbnbNow));
       info.open({ shouldFocus: false, map, anchor: airbnbMarker });
     });
   }
@@ -596,7 +618,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
         // Beim Planen: Tipp auf eine eingeblendete Etappe setzt dort einen Wegpunkt
         if (drafting) return onMapClick?.({ lat: e.latLng.lat(), lng: e.latLng.lng() });
         raise();
-        info.setContent(routePopup ? routePopup(current(), color) : routePopupHtml(current(), color));
+        setInfo(routePopup ? routePopup(current(), color) : routePopupHtml(current(), color));
         info.setPosition(e.latLng);
         info.open({ shouldFocus: false, map });
       });
@@ -657,12 +679,12 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     clearSearchMarker();
     searchMarker = new AdvancedMarkerElement({ map, position: pos, title: place.displayName || '', zIndex: 5000 });
     searchMarker.addListener('click', () => {
-      info.setContent(content);
+      setInfo(content);
       info.setPosition(pos);
       info.open({ shouldFocus: false, map });
     });
     centerOn([pos.lat(), pos.lng()], Math.max(map.getZoom(), 16));
-    info.setContent(content);
+    setInfo(content);
     info.setPosition(pos);
     info.open({ shouldFocus: false, map });
     return place.displayName || '';
@@ -732,7 +754,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       content.style.transform = 'translateY(50%)'; // mittig auf den Punkt statt mit der Unterkante
       const m = new AdvancedMarkerElement({ map, position: { lat: x.lat, lng: x.lng }, content, title: poiTitle(x), zIndex: 0 });
       m.addListener('click', () => {
-        info.setContent(poiPopupHtml(x));
+        setInfo(poiPopupHtml(x));
         info.open({ shouldFocus: false, map, anchor: m });
       });
       return m;
