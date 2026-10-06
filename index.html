@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-06.24" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-06.24">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-06.25" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-06.25">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-06.24">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-06.24">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-06.24">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-06.25">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-06.25">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-06.25">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -330,72 +330,12 @@
       <header class="dialog-head">
         <div>
           <span class="eyebrow">Benvinguts!</span>
-          <h2 id="intro-title">Das kannst du hier tun</h2>
+          <h2 id="intro-title">Orte sammeln, Runden planen</h2>
         </div>
         <button class="icon-btn" type="button" data-close aria-label="Schließen"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </header>
-      <div class="intro-groups">
-        <section class="intro-group">
-          <h3 class="intro-group-title">Entdecken</h3>
-          <ul class="intro-list">
-            <li class="intro-item">
-              <span class="intro-badge" style="--b:var(--pink)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Karte &amp; Liste</strong><span>Alle Orte auf Karte und Liste – nach Art filtern, suchen oder sortieren. <strong>„Jetzt offen“</strong> zeigt, was gerade geöffnet hat (Öffnungszeiten einmal über das Menü <strong>„Öffnungszeiten laden“</strong> holen). Auf dem Handy die Liste nach unten wischen, dann ist die ganze Karte frei.</span></span>
-            </li>
-            <li class="intro-item">
-              <span class="intro-badge" style="--b:var(--mint)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Espresso-Etappen</strong><span>GPX-Dateien über <strong>„+ Importieren“</strong> hinzufügen. Jede Route zeigt Fahrzeit, Wetter am Start, Kaffee-Stopps mit Ankunftszeit (und ob dann offen ist) sowie Trinkbrunnen und Velo-Werkstätten unterwegs; nach der Fahrt mit dem Haken als gefahren markieren und die Strava-Aktivität verlinken.</span></span>
-            </li>
-          </ul>
-        </section>
-        <section class="intro-group">
-          <h3 class="intro-group-title">Unterwegs</h3>
-          <ul class="intro-list">
-            <li class="intro-item">
-              <span class="intro-badge" style="--b:var(--sky)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 22 2l-9 19-2-8Z"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Standort &amp; Route</strong><span>Der <strong>Standort-Knopf</strong> zeigt, wo du bist und wohin du schaust. <strong>„Route“</strong> bei einem Ort führt dich mit Google Maps hin.</span></span>
-            </li>
-            <li class="intro-item">
-              <span class="intro-badge" style="--b:var(--lilac)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Unterkunft</strong><span>Unter <strong>„Unser Airbnb“</strong> stehen Name, Adresse und Inserat – <strong>„Route zur Unterkunft“</strong> bringt dich zurück.</span></span>
-            </li>
-            <li class="intro-item">
-              <span class="intro-badge" style="--b:var(--yellow)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Flüge &amp; Check-in</strong><span>Im Menü oben rechts öffnet <strong>„Bordkarten · Wallet“</strong> deine Bordkarte, <strong>„Meine Flüge · easyJet“</strong> die easyJet-App und <strong>„Check-in · Airbnb“</strong> eure Buchung mit der Check-in-Anleitung.</span></span>
-            </li>
-          </ul>
-        </section>
-        <section class="intro-group">
-          <h3 class="intro-group-title">Merken</h3>
-          <ul class="intro-list">
-            <li class="intro-item">
-              <span class="intro-badge" style="--b:var(--yellow)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Favoriten &amp; Besucht</strong><span>Der <strong>Stern</strong> markiert Favoriten, das <strong>Häkchen</strong> Orte, an denen ihr schon wart – sie werden dann blass.</span></span>
-            </li>
-            <li class="intro-item">
-              <span class="intro-badge" style="--b:var(--lilac)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Reservierungen</strong><span>Beim Restaurant <strong>„Als reserviert markieren“</strong>, Datum und Uhrzeit eintragen. Der Filter <strong>„Reserviert“</strong> zeigt alle Termine.</span></span>
-            </li>
-            <li class="intro-item">
-              <span class="intro-badge" style="--b:var(--mint)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Neue Orte</strong><span>In Google Maps bei einem Ort <strong>Teilen → Kopieren</strong>, dann hier <strong>„+ Importieren“</strong> und einfügen – Name und Position kommen automatisch. Oder direkt auf der Karte ein Restaurant, Café usw. antippen<span id="intro-map-search" hidden> oder über <strong>„Auf Google Maps suchen“</strong> finden</span> → <strong>„Zu unseren Orten hinzufügen“</strong>.</span></span>
-            </li>
-          </ul>
-        </section>
-        <section class="intro-group">
-          <h3 class="intro-group-title">Gemeinsam</h3>
-          <ul class="intro-list">
-            <li class="intro-item">
-              <span class="intro-badge" style="--b:var(--orange)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Ausgaben teilen</strong><span>Unter <strong>„Ausgaben“</strong> erfassen, wer was für wen bezahlt hat – in € oder CHF, gleich oder nach Anteilen aufgeteilt; bei einem Ort direkt über <strong>„Rechnung“</strong>. Der Ausgleich zeigt, wer wem wie viel schuldet; nach der Überweisung <strong>„bezahlt“</strong> antippen.</span></span>
-            </li>
-            <li class="intro-item">
-              <span class="intro-badge" style="--b:var(--pink)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Zusammen planen</strong><span>Mit dem Reise-Link unter <strong>„Teilen“</strong> sehen und ändern alle dieselben Orte und Ausgaben. Nur an Mitreisende weitergeben. Ohne Netz (z. B. in den Bergen) zeigt die App den zuletzt geladenen Stand.</span></span>
-            </li>
-          </ul>
-        </section>
-      </div>
+      <!-- Inhalt (Funktionen mit ⓘ-Info-Boxen) baut renderIntro() in app.js -->
+      <div class="intro-groups" id="intro-groups"></div>
       <p class="hint intro-note">Diese Übersicht findest du jederzeit wieder im Menü oben rechts (drei Punkte) unter <strong>„So funktioniert's“</strong>.</p>
       <footer class="dialog-foot">
         <label class="check intro-hide"><input id="intro-hide" type="checkbox"><span>Nicht mehr anzeigen</span></label>
@@ -634,29 +574,29 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-06.24"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-06.25"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-06.24",
-      "./js/backend.js": "./js/backend.js?v=2026-10-06.24",
-      "./js/cash.js": "./js/cash.js?v=2026-10-06.24",
-      "./js/categories.js": "./js/categories.js?v=2026-10-06.24",
-      "./js/config.js": "./js/config.js?v=2026-10-06.24",
-      "./js/geo.js": "./js/geo.js?v=2026-10-06.24",
-      "./js/hours.js": "./js/hours.js?v=2026-10-06.24",
-      "./js/icons.js": "./js/icons.js?v=2026-10-06.24",
-      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-06.24",
-      "./js/importers.js": "./js/importers.js?v=2026-10-06.24",
-      "./js/map.js": "./js/map.js?v=2026-10-06.24",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-06.24",
-      "./js/profile.js": "./js/profile.js?v=2026-10-06.24",
-      "./js/pois.js": "./js/pois.js?v=2026-10-06.24",
-      "./js/store.js": "./js/store.js?v=2026-10-06.24"
+      "./js/app.js": "./js/app.js?v=2026-10-06.25",
+      "./js/backend.js": "./js/backend.js?v=2026-10-06.25",
+      "./js/cash.js": "./js/cash.js?v=2026-10-06.25",
+      "./js/categories.js": "./js/categories.js?v=2026-10-06.25",
+      "./js/config.js": "./js/config.js?v=2026-10-06.25",
+      "./js/geo.js": "./js/geo.js?v=2026-10-06.25",
+      "./js/hours.js": "./js/hours.js?v=2026-10-06.25",
+      "./js/icons.js": "./js/icons.js?v=2026-10-06.25",
+      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-06.25",
+      "./js/importers.js": "./js/importers.js?v=2026-10-06.25",
+      "./js/map.js": "./js/map.js?v=2026-10-06.25",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-06.25",
+      "./js/profile.js": "./js/profile.js?v=2026-10-06.25",
+      "./js/pois.js": "./js/pois.js?v=2026-10-06.25",
+      "./js/store.js": "./js/store.js?v=2026-10-06.25"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-06.24"></script>
+  <script type="module" src="js/app.js?v=2026-10-06.25"></script>
 </body>
 </html>

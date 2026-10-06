@@ -1343,6 +1343,26 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .intro-text { display: flex; flex-direction: column; gap: 2px; font-size: 14.5px; line-height: 1.45; color: var(--text-soft); }
 .intro-name { font-family: var(--font-display); font-weight: 800; font-size: 17px; color: var(--ink); }
 .intro-text strong:not(.intro-name) { color: var(--ink); }
+/* Das Wichtigste (Orte speichern, Routen planen): als hervorgehobene Karten */
+.intro-group.is-focus .intro-item { padding: 12px 12px 12px 10px; border-radius: var(--radius); background: var(--chip); }
+.intro-group.is-focus .intro-name { font-size: 18px; }
+.intro-head { display: flex; align-items: center; gap: 8px; }
+/* ⓘ-Knopf und Info-Box */
+.intro-info {
+  flex: none; width: 24px; height: 24px; display: grid; place-items: center; padding: 0;
+  border: 1.5px solid var(--green); border-radius: 999px; cursor: pointer;
+  background: var(--card); color: var(--green);
+  font: italic 800 13px/1 Georgia, 'Times New Roman', serif;
+}
+.intro-info[aria-expanded="true"] { background: var(--green); color: #FFFFFF; }
+.intro-pop {
+  display: block; margin-top: 6px; padding: 9px 12px;
+  border-radius: 12px; border-left: 3px solid var(--green); background: var(--green-tint);
+  font-size: 13.5px; line-height: 1.45; color: var(--text);
+}
+.intro-pop[hidden] { display: none; }
+.intro-pop ul { margin: 0; padding-left: 16px; display: grid; gap: 3px; }
+.icon.intro-inline { display: inline-block; vertical-align: -2px; color: var(--green); }
 .intro-note { margin: 0; }
 .intro-hide { font-size: 13.5px; }
 

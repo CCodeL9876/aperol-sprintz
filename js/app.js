@@ -2794,7 +2794,6 @@ function renderShareState() {
   $('#demo-badge').hidden = backend.kind !== 'demo';
   const mapSearch = $('#map-search');
   if (mapSearch.dataset.ready) mapSearch.hidden = backend.kind === 'demo';
-  $('#intro-map-search').hidden = backend.kind === 'demo';
   // Öffnungszeiten laden kostet Google-Kontingent – in der Demo ausgegraut
   $('[data-menu="hours"]').disabled = backend.kind === 'demo';
   if (shareDialog.open) renderShareDialog();
@@ -3502,7 +3501,105 @@ async function boot() {
 // --- Willkommen -----------------------------------------------------------------------------
 // Kurze Übersicht beim Öffnen der Seite; „Nicht mehr anzeigen“ merkt sich jedes Gerät selbst.
 const introDialog = $('#intro-dialog');
+
+// Inhalt: oben das Wichtigste (Orte speichern, Routen planen), darunter alles Weitere als Einzeiler.
+// Details stehen in einer Info-Box hinter dem ⓘ – kurze Stichpunkte statt langer Texte.
+// demo: false = Punkt in der Demo weglassen (dort gibt es z. B. keine Kartensuche).
+const INTRO = [
+  { title: 'Das Wichtigste', focus: true, items: [
+    { icon: 'pin', color: 'var(--pink)', name: 'Orte speichern',
+      text: 'Auf der Karte ein Café, Restaurant … antippen → <strong>„Zu unseren Orten hinzufügen“</strong>.',
+      info: [
+        { demo: false, html: 'Suchen: <strong>Lupe</strong> oben auf der Karte.' },
+        'Aus Google Maps: Ort → <strong>Teilen → Kopieren</strong>, hier <strong>„+ Importieren“</strong> und einfügen.',
+        'Ganze Listen (Takeout, CSV, KML) ebenfalls über <strong>„+ Importieren“</strong>.',
+        'Die Art (Kaffee, Restaurant …) wird erkannt und lässt sich in der Liste ändern.',
+      ] },
+    { icon: 'route', color: 'var(--mint)', name: 'Routen planen',
+      text: '<strong>„Etappe planen“</strong> bei den Espresso-Etappen: Punkte auf die Karte tippen – die Strecke folgt Straßen fürs Rennrad.',
+      info: [
+        `Start ist euer Airbnb. ${icon('home', { size: 14, stroke: 2.2, cls: 'intro-inline' })} führt zurück, ${icon('undo', { size: 14, stroke: 2.2, cls: 'intro-inline' })} nimmt den letzten Punkt weg.`,
+        '<strong>Schnell</strong>: direkte Wege. <strong>Ruhig</strong>: meidet Verkehr, dafür mit Umwegen.',
+        'Kilometer, Höhenmeter, Fahrzeit und Höhenprofil laufend.',
+        'Gespeichert zeigt jede Etappe Wetter, Kaffee-Stopps, Wasser & Velo – und lässt sich als GPX laden.',
+        'Oder eine GPX aus Strava/Komoot über <strong>„+ Importieren“</strong> – Start und Ziel werden ans Airbnb angeschlossen.',
+      ] },
+  ] },
+  { title: 'Außerdem', items: [
+    { icon: 'search', color: 'var(--sky)', name: 'Karte & Liste', text: 'Nach Art filtern, suchen, <strong>„Jetzt offen“</strong>.',
+      info: [
+        'Handy: Liste nach unten wischen – dann ist die ganze Karte frei.',
+        '„Jetzt offen“ braucht Öffnungszeiten: Menü <strong>•••</strong> → <strong>„Öffnungszeiten laden“</strong>.',
+        'Sortiert wird nach Entfernung zum Airbnb, Name, Art oder Datum.',
+      ] },
+    { icon: 'star', color: 'var(--yellow)', name: 'Merken', text: 'Stern = Favorit, Häkchen = schon besucht, Reservierungen.',
+      info: [
+        'Besuchte Orte werden blass.',
+        'Beim Restaurant <strong>„Als reserviert markieren“</strong> mit Datum und Uhrzeit.',
+        'Der Filter <strong>„Reserviert“</strong> zeigt alle Termine.',
+      ] },
+    { icon: 'navigation', color: 'var(--sky)', name: 'Unterwegs', text: 'Standort-Knopf und <strong>„Route“</strong> zu jedem Ort.',
+      info: [
+        'Der Standort zeigt auch, wohin du schaust.',
+        '„Route“ startet die Navigation in Google Maps.',
+        'Unter <strong>„Unser Airbnb“</strong> geht’s mit „Route zur Unterkunft“ zurück.',
+      ] },
+    { icon: 'wallet', color: 'var(--orange)', name: 'Ausgaben', text: 'Wer hat was für wen bezahlt?',
+      info: [
+        'In € oder CHF, gleich oder nach Anteilen aufgeteilt.',
+        'Bei einem Ort direkt über <strong>„Rechnung“</strong>.',
+        'Der Ausgleich zeigt, wer wem wie viel schuldet – nach der Überweisung <strong>„bezahlt“</strong> antippen.',
+      ] },
+    { icon: 'camera', color: 'var(--lilac)', name: 'Fotos & Reise', text: 'Menü <strong>•••</strong>: Fotos, Bordkarten, Flüge, Check-in.',
+      info: [
+        '<strong>„Fotos“</strong> öffnet die Fotos-App mit euren geteilten Alben (iPhone/iPad).',
+        '<strong>„Bordkarten“</strong> öffnet Wallet, <strong>„Meine Flüge“</strong> die easyJet-App.',
+        '<strong>„Check-in“</strong> zeigt eure Airbnb-Buchung mit der Anleitung.',
+      ] },
+    { icon: 'users', color: 'var(--pink)', name: 'Zusammen planen', text: 'Alle mit dem Reise-Link sehen dasselbe.',
+      info: [
+        'Den Link gibt es unter <strong>„Teilen“</strong> – nur an Mitreisende weitergeben.',
+        'Änderungen sind nach spätestens 20 Sekunden bei allen.',
+        'Ohne Netz zeigt die App den zuletzt geladenen Stand.',
+      ] },
+  ] },
+];
+
+function renderIntro() {
+  const demo = backend.kind === 'demo';
+  let n = 0;
+  $('#intro-groups').innerHTML = INTRO.map((group) => `<section class="intro-group${group.focus ? ' is-focus' : ''}">
+      <h3 class="intro-group-title">${group.title}</h3>
+      <ul class="intro-list">${group.items.map((it) => {
+        const id = `intro-info-${n++}`;
+        const info = it.info.filter((x) => !(demo && x.demo === false)).map((x) => `<li>${x.html || x}</li>`).join('');
+        return `<li class="intro-item">
+          <span class="intro-badge" style="--b:${it.color}" aria-hidden="true">${icon(it.icon, { size: 20, stroke: 2.2 })}</span>
+          <div class="intro-text">
+            <span class="intro-head"><strong class="intro-name">${it.name}</strong>
+              <button type="button" class="intro-info" aria-expanded="false" aria-controls="${id}" aria-label="Mehr zu „${it.name}“">i</button></span>
+            <span>${it.text}</span>
+            <div class="intro-pop" id="${id}" hidden><ul>${info}</ul></div>
+          </div>
+        </li>`;
+      }).join('')}</ul>
+    </section>`).join('');
+}
+
+// ⓘ öffnet die Info-Box der Funktion; es ist immer nur eine offen
+$('#intro-groups').addEventListener('click', (e) => {
+  const btn = e.target.closest('.intro-info');
+  if (!btn) return;
+  const open = btn.getAttribute('aria-expanded') !== 'true';
+  for (const b of $$('.intro-info', introDialog)) {
+    const on = open && b === btn;
+    b.setAttribute('aria-expanded', String(on));
+    $(`#${b.getAttribute('aria-controls')}`).hidden = !on;
+  }
+});
+
 function openIntro() {
+  renderIntro();
   $('#intro-hide').checked = Boolean(readPref('introHidden'));
   introDialog.showModal();
 }
