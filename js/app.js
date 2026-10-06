@@ -2555,7 +2555,7 @@ async function homeLoop(parsed, sourceLabel) {
     return parsed;
   }
   log(`${sourceLabel}: Schließe Start und Ziel ans Airbnb an …`);
-  const { route, notes, error } = await connectToHome(parsed, state.airbnb);
+  const { route, notes, error } = await connectToHome(parsed, state.airbnb, routeMode());
   if (error) log(`${sourceLabel}: ${error}.`, 'error');
   if (notes.length) log(`${sourceLabel}: ${notes.join(', ')}.`, 'ok');
   else if (!error) log(`${sourceLabel}: Start und Ziel liegen schon beim Airbnb.`);
@@ -3206,29 +3206,43 @@ function cancelPlan() {
   endPlan();
 }
 
+// Streckenwahl „Schnell | Ruhig“ (jedes Gerät merkt sich seine)
+const routeMode = () => (readPref('routeMode') === 'quiet' ? 'quiet' : 'fast');
+
+// Abschnitt von „from“ nach „to“ berechnen lassen; bis dahin gestrichelte Luftlinie
+function planSegment(from, to) {
+  const seg = { points: [from, to], track: null, pending: true, error: false };
+  bikeRoute(from, to, routeMode())
+    .then((track) => {
+      seg.track = track;
+      seg.points = track.map(([lat, lng]) => [lat, lng]);
+    })
+    .catch((err) => {
+      seg.error = true;
+      // Nur melden, wenn der Abschnitt noch zur Planung gehört (nicht schon rückgängig gemacht)
+      if (plan.segments.includes(seg)) {
+        toast(`Keine Rennrad-Strecke zu diesem Punkt gefunden (${err.name === 'TimeoutError' ? 'Routenplaner antwortet nicht' : err.message}) – „Rückgängig“ und einen anderen Punkt wählen.`);
+      }
+    })
+    .finally(() => {
+      seg.pending = false;
+      if (plan.on) renderPlan();
+    });
+  return seg;
+}
+
 function addPlanPoint(to) {
   const from = plan.waypoints.at(-1);
   plan.waypoints.push(to);
-  if (from) {
-    const seg = { points: [from, to], track: null, pending: true, error: false };
-    plan.segments.push(seg);
-    bikeRoute(from, to)
-      .then((track) => {
-        seg.track = track;
-        seg.points = track.map(([lat, lng]) => [lat, lng]);
-      })
-      .catch((err) => {
-        seg.error = true;
-        // Nur melden, wenn der Abschnitt noch zur Planung gehört (nicht schon rückgängig gemacht)
-        if (plan.segments.includes(seg)) {
-          toast(`Keine Rennrad-Strecke zu diesem Punkt gefunden (${err.name === 'TimeoutError' ? 'Routenplaner antwortet nicht' : err.message}) – „Rückgängig“ und einen anderen Punkt wählen.`);
-        }
-      })
-      .finally(() => {
-        seg.pending = false;
-        if (plan.on) renderPlan();
-      });
-  }
+  if (from) plan.segments.push(planSegment(from, to));
+  renderPlan();
+}
+
+// Streckenwahl gewechselt: alle Abschnitte mit dem neuen Profil neu berechnen
+function setRouteMode(mode) {
+  if (mode === routeMode()) return;
+  writePref('routeMode', mode);
+  plan.segments = plan.waypoints.slice(1).map((to, i) => planSegment(plan.waypoints[i], to));
   renderPlan();
 }
 
@@ -3272,8 +3286,9 @@ function renderPlan() {
   loop.title = loopLabel;
   loop.setAttribute('aria-label', loopLabel);
   loop.disabled = plan.waypoints.length < 2 || samePoint(plan.waypoints.at(-1), plan.waypoints[0]);
-  $('#plan-save-row').hidden = !plan.segments.length;
+  $('#plan-name').hidden = $('#plan-save').hidden = !plan.segments.length;
   $('#plan-save').disabled = !track || pending || failed;
+  for (const b of $$('.plan-mode [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === routeMode()));
   // Während ein Abschnitt berechnet wird, bleibt das bisherige Profil stehen; ohne Strecke weg
   if (!plan.segments.length) renderPlanProfile(null);
 }
@@ -3326,6 +3341,10 @@ $('#plan-loop').addEventListener('click', () => {
   if (plan.waypoints.length) addPlanPoint(plan.waypoints[0]);
 });
 $('#plan-cancel').addEventListener('click', cancelPlan);
+$('.plan-mode').addEventListener('click', (e) => {
+  const mode = e.target.closest('[data-mode]')?.dataset.mode;
+  if (mode) setRouteMode(mode);
+});
 $('#plan-panel').addEventListener('submit', (e) => {
   e.preventDefault();
   if (!$('#plan-save').disabled) savePlan();

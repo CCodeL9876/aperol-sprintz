@@ -959,7 +959,15 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 }
 .plan-tool:hover { background: var(--chip-hover); }
 .plan-tool:disabled { opacity: 0.35; cursor: not-allowed; background: var(--chip); }
-.plan-save { display: flex; gap: 6px; }
+.plan-save { display: flex; gap: 6px; align-items: center; }
+/* Streckenwahl „Schnell | Ruhig“: zwei Hälften in einer Pille, die gewählte ist ausgefüllt */
+.plan-mode { display: inline-flex; flex: none; padding: 3px; gap: 2px; border-radius: 999px; background: var(--chip); }
+.plan-mode button {
+  min-height: 30px; padding: 0 11px; border: 0; border-radius: 999px; cursor: pointer;
+  background: transparent; color: var(--green); font: 700 13px var(--font-body);
+}
+.plan-mode button[aria-pressed="true"] { background: var(--green); color: #FFFFFF; cursor: default; }
+.plan-save input[hidden], .plan-save .btn[hidden] { display: none; }
 .plan-save[hidden] { display: none; }
 .plan-save .btn { min-height: 36px; padding: 0 14px; }
 .plan-save .btn:disabled { opacity: 0.45; cursor: not-allowed; }

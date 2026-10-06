@@ -41,7 +41,8 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
   dann für die ganze Runde. Ist BRouter nicht erreichbar, wird die Etappe unverändert übernommen.
   **Etappe planen** (Knopf bei den Espresso-Etappen): Wegpunkte auf der Karte antippen – auch eigene Orte oder eine
   eingeblendete Etappe –, BRouter verbindet sie fürs Rennrad. Start ist das Airbnb; Kilometer, Höhenmeter und
-  Fahrzeit laufend, „Rückgängig“, „Zurück zum Airbnb“. Gespeichert wird wie eine importierte GPX-Etappe
+  Fahrzeit laufend, „Rückgängig“, „Zurück zum Airbnb“. Streckenwahl **Schnell | Ruhig** (BRouter-Profile `fastbike` bzw.
+  `fastbike-verylowtraffic`, siehe `ROUTE_MODES` in `js/home-loop.js`; gilt auch für Anfahrt/Rückfahrt beim GPX-Import). Gespeichert wird wie eine importierte GPX-Etappe
   (Kaffee-Stopps, Trinkwasser, GPX-Download).
   **Höhenprofil** (`js/profile.js`) beim Planen (abschaltbar über den Kurven-Knopf) und in den aufgeklappten
   Etappen-Details – aus den Höhen der gespeicherten GPX-Datei; Fadenkreuz mit Kilometer und Höhe, die Stelle

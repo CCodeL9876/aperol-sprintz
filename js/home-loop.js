@@ -8,7 +8,10 @@ import { haversineKm, formatKm } from './geo.js';
 import { summarizeTrack, round6 } from './importers.js';
 
 const BROUTER = 'https://brouter.de/brouter';
-const PROFILE = 'fastbike'; // Rennrad: Asphalt, ruhige Straßen bevorzugt
+// Rennrad-Profile von BRouter, Wahl „Schnell | Ruhig“ im Planer (gilt auch für Anfahrt/Rückfahrt beim Import):
+//  fast  – fastbike: Asphalt, direkte Wege, Verkehr kaum berücksichtigt (auch Hauptstraßen)
+//  quiet – fastbike-verylowtraffic: ebenfalls Asphalt, meidet befahrene Straßen deutlich und nimmt dafür Umwege
+export const ROUTE_MODES = { fast: 'fastbike', quiet: 'fastbike-verylowtraffic' };
 const NEAR_KM = 0.3; // so nah am Airbnb gilt Start bzw. Ziel schon als „beim Airbnb“
 const LOOP_KM = 0.2; // Start und Ziel so nah beieinander → Rundtour
 const PASS_KM = 1; // Rundtour führt so nah am Airbnb vorbei → Start dorthin verschieben
@@ -18,8 +21,9 @@ const TIMEOUT_MS = 20000;
 const dist = (a, b) => haversineKm(a[0], a[1], b[0], b[1]);
 
 // Rennrad-Route zwischen zwei Punkten [lat, lon] → Punkte [lat, lon, ele|null] (auch für „Etappe planen“ in app.js)
-export async function bikeRoute(from, to) {
-  const url = `${BROUTER}?lonlats=${from[1]},${from[0]}|${to[1]},${to[0]}&profile=${PROFILE}&alternativeidx=0&format=geojson`;
+export async function bikeRoute(from, to, mode = 'fast') {
+  const profile = ROUTE_MODES[mode] || ROUTE_MODES.fast;
+  const url = `${BROUTER}?lonlats=${from[1]},${from[0]}|${to[1]},${to[0]}&profile=${profile}&alternativeidx=0&format=geojson`;
   const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
   // 400: kein Weg (z. B. Punkt weitab jeder Straße); sonst Server-Problem
   if (!res.ok) throw new Error(res.status === 400 ? 'kein befahrbarer Weg dorthin' : `Routenplaner antwortet nicht (${res.status})`);
@@ -33,7 +37,7 @@ const lengthKm = (pts) => pts.reduce((sum, p, i) => (i ? sum + dist(pts[i - 1], 
 // parsed: Ergebnis von parseGpx (mit .track), home: { lat, lng }.
 // Rückgabe: { route, notes } – route ist die angepasste (oder unveränderte) Etappe, notes beschreibt die Änderungen.
 // Ist der Routenplaner nicht erreichbar, bleibt die Etappe ohne Anfahrt/Rückfahrt (error gesetzt).
-export async function connectToHome(parsed, home) {
+export async function connectToHome(parsed, home, mode = 'fast') {
   let track = parsed.track;
   if (!track?.length) return { route: parsed, notes: [] };
   const h = [home.lat, home.lng];
@@ -60,8 +64,8 @@ export async function connectToHome(parsed, home) {
   if (needStart || needEnd) {
     try {
       const [toStart, toHome] = await Promise.all([
-        needStart ? bikeRoute(h, track[0]) : null,
-        needEnd ? bikeRoute(track.at(-1), h) : null,
+        needStart ? bikeRoute(h, track[0], mode) : null,
+        needEnd ? bikeRoute(track.at(-1), h, mode) : null,
       ]);
       // Hat die Originaldatei keine Höhen, auch die ergänzten Stücke ohne Höhen lassen –
       // sonst zählten nur deren Höhenmeter
