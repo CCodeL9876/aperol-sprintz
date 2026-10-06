@@ -6,7 +6,9 @@ Design „Aperol Spritz“ – wie ein handgemaltes Poster: Papierweiß, Aperol-
 Permanent Marker, gemalte Pinselkanten (SVG-Filter) um Karte, Knöpfe und Karten; Text in Instrument Sans.
 
 Reines HTML/CSS/JS (ES-Module), kein Build-Schritt, keine Installation.
-Karte: [Leaflet](https://leafletjs.com) mit OpenStreetMap-Kacheln (per CSS-Filter zurückgenommen); Adresssuche über OpenStreetMap (Nominatim, bei Fehlern automatisch Photon) – kein API-Key nötig.
+Karte: Google Maps (Schlüssel in `js/config.js`, siehe [ANLEITUNG.md](ANLEITUNG.md)); ohne Netz, ohne Schlüssel oder wenn Google
+nicht lädt, springt automatisch [Leaflet](https://leafletjs.com) mit OpenStreetMap-Kacheln ein. Adresssuche über OpenStreetMap
+(Nominatim, bei Fehlern automatisch Photon).
 
 ## Starten
 
@@ -40,7 +42,7 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
   **Etappe planen** (Knopf bei den Espresso-Etappen): Wegpunkte auf der Karte antippen – auch eigene Orte oder eine
   eingeblendete Etappe –, BRouter verbindet sie fürs Rennrad. Start ist das Airbnb; Kilometer, Höhenmeter und
   Fahrzeit laufend, „Rückgängig“, „Zurück zum Airbnb“. Gespeichert wird wie eine importierte GPX-Etappe
-  (Kaffee-Stopps, Trinkwasser, GPX-Download). Läuft auf der Google- und der OSM-Karte.
+  (Kaffee-Stopps, Trinkwasser, GPX-Download).
   Pro Route lässt sich zudem ein **Link** (Strava, Komoot …) hinterlegen – erscheint unter der Route und im Karten-Popup.
   **Kaffee-Stopps** (eigene Kaffees und Rennrad-Hotspots bis 500 m neben der Strecke) mit Kilometer, geschätzter
   Ankunftszeit ab der gewählten Startzeit und ob der Ort dann geöffnet ist; der Stopp um die Streckenmitte ist als

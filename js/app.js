@@ -200,58 +200,16 @@ const mapOptions = {
   getInsets: mapInsets,
 };
 
-// Kartenvariante: Standard Google Maps, OpenStreetMap (Leaflet) als Alternative – umschaltbar über den
-// Schalter „Google | OSM“ auf der Karte oder per ?karte=google|osm in der Adresse (beides wird pro Gerät
-// gemerkt). Ohne API-Schlüssel in config.js immer OpenStreetMap, ohne Schalter.
-const MAP_VARIANTS = ['osm', 'google'];
-const mapParam = new URLSearchParams(location.search).get('karte');
-if (MAP_VARIANTS.includes(mapParam)) writePref('map', mapParam);
-const wantedMap = MAP_VARIANTS.includes(mapParam) ? mapParam : readPref('map') || 'google';
-// Ohne Netz OpenStreetMap: Google Maps lädt offline keine Karte, gesehene OSM-Kacheln hält sw.js vor.
+// Karte: immer Google Maps. OpenStreetMap (Leaflet) nur noch als stiller Ersatz – ohne API-Schlüssel in
+// config.js, ohne Netz (Google lädt offline keine Karte, gesehene OSM-Kacheln hält sw.js vor) oder wenn Google
+// scheitert (siehe createGoogleMapView). Selbst wählen lässt sich OSM nicht mehr.
 // „Ohne Netz“ heisst: der Browser meldet offline, oder die App ist in dieser Sitzung schon auf den
 // gespeicherten Stand ausgewichen (Handy mit Empfang, aber ohne Daten meldet sich oft trotzdem „online“).
 const OFFLINE_MAP_FLAG = 'llocs.offlineMap';
 const offlineSession = (() => { try { return sessionStorage.getItem(OFFLINE_MAP_FLAG) === '1'; } catch { return false; } })();
-const mapVariant = wantedMap === 'google' && GOOGLE_MAPS_API_KEY && navigator.onLine && !offlineSession ? 'google' : 'osm';
+const mapVariant = GOOGLE_MAPS_API_KEY && navigator.onLine && !offlineSession ? 'google' : 'osm';
 
 const mapView = mapVariant === 'google' ? createGoogleMapView($('#map')) : createMap($('#map'), mapOptions);
-if (mapVariant === 'osm') mountMapSwitch('osm');
-
-// Schalter „Google | OSM“ unten rechts auf der Karte. Bei Google sitzt er vorne in der Knopfreihe von
-// map-google.js (Satellit), bei OpenStreetMap in einer eigenen Reihe. shown = angezeigte Karte.
-function mountMapSwitch(shown) {
-  if (!GOOGLE_MAPS_API_KEY) return;
-  const parent = $('#map').parentElement;
-  let row = parent.querySelector('.gmap-tools');
-  if (!row || shown === 'osm') {
-    row?.remove(); // Knopfreihe einer gescheiterten Google-Karte
-    row = document.createElement('div');
-    row.className = 'gmap-tools map-tools-osm';
-    parent.append(row);
-  }
-  const sw = document.createElement('div');
-  sw.className = 'map-switch';
-  sw.setAttribute('role', 'group');
-  sw.setAttribute('aria-label', 'Kartenart');
-  sw.innerHTML = [['google', 'Google'], ['osm', 'OSM']]
-    .map(([v, label]) => `<button type="button" data-map="${v}" aria-pressed="${v === shown}"${v === 'osm' ? ' title="OpenStreetMap"' : ''}>${label}</button>`)
-    .join('');
-  sw.addEventListener('click', (e) => {
-    const next = e.target.closest('[data-map]')?.dataset.map;
-    if (next && next !== shown) switchMap(next);
-  });
-  row.prepend(sw);
-}
-
-function switchMap(next) {
-  writePref('map', next);
-  // ?karte=… aus der Adresse entfernen, sonst würde es die neue Wahl beim Neuladen überschreiben. Danach
-  // ausdrücklich neu laden: location.replace() mit gleicher Adresse und „#reise=…“ lädt nicht neu.
-  const url = new URL(location.href);
-  url.searchParams.delete('karte');
-  history.replaceState(null, '', url.href);
-  location.reload();
-}
 
 // Google lädt asynchron: bis dahin nimmt ein Platzhalter alle Aufrufe an, danach wird neu gezeichnet.
 // Scheitert Google (Schlüssel, Netz, Zeitüberschreitung), übernimmt automatisch OpenStreetMap.
@@ -264,7 +222,8 @@ function createGoogleMapView(el) {
   const ready = (m, shown) => {
     impl = m;
     view.map = m.map;
-    mountMapSwitch(shown);
+    // Knopfreihe (Satellit) einer gescheiterten Google-Karte entfernen
+    if (shown === 'osm') $('#map').parentElement.querySelector('.gmap-tools')?.remove();
     if (shown === 'google') initMapSearch();
     render({ fit: true });
   };

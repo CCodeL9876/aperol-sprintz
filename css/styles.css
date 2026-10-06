@@ -578,10 +578,6 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   box-shadow: var(--shadow);
 }
 .gmap-tools button[aria-pressed="true"] { background: var(--green); color: #FFFFFF; }
-/* Kartenschalter „Google | OSM“: zwei Hälften in einer Pille, die angezeigte Karte ist ausgefüllt */
-.map-switch { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); }
-.gmap-tools .map-switch button { min-height: 30px; padding: 0 11px; box-shadow: none; background: transparent; }
-.gmap-tools .map-switch button[aria-pressed="true"] { background: var(--green); color: #FFFFFF; cursor: default; }
 /* Google-Karte: Standort-Knopf über den Zoom-Knöpfen; Standort-Punkt mittig verankert (Google setzt
    Marker sonst mit der Unterkante auf die Position) */
 .locate-btn.gmap-locate { position: absolute; z-index: 900; right: 10px; bottom: 120px; margin: 0 !important; }
@@ -972,10 +968,10 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .plan-save .btn-primary { color: var(--on-orange); }
 .plan-save .btn-primary::before { background: var(--orange); }
 .plan-save .btn-primary:hover::before { background: var(--orange-hover); }
-/* Beim Planen mehr Platz für die Karte: Boxen über der Karte (Unterkunft, Ausgaben …), Kartenschalter
-   (ein Wechsel lädt die Seite neu und verwirft die Planung) und der Knopf „Orte & Filter“ weg */
+/* Beim Planen mehr Platz für die Karte: Boxen über der Karte (Unterkunft, Ausgaben …) und der Knopf
+   „Orte & Filter“ weg */
 .is-planning .panel-row { visibility: hidden; }
-.is-planning .map-switch, .is-planning .sheet-open { display: none !important; }
+.is-planning .sheet-open { display: none !important; }
 /* Desktop: Seitenleiste ausblenden – die Karte liegt ohnehin über die ganze Breite darunter */
 @media (min-width: 900px) {
   .is-planning .sidebar { display: none; }
@@ -1387,7 +1383,6 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   .pick-banner { top: auto; bottom: calc(var(--sheet-h) + 12px); font-size: 13px; }
   .gmap-tools { right: 10px; bottom: calc(var(--sheet-h) + 12px); transition: bottom 0.25s ease; }
   /* OpenStreetMap: rechts liegen Zoom- und Standort-Knopf, der Schalter daher links */
-  .gmap-tools.map-tools-osm { right: auto; left: 10px; }
   .locate-btn.gmap-locate { right: 10px; bottom: calc(var(--sheet-h) + 60px); transition: bottom 0.25s ease; }
 
   .sidebar {

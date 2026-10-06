@@ -281,9 +281,9 @@ Gratis-Kontingent (nach aktuellem Stand 1 000 Abfragen), für eure Liste reicht 
 Der Schlüssel steht danach öffentlich im Quellcode – das ist bei Google Maps so vorgesehen. Durch die
 Einschränkung in Schritt 4 funktioniert er nur auf deiner Seite und nur für diese beiden Dienste.
 
-**Umschalten:** Schalter **„Google | OSM“** unten auf der Karte. Die Wahl merkt sich jedes Gerät bzw. jeder
-Browser selbst; andere sehen weiterhin Google Maps, bis sie selbst umschalten.
-Alternativ direkt per Adresse: `…/aperol-sprintz/?karte=google` bzw. `?karte=osm` (der `#reise=…`-Teil bleibt dahinter).
+**Nur Google Maps:** Einen Schalter zu OpenStreetMap gibt es nicht mehr. OpenStreetMap springt nur noch von
+selbst ein, wenn Google nicht laden kann – ohne Netz (gesehene Kartenausschnitte sind gespeichert), ohne
+Schlüssel oder bei einem Fehler von Google.
 
 ## Sicherheit in einem Satz
 
