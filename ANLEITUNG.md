@@ -61,7 +61,8 @@ Die Datei importierst du in Schritt 4 auf der Online-Seite.
 
 ## 2a. Datenbank aktualisieren (nach neuen Funktionen)
 
-Ausgaben, Reservierungen, „besucht“, Favoriten, Öffnungszeiten und Kaffeerunden brauchen zusätzliche Spalten
+Ausgaben, Reservierungen, „besucht“, Favoriten, Öffnungszeiten, Kaffeerunden sowie Trinkwasser/Velo bei den
+Etappen brauchen zusätzliche Spalten
 und die Tabelle `expenses`.
 Dafür im Supabase-Dashboard → **SQL Editor** → **New query** den kompletten Inhalt von `supabase/schema.sql`
 einfügen und auf **Run** klicken. Das Skript ergänzt nur, was fehlt (`if not exists`) – bestehende Orte,
@@ -246,8 +247,8 @@ eigenen Dateien. Ohne Empfang startet sie trotzdem, zeigt oben **„Offline“**
 anschauen geht, ändern erst wieder mit Netz; sobald Verbindung besteht, gleicht sie sich von selbst ab.
 Ohne Netz zeigt sie OpenStreetMap statt Google Maps, und zwar die Kartenausschnitte, die auf diesem Gerät schon
 einmal in der OSM-Ansicht angeschaut wurden. **Tipp:** Vor einer Ausfahrt die Etappe einmal mit Netz in der
-OSM-Ansicht einblenden und entlang der Strecke etwas hineinzoomen. Trinkbrunnen und Velo-Werkstätten einer
-Etappe sind gespeichert, sobald ihre Details einmal mit Netz geöffnet wurden.
+OSM-Ansicht einblenden und entlang der Strecke etwas hineinzoomen. Trinkbrunnen und Velo-Werkstätten werden
+beim Import der GPX-Datei einmal geladen und bei der Etappe gespeichert – für alle und auch ohne Netz.
 
 ---
 

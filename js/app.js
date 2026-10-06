@@ -8,7 +8,7 @@ import { expandMapsLinks, hasShortMapsLinks,
 } from './backend.js';
 import { createMap } from './map.js';
 import { sanitizeHours, hoursStale, openAt, hoursStatus } from './hours.js';
-import { cachedPois, loadPois, POI_TYPES } from './pois.js';
+import { cachedPois, loadPois, sanitizePois, POI_TYPES } from './pois.js';
 import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './config.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
 import { formatEuro, formatChf, toRappen, toEuroCents, cachedRate, loadRate, parseAmount, parseShare, computeBalances, settle, splitCents, sharesOf, expenseTotal, isTransfer, coffeeTurns, sanitizeParticipants, sanitizeExpense } from './cash.js';
@@ -94,6 +94,7 @@ function applyData(data) {
   state.places = Array.isArray(data.places) ? data.places : [];
   for (const p of state.places) if (p.hours) p.hours = sanitizeHours(p.hours);
   state.routes = Array.isArray(data.routes) ? data.routes : [];
+  for (const r of state.routes) r.pois = sanitizePois(r.pois);
   state.airbnb = fixedAirbnb || data.airbnb || null;
   state.customCategories = (data.customCategories || []).map(sanitizeCategory);
   state.participants = sanitizeParticipants(data.participants);
@@ -101,6 +102,7 @@ function applyData(data) {
   state.cashMissing = Boolean(data.cashMissing);
   state.cashExtrasMissing = Boolean(data.cashExtrasMissing);
   state.hoursMissing = Boolean(data.hoursMissing);
+  state.poisMissing = Boolean(data.poisMissing);
 }
 
 // Führt eine Speicher-Operation aus. Schlägt sie in einer gemeinsamen Reise fehl,
@@ -806,18 +808,28 @@ function stopPlan(r) {
 const stopMeta = (s) => `km ${Math.round(s.km)} · ${hhmm(s.at)}${s.open === true ? ' · offen' : s.open === false ? ' · geschlossen' : ''}`;
 
 // --- Trinkwasser und Velo-Werkstätten entlang der Etappen (OpenStreetMap, siehe pois.js) -------------------
-// Die öffentlichen Overpass-Server sind zeitweise überlastet: nach einem Fehlschlag nach 2 Minuten erneut versuchen
+// Einmal geladen (beim Import der GPX-Datei bzw. beim ersten Öffnen älterer Etappen) und dann bei der Etappe
+// in der Datenbank gespeichert – alle Mitreisenden sehen dieselben Punkte, auch ohne Netz.
+// Die öffentlichen Overpass-Server sind zeitweise überlastet: nach einem Fehlschlag nach 2 Minuten erneut versuchen.
 const POI_RETRY_MS = 2 * 60 * 1000;
 const poiLoading = new Map(); // route.id → { status: 'loading' | 'failed', at }
+const poiSaved = new Set(); // route.id: Speichern schon versucht (nicht bei jedem Zeichnen erneut)
 function poisFor(r) {
-  const cached = cachedPois(r);
-  if (cached) return cached;
+  if (Array.isArray(r.pois)) return r.pois;
+  const cached = cachedPois(r); // älterer Stand nur auf diesem Gerät → für alle speichern
+  if (cached) {
+    saveRoutePois(r.id, cached);
+    return cached;
+  }
   const prev = poiLoading.get(r.id);
   const retry = prev?.status === 'failed' && Date.now() - prev.at > POI_RETRY_MS;
   if ((!prev || retry) && navigator.onLine && r.points?.length) {
     poiLoading.set(r.id, { status: 'loading', at: Date.now() });
     loadPois(r)
-      .then(() => poiLoading.delete(r.id))
+      .then((items) => {
+        poiLoading.delete(r.id);
+        saveRoutePois(r.id, items);
+      })
       .catch((err) => {
         console.warn('Trinkwasser/Velo nicht ladbar:', err.message);
         poiLoading.set(r.id, { status: 'failed', at: Date.now() });
@@ -826,6 +838,18 @@ function poisFor(r) {
       .finally(() => render());
   }
   return null;
+}
+
+// Punkte bei der Etappe ablegen und in der Datenbank speichern (still im Hintergrund: klappt es nicht, z. B.
+// ohne Netz oder bevor die Spalte „pois“ existiert, bleiben sie auf diesem Gerät gemerkt)
+function saveRoutePois(id, items) {
+  const route = state.routes.find((x) => x.id === id);
+  const pois = sanitizePois(items);
+  if (!route || !pois || poiSaved.has(id)) return;
+  poiSaved.add(id);
+  route.pois = pois;
+  if (backend.kind === 'shared' && (state.poisMissing || backend.offline)) return;
+  backend.updateRoute(id, { pois }).catch((err) => console.warn('Trinkwasser/Velo nicht gespeichert:', err.message));
 }
 
 // Punkte höchstens STOP_RADIUS_M neben der Strecke, mit Kilometer: [{ id, type, name, lat, lng, km, routeName }]
@@ -2559,6 +2583,7 @@ async function addRoute(parsed, sourceLabel) {
     return;
   }
   log(`${sourceLabel}: Etappe „${route.name}“ importiert (${formatKm(route.distanceKm)}${route.elevationGainM != null ? `, ${formatHm(route.elevationGainM)}` : ''}, standardmäßig ausgeblendet).`, 'ok');
+  poisFor(route); // Trinkwasser und Velo-Werkstätten gleich laden und für alle speichern
 }
 
 async function handleFiles(files) {

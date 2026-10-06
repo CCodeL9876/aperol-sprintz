@@ -31,7 +31,17 @@ function typeOf(tags) {
 let memo = null;
 const stored = () => (memo ??= readPref(PREF) || {});
 
-// Gemerkte Punkte einer Etappe oder null (nie geladen, veraltet oder Strecke geändert)
+// Werte aus Datenbank oder Backup absichern; ungültig → null
+export function sanitizePois(list) {
+  if (!Array.isArray(list)) return null;
+  return list
+    .filter((x) => x && POI_TYPES[x.type] && Number.isFinite(x.lat) && Number.isFinite(x.lng))
+    .slice(0, 400)
+    .map((x) => ({ id: String(x.id || '').slice(0, 40), type: x.type, name: String(x.name || '').slice(0, 120), lat: x.lat, lng: x.lng }));
+}
+
+// Auf diesem Gerät gemerkte Punkte einer Etappe oder null. Seit die Punkte bei der Etappe in der Datenbank
+// liegen, nur noch Übergang (ältere Stände) und Ersatz, solange die Spalte „pois“ fehlt. (nie geladen, veraltet oder Strecke geändert)
 export function cachedPois(route) {
   const entry = stored()[route.id];
   if (!entry || entry.n !== route.points?.length) return null;

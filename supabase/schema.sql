@@ -60,6 +60,8 @@ alter table public.routes add column if not exists url text check (char_length(u
 -- Nachträglich ergänzt: Route gefahren (für die ganze Reise) und Link zur gefahrenen Aktivität (Strava …)
 alter table public.routes add column if not exists ridden boolean default false;
 alter table public.routes add column if not exists activity_url text check (char_length(activity_url) <= 2000);
+-- Trinkwasser und Velo-Werkstätten entlang der Etappe (aus OpenStreetMap, js/pois.js) – einmal geladen, für alle
+alter table public.routes add column if not exists pois jsonb;
 
 -- Original-GPX je Route (für den Download) – eigene Tabelle, damit der regelmäßige Abgleich die
 -- großen Dateien nicht jedes Mal mitlädt. Wird beim Löschen der Route automatisch mit gelöscht.

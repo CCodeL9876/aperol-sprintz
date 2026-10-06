@@ -37,7 +37,8 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
   **Kaffee-Stopps** (eigene Kaffees und Rennrad-Hotspots bis 500 m neben der Strecke) mit Kilometer, geschätzter
   Ankunftszeit ab der gewählten Startzeit und ob der Ort dann geöffnet ist; der Stopp um die Streckenmitte ist als
   Halbzeit markiert. **Trinkbrunnen und Velo-Werkstätten** entlang der Strecke kommen aus OpenStreetMap
-  (Overpass-API, `js/pois.js`) und erscheinen in den Details und als kleine Punkte auf der Karte.
+  (Overpass-API, `js/pois.js`), werden beim Import einmal geladen und bei der Etappe gespeichert (Spalte
+  `routes.pois`, für alle); sie erscheinen in den Details und als kleine Punkte auf der Karte.
 - **Automatische Kategorie** über Stichwörter im Namen bzw. über den Listennamen (`Rennrad.csv` → Rennrad-Hotspot).
   Google exportiert keine Orts-Typen, daher lässt sich die Kategorie pro Ort in der Liste ändern.
 - **Fehlende Standorte** (typisch bei Listen-CSVs) werden über OpenStreetMap gesucht (1 Anfrage/Sekunde).

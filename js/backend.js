@@ -274,6 +274,7 @@ const toRouteRow = (route, key) => ({
   // nur wenn gesetzt – so funktioniert der Import auch, bevor die neuen Spalten angelegt sind
   ...(route.ridden ? { ridden: true } : {}),
   ...(route.activityUrl ? { activity_url: route.activityUrl } : {}),
+  ...(Array.isArray(route.pois) ? { pois: route.pois } : {}),
 });
 
 const fromRouteRow = (r) => ({
@@ -289,6 +290,7 @@ const fromRouteRow = (r) => ({
   addedAt: Date.parse(r.created_at) || 0,
   ridden: r.ridden === true,
   activityUrl: r.activity_url || '',
+  pois: Array.isArray(r.pois) ? r.pois : null,
 });
 
 function check({ error }) {
@@ -358,6 +360,11 @@ export class SharedBackend {
       const probe = await this.db.from('places').select('hours').limit(1);
       this.hoursMissing = Boolean(probe.error);
     }
+    // und die Spalte für Trinkwasser/Velo entlang der Etappen
+    if (this.poisMissing === undefined) {
+      const probe = await this.db.from('routes').select('pois').limit(1);
+      this.poisMissing = Boolean(probe.error);
+    }
     return {
       places: places.data.map(fromRow),
       routes: routes.data.map(fromRouteRow),
@@ -368,6 +375,7 @@ export class SharedBackend {
       cashMissing: Boolean(expenses.error) || !(settings.data == null || 'participants' in settings.data),
       cashExtrasMissing: Boolean(this.cashExtrasMissing),
       hoursMissing: Boolean(this.hoursMissing),
+      poisMissing: Boolean(this.poisMissing),
     };
   }
 
@@ -406,8 +414,14 @@ export class SharedBackend {
   // Abgleich alle 20 s (load) sie nicht jedes Mal mitlädt. Scheitert nur das Speichern der Datei
   // (z. B. Tabelle noch nicht angelegt), bleibt die Route trotzdem gespeichert.
   async addRoutes(routes, gpxById = {}) {
-    for (let i = 0; i < routes.length; i += 50) {
-      check(await this.db.from('routes').insert(routes.slice(i, i + 50).map((r) => toRouteRow(r, this.key))));
+    // Ohne Spalte „pois“ würde das Einfügen scheitern – die Punkte dann weglassen
+    const rows = routes.map((r) => {
+      const row = toRouteRow(r, this.key);
+      if (this.poisMissing) delete row.pois;
+      return row;
+    });
+    for (let i = 0; i < rows.length; i += 50) {
+      check(await this.db.from('routes').insert(rows.slice(i, i + 50)));
     }
     const files = routes.filter((r) => gpxById[r.id]).map((r) => ({ route_id: r.id, trip_key: this.key, gpx: gpxById[r.id] }));
     for (const file of files) {
@@ -430,6 +444,10 @@ export class SharedBackend {
     if ('url' in patch) row.url = patch.url || null;
     if ('ridden' in patch) row.ridden = Boolean(patch.ridden);
     if ('activityUrl' in patch) row.activity_url = patch.activityUrl || null;
+    if ('pois' in patch) {
+      if (this.poisMissing) throw new Error('Spalte „pois“ fehlt (supabase/schema.sql ausführen)');
+      row.pois = patch.pois;
+    }
     check(await this.db.from('routes').update(row).eq('id', id).eq('trip_key', this.key));
   }
 
