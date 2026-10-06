@@ -3,13 +3,15 @@ import { haversineKm, hasCoords, parseCoords, formatKm, geocode, formatReservati
 import { parseFile, parseGeoJSON, parseLinks, assignCategory, buildGpx } from './importers.js';
 import { loadUi, saveUi, readPref, writePref, downloadBackup, newId, newTripKey, loadLocalBackup, clearLocalBackup } from './store.js';
 import { expandMapsLinks, hasShortMapsLinks,
-  DemoBackend, SharedBackend, sharingConfigured, tripKeyFromUrl,
+  DemoBackend, SharedBackend, OfflineBackend, sharingConfigured, tripKeyFromUrl,
   rememberedTripKey, rememberTripKey, forgetTripKey, shareUrl, rememberTripCode, forgetTripCode, validTripCodeChars,
 } from './backend.js';
 import { createMap } from './map.js';
+import { sanitizeHours, hoursStale, openAt, hoursStatus } from './hours.js';
+import { cachedPois, loadPois, POI_TYPES } from './pois.js';
 import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './config.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
-import { formatEuro, formatChf, toRappen, toEuroCents, cachedRate, loadRate, parseAmount, parseShare, computeBalances, settle, splitCents, sharesOf, expenseTotal, isTransfer, sanitizeParticipants, sanitizeExpense } from './cash.js';
+import { formatEuro, formatChf, toRappen, toEuroCents, cachedRate, loadRate, parseAmount, parseShare, computeBalances, settle, splitCents, sharesOf, expenseTotal, isTransfer, coffeeTurns, sanitizeParticipants, sanitizeExpense } from './cash.js';
 
 const MALLORCA_CENTER = { lat: 39.62, lng: 2.95 };
 const SYNC_INTERVAL_MS = 20000;
@@ -90,6 +92,7 @@ function distanceHtml(km) {
 
 function applyData(data) {
   state.places = Array.isArray(data.places) ? data.places : [];
+  for (const p of state.places) if (p.hours) p.hours = sanitizeHours(p.hours);
   state.routes = Array.isArray(data.routes) ? data.routes : [];
   state.airbnb = fixedAirbnb || data.airbnb || null;
   state.customCategories = (data.customCategories || []).map(sanitizeCategory);
@@ -97,6 +100,7 @@ function applyData(data) {
   state.expenses = (data.expenses || []).map(sanitizeExpense).filter(Boolean);
   state.cashMissing = Boolean(data.cashMissing);
   state.cashExtrasMissing = Boolean(data.cashExtrasMissing);
+  state.hoursMissing = Boolean(data.hoursMissing);
 }
 
 // Führt eine Speicher-Operation aus. Schlägt sie in einer gemeinsamen Reise fehl,
@@ -113,7 +117,8 @@ async function persist(op, failMsg = 'Änderung konnte nicht gespeichert werden'
     lastSync = new Date();
     return true;
   } catch (err) {
-    toast(/row-level security/i.test(err.message)
+    toast(backend.offline ? 'Ohne Netz lässt sich nichts ändern – sobald wieder Verbindung besteht, klappt es.'
+      : /row-level security/i.test(err.message)
       ? `${failMsg}: Zugriff abgelehnt – vermutlich wurde der Zugangscode geändert.`
       : `${failMsg}: ${err.message}`);
     failed = true;
@@ -138,15 +143,17 @@ let lastSignature = '';
 async function refresh({ fit = false } = {}) {
   if (pendingWrites > 0 && !fit) return;
   if (document.getElementById('code-dialog').open) return; // Zugangscode wird gerade abgefragt
+  if (backend.offline && navigator.onLine && await reconnect()) return;
   try {
     const data = await backend.load();
-    lastSync = new Date();
+    if (!backend.offline) lastSync = new Date();
     const signature = JSON.stringify(data);
     if (signature === lastSignature && !fit) {
       if (shareDialog.open) renderShareDialog();
       return;
     }
     lastSignature = signature;
+    if (backend.kind === 'shared' && !backend.offline) saveOfflineSnapshot(backend.key, data);
     applyData(data);
     dataLoaded = true;
     render({ fit });
@@ -187,7 +194,12 @@ const MAP_VARIANTS = ['osm', 'google'];
 const mapParam = new URLSearchParams(location.search).get('karte');
 if (MAP_VARIANTS.includes(mapParam)) writePref('map', mapParam);
 const wantedMap = MAP_VARIANTS.includes(mapParam) ? mapParam : readPref('map') || 'google';
-const mapVariant = wantedMap === 'google' && GOOGLE_MAPS_API_KEY ? 'google' : 'osm';
+// Ohne Netz OpenStreetMap: Google Maps lädt offline keine Karte, gesehene OSM-Kacheln hält sw.js vor.
+// „Ohne Netz“ heisst: der Browser meldet offline, oder die App ist in dieser Sitzung schon auf den
+// gespeicherten Stand ausgewichen (Handy mit Empfang, aber ohne Daten meldet sich oft trotzdem „online“).
+const OFFLINE_MAP_FLAG = 'llocs.offlineMap';
+const offlineSession = (() => { try { return sessionStorage.getItem(OFFLINE_MAP_FLAG) === '1'; } catch { return false; } })();
+const mapVariant = wantedMap === 'google' && GOOGLE_MAPS_API_KEY && navigator.onLine && !offlineSession ? 'google' : 'osm';
 
 const mapView = mapVariant === 'google' ? createGoogleMapView($('#map')) : createMap($('#map'), mapOptions);
 if (mapVariant === 'osm') mountMapSwitch('osm');
@@ -233,7 +245,7 @@ function switchMap(next) {
 function createGoogleMapView(el) {
   let impl = null;
   const view = { map: { getZoom: () => impl?.map.getZoom() ?? 9 } };
-  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'searchPlaces', 'openSearchResult', 'clearSearchMarker', 'locate', 'invalidate']) {
+  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'setPois', 'searchPlaces', 'openSearchResult', 'clearSearchMarker', 'locate', 'invalidate']) {
     view[k] = (...args) => impl?.[k](...args);
   }
   const ready = (m, shown) => {
@@ -398,9 +410,62 @@ function initMapSearch() {
   $('.panel-row').addEventListener('scroll', () => { if (!list.hidden) place(); }, { passive: true });
 }
 
+// --- Öffnungszeiten ----------------------------------------------------------------------------
+// Menü „Öffnungszeiten laden“: für alle Orte ohne (oder mit veralteten) Öffnungszeiten bei Google nachschlagen.
+// Strände und Aussichtspunkte werden übersprungen – dort gibt es keine. Neue Orte aus dem Google-Fenster
+// bringen ihre Öffnungszeiten gleich mit.
+const HOURS_SKIP = new Set(['strand', 'aussicht']);
+let hoursLoading = false;
+async function loadOpeningHours() {
+  if (hoursLoading) return;
+  if (!GOOGLE_MAPS_API_KEY) return toast('Für Öffnungszeiten fehlt der Google-API-Schlüssel in js/config.js.', { sticky: true });
+  if (backend.kind === 'shared' && state.hoursMissing) {
+    return toast('Öffnungszeiten sind in der Datenbank noch nicht eingerichtet – bitte supabase/schema.sql im Supabase SQL Editor ausführen.', { sticky: true });
+  }
+  const todo = state.places.filter((p) => hasCoords(p) && !HOURS_SKIP.has(p.category) && hoursStale(p.hours));
+  if (!todo.length) return toast('Die Öffnungszeiten sind bei allen Orten aktuell.');
+  hoursLoading = true;
+  let done = 0;
+  let found = 0;
+  toast(`Öffnungszeiten werden geladen … 0 von ${todo.length}`, { sticky: true });
+  try {
+    const { lookupHours } = await import('./map-google.js');
+    await lookupHours(GOOGLE_MAPS_API_KEY, todo, async (p, hours) => {
+      done++;
+      if (hours.p) found++;
+      const place = state.places.find((x) => x.id === p.id);
+      if (!place) return;
+      const before = place.hours;
+      place.hours = hours;
+      const ok = await persist((b) => b.updatePlace(place.id, { hours }), 'Öffnungszeiten konnten nicht gespeichert werden');
+      if (!ok) {
+        place.hours = before;
+        throw new Error('Speichern fehlgeschlagen');
+      }
+      toast(`Öffnungszeiten werden geladen … ${done} von ${todo.length}`, { sticky: true });
+    });
+    toast(`Öffnungszeiten geladen: bei ${found} von ${todo.length} Orten gefunden.${found ? ' Filter „Jetzt offen“ steht oben bei den Arten.' : ''}`);
+  } catch (err) {
+    toast(`Öffnungszeiten nicht vollständig geladen – ${err.message}`, { sticky: true });
+  } finally {
+    hoursLoading = false;
+    render();
+  }
+}
+
+// „Offen bis …“ / „Jetzt offen“ hängen von der Uhrzeit ab: jede Minute prüfen, ob sich ein Status geändert hat
+let hoursSig = '';
+setInterval(() => {
+  if (!state.places.some((p) => p.hours?.p)) return;
+  const sig = state.places.map((p) => hoursStatus(p.hours)?.text || '').join('|');
+  if (sig === hoursSig) return;
+  hoursSig = sig;
+  render();
+}, 60000);
+
 // Aus dem Google-Detailfenster: Ort in die eigene Liste übernehmen. Rückgabe steuert den Knopftext.
 async function addGooglePlace(g, categoryId) {
-  const { added, dupes } = await addPlaces([{ name: g.name, address: g.address, lat: g.lat, lng: g.lng, url: g.url }], categoryId || 'auto');
+  const { added, dupes } = await addPlaces([{ name: g.name, address: g.address, lat: g.lat, lng: g.lng, url: g.url, hours: g.hours }], categoryId || 'auto');
   if (added.length) {
     toast(`„${added[0].name}“ hinzugefügt (${catOf(added[0].category).label})`);
     return 'added';
@@ -526,8 +591,11 @@ function render({ fit = false } = {}) {
   // Filter „Reserviert“ lässt sich mit den Kategorien kombinieren und sortiert nach Termin statt nach Entfernung
   if (state.ui.reserved && !state.places.some((p) => p.reservation)) state.ui.reserved = false;
   if (state.ui.starred && !state.places.some((p) => p.starred)) state.ui.starred = false;
-  // „Reserviert“ und „Favoriten“ lassen sich kombinieren (beides muss zutreffen)
-  const pool = base.filter((p) => (!state.ui.reserved || p.reservation) && (!state.ui.starred || p.starred));
+  if (state.ui.openNow && !state.places.some((p) => p.hours?.p)) state.ui.openNow = false;
+  // „Reserviert“, „Favoriten“ und „Jetzt offen“ lassen sich kombinieren (alles muss zutreffen)
+  const now = new Date();
+  const pool = base.filter((p) => (!state.ui.reserved || p.reservation) && (!state.ui.starred || p.starred)
+    && (!state.ui.openNow || openAt(p.hours, now) === true));
   const filtered = selected.size ? pool.filter((p) => selected.has(p.category)) : pool;
   const visible = state.ui.reserved ? sortByReservation(filtered) : sortPlaces(filtered);
   lastVisible = visible;
@@ -552,6 +620,7 @@ function render({ fit = false } = {}) {
   mapView.setPlaces(visible, catOf, activeId);
   mapView.setAirbnb(state.airbnb);
   mapView.setRoutes(visibleRoutes);
+  mapView.setPois(visibleRoutes.flatMap((r) => poisAlong(r) || []));
   if (fit) mapView.fitTo(visible, state.airbnb);
 
   saveUi(state.ui);
@@ -624,12 +693,15 @@ function stopsAlong(route) {
     .join('\n');
   const hit = stopsCache.get(pts);
   if (hit?.sig === sig) return hit.stops.map((s) => ({ ...s, place: state.places.find((p) => p.id === s.place.id) || s.place }));
-  const stops = computeStops(pts);
+  const candidates = state.places.filter((p) => STOP_CATEGORIES.has(p.category) && hasCoords(p));
+  const stops = nearRoute(pts, candidates).map(({ item, along, distM }) => ({ place: item, along, distM }));
   stopsCache.set(pts, { sig, stops });
   return stops;
 }
 
-function computeStops(pts) {
+// Punkte (mit lat/lng) höchstens STOP_RADIUS_M neben der Strecke, in Fahrtrichtung sortiert:
+// [{ item, along, distM }] – along = Punktindex + Anteil bis zum nächsten Punkt (für Kilometer und Fahrzeit)
+function nearRoute(pts, items) {
   const kx = 111320 * Math.cos((pts[0][0] * Math.PI) / 180);
   const ky = 110540;
   const xy = pts.map(([lat, lng]) => [lng * kx, lat * ky]);
@@ -642,9 +714,8 @@ function computeStops(pts) {
     if (y > box[3]) box[3] = y;
   }
   box[0] -= STOP_RADIUS_M; box[1] += STOP_RADIUS_M; box[2] -= STOP_RADIUS_M; box[3] += STOP_RADIUS_M;
-  const stops = [];
-  for (const p of state.places) {
-    if (!STOP_CATEGORIES.has(p.category) || !hasCoords(p)) continue;
+  const near = [];
+  for (const p of items) {
     const x = p.lng * kx;
     const y = p.lat * ky;
     if (x < box[0] || x > box[1] || y < box[2] || y > box[3]) continue;
@@ -660,9 +731,133 @@ function computeStops(pts) {
       const d = Math.hypot(x - (ax + t * dx), y - (ay + t * dy));
       if (d < best) { best = d; along = i + t; }
     }
-    if (best <= STOP_RADIUS_M) stops.push({ place: p, along, distM: best });
+    if (best <= STOP_RADIUS_M) near.push({ item: p, along, distM: best });
   }
-  return stops.sort((a, b) => a.along - b.along);
+  return near.sort((a, b) => a.along - b.along);
+}
+
+// Kilometer und Höhenmeter bergauf bis zu jedem Kartenpunkt. Die Kartenpunkte sind ausgedünnt – Distanz und
+// Höhenmeter der Etappe (aus der vollen GPX-Datei) werden deshalb anteilig darauf verteilt.
+const profileCache = new WeakMap(); // route.points → { km, up, hasEle }
+function routeProfile(pts) {
+  let prof = profileCache.get(pts);
+  if (prof) return prof;
+  const km = [0];
+  const up = [0];
+  let hasEle = false;
+  for (let i = 1; i < pts.length; i++) {
+    km.push(km[i - 1] + haversineKm(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]));
+    const a = pts[i - 1][2];
+    const b = pts[i][2];
+    if (Number.isFinite(a) && Number.isFinite(b)) hasEle = true;
+    up.push(up[i - 1] + (Number.isFinite(a) && Number.isFinite(b) ? Math.max(0, b - a) : 0));
+  }
+  prof = { km, up, hasEle };
+  profileCache.set(pts, prof);
+  return prof;
+}
+
+// Bis zur Stelle „along“ (siehe nearRoute): gefahrene Kilometer und Fahrzeit in Stunden (wie rideHours)
+function progressAt(r, along, speed = bikeSpeed()) {
+  const { km, up, hasEle } = routeProfile(r.points);
+  const last = km.length - 1;
+  const i = Math.max(0, Math.min(Math.floor(along), last));
+  const j = Math.min(i + 1, last);
+  const t = Math.max(0, Math.min(1, along - i));
+  const mapKm = km[last] || 1;
+  const totalKm = Number.isFinite(r.distanceKm) && r.distanceKm > 0 ? r.distanceKm : mapKm;
+  const k = ((km[i] + t * (km[j] - km[i])) / mapKm) * totalKm;
+  const gain = Number.isFinite(r.elevationGainM) ? r.elevationGainM : 0;
+  const climb = hasEle && up[last] > 0
+    ? ((up[i] + t * (up[j] - up[i])) / up[last]) * (gain || up[last])
+    : gain * (k / totalKm);
+  return { km: k, hours: k / speed + climb / (speed * 30) };
+}
+
+// Startzeit für die Ankunftszeiten (jedes Gerät merkt sich seine); Fahrtag wie beim Wetter (ab 15 Uhr: morgen)
+const rideStart = () => { const v = readPref('rideStart'); return /^\d{2}:\d{2}$/.test(v || '') ? v : '09:00'; };
+const hhmm = (d) => d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+function arrivalAt(hours) {
+  const start = new Date(`${weatherDay().day}T${rideStart()}:00`);
+  return new Date(start.getTime() + hours * 3600000);
+}
+
+// Kaffee-Stopps mit Kilometer, Ankunftszeit und ob dann geöffnet ist (true/false/null = unbekannt).
+// Der Stopp am nächsten zur Streckenmitte (zwischen 30 und 70 %) ist als Halbzeit-Pause markiert.
+function stopPlan(r) {
+  const stops = stopsAlong(r);
+  if (!stops.length) return [];
+  const total = progressAt(r, r.points.length - 1).km || 1;
+  const plan = stops.map((st) => {
+    const pr = progressAt(r, st.along);
+    const at = arrivalAt(pr.hours);
+    return { ...st, km: pr.km, at, open: openAt(st.place.hours, at), halfway: false };
+  });
+  let best = Infinity;
+  let half = null;
+  for (const s of plan) {
+    const f = s.km / total;
+    if (f >= 0.3 && f <= 0.7 && Math.abs(f - 0.5) < best) { best = Math.abs(f - 0.5); half = s; }
+  }
+  if (half) half.halfway = true;
+  return plan;
+}
+
+const stopMeta = (s) => `km ${Math.round(s.km)} · ${hhmm(s.at)}${s.open === true ? ' · offen' : s.open === false ? ' · geschlossen' : ''}`;
+
+// --- Trinkwasser und Velo-Werkstätten entlang der Etappen (OpenStreetMap, siehe pois.js) -------------------
+// Die öffentlichen Overpass-Server sind zeitweise überlastet: nach einem Fehlschlag nach 2 Minuten erneut versuchen
+const POI_RETRY_MS = 2 * 60 * 1000;
+const poiLoading = new Map(); // route.id → { status: 'loading' | 'failed', at }
+function poisFor(r) {
+  const cached = cachedPois(r);
+  if (cached) return cached;
+  const prev = poiLoading.get(r.id);
+  const retry = prev?.status === 'failed' && Date.now() - prev.at > POI_RETRY_MS;
+  if ((!prev || retry) && navigator.onLine && r.points?.length) {
+    poiLoading.set(r.id, { status: 'loading', at: Date.now() });
+    loadPois(r)
+      .then(() => poiLoading.delete(r.id))
+      .catch((err) => {
+        console.warn('Trinkwasser/Velo nicht ladbar:', err.message);
+        poiLoading.set(r.id, { status: 'failed', at: Date.now() });
+        setTimeout(() => render(), POI_RETRY_MS + 1000);
+      })
+      .finally(() => render());
+  }
+  return null;
+}
+
+// Punkte höchstens STOP_RADIUS_M neben der Strecke, mit Kilometer: [{ id, type, name, lat, lng, km, routeName }]
+const poiAlongCache = new WeakMap(); // Liste aus pois.js → { pts, name, list }
+function poisAlong(r) {
+  const items = poisFor(r);
+  if (!items) return null;
+  const hit = poiAlongCache.get(items);
+  if (hit && hit.pts === r.points && hit.name === r.name) return hit.list;
+  const list = nearRoute(r.points, items).map(({ item, along }) => ({ ...item, km: progressAt(r, along).km, routeName: r.name }));
+  poiAlongCache.set(items, { pts: r.points, name: r.name, list });
+  return list;
+}
+
+// Zeile „Wasser & Velo“ in den Etappen-Details
+function poiDetailHtml(r) {
+  const list = poisAlong(r);
+  if (!list) {
+    const status = poiLoading.get(r.id)?.status;
+    if (status === 'failed') return '<span class="muted">nicht verfügbar</span> <button type="button" class="btn-link" data-action="retry-pois">erneut versuchen</button>';
+    return navigator.onLine ? '<span class="muted">wird geladen …</span>' : '<span class="muted">ohne Netz nicht verfügbar</span>';
+  }
+  const water = list.filter((x) => x.type === 'water');
+  const bike = list.filter((x) => x.type !== 'water');
+  // Trinkwasser: je Kilometer nur einen Eintrag (in Orten stehen oft mehrere Brunnen beieinander)
+  const seen = new Set();
+  const waterKm = water.filter((x) => { const k = Math.round(x.km); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 14);
+  const btn = (x, label) => `<button type="button" class="route-stop route-poi poi-${x.type}" data-action="show-poi" data-lat="${x.lat}" data-lng="${x.lng}" title="${escapeHtml(POI_TYPES[x.type].label)}${x.name ? `: ${escapeHtml(x.name)}` : ''}">${icon(POI_TYPES[x.type].icon, { size: 12, stroke: 2.4 })}${label}</button>`;
+  const parts = [];
+  if (waterKm.length) parts.push(waterKm.map((x) => btn(x, `km ${Math.round(x.km)}`)).join(''));
+  if (bike.length) parts.push(bike.slice(0, 6).map((x) => btn(x, `${escapeHtml(x.name || POI_TYPES[x.type].label)} · km ${Math.round(x.km)}`)).join(''));
+  return parts.length ? parts.join('') : '<span class="muted">keine Brunnen oder Velo-Werkstätten in der Nähe gefunden</span>';
 }
 
 // Wetter am Startpunkt jeder Route – „als wäre jeder Tag ein Fahrtag“: heute für die Fahrstunden 9–16 Uhr,
@@ -769,7 +964,11 @@ function routePopupHtml(r, color) {
     hours != null ? `${icon('clock', { size: 12, stroke: 2.2 })}${formatDuration(hours)}` : '',
   ].filter(Boolean).map((t) => `<span class="route-meta-part">${t}</span>`).join('<span class="route-meta-sep">·</span>');
   const w = routeWeather(r);
-  const stops = stopsAlong(r);
+  const stops = stopPlan(r);
+  const pois = poisAlong(r);
+  const waterN = pois ? new Set(pois.filter((x) => x.type === 'water').map((x) => Math.round(x.km))).size : 0;
+  const bikeN = pois ? pois.filter((x) => x.type !== 'water').length : 0;
+  const poiText = [waterN ? `${waterN}× Trinkwasser` : '', bikeN ? `${bikeN}× Velo-Werkstatt` : ''].filter(Boolean).join(' · ');
   const url = safeHttpUrl(r.url);
   const activity = safeHttpUrl(r.activityUrl);
   const links = [
@@ -781,11 +980,21 @@ function routePopupHtml(r, color) {
     <strong class="popup-name">${escapeHtml(r.name)}</strong>
     ${stats ? `<span class="route-popup-stats">${stats}</span>` : ''}
     ${w ? `<span class="route-popup-row${w.rough ? ' is-rough' : ''}">${icon('wind', { size: 13, stroke: 2 })}<span><strong>${escapeHtml(weather.label)}:</strong> ${weatherDetail(r)}</span></span>` : ''}
-    ${stops.length ? `<span class="route-popup-row">${icon('coffee', { size: 13, stroke: 2 })}<span class="route-popup-stops">${stops.map((st) => `<button type="button" class="route-stop" data-popup-stop="${escapeHtml(st.place.id)}">${escapeHtml(st.place.name)}</button>`).join('')}</span></span>` : ''}
+    ${stops.length ? `<span class="route-popup-row">${icon('coffee', { size: 13, stroke: 2 })}<span class="route-popup-stops">${stops.map((st) => `<button type="button" class="route-stop${st.halfway ? ' is-halfway' : ''}${st.open === false ? ' is-closed' : ''}" data-popup-stop="${escapeHtml(st.place.id)}" title="${escapeHtml(stopMeta(st))}">${escapeHtml(st.place.name)} <small>${hhmm(st.at)}</small></button>`).join('')}</span></span>` : ''}
+    ${poiText ? `<span class="route-popup-row">${icon('droplet', { size: 13, stroke: 2 })}<span>${poiText} entlang der Strecke</span></span>` : ''}
     ${links ? `<span class="route-popup-links">${links}</span>` : ''}
     <button type="button" class="popup-link route-popup-more" data-popup-route="${escapeHtml(r.id)}">Details in der Liste ${icon('arrow-right', { size: 12, stroke: 2.4 })}</button>
   </div>`;
 }
+
+// „Rechnung erfassen“ im Detailfenster eines Orts auf der Karte
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-popup-cash]');
+  if (!btn) return;
+  e.preventDefault();
+  const place = state.places.find((p) => p.id === btn.dataset.popupCash);
+  if (place) openCashFor(place);
+});
 
 // Klicks im Etappen-Popup. Capture-Phase, weil Leaflet Klicks in Popups nicht weiterreicht.
 document.addEventListener('click', (e) => {
@@ -831,6 +1040,8 @@ function renderRoutes() {
   if (speedBox) {
     speedBox.hidden = !state.routes.length;
     $('#bike-speed').value = String(bikeSpeed());
+    const startInput = $('#ride-start');
+    if (startInput && document.activeElement !== startInput) startInput.value = rideStart();
   }
   if (expandedRouteId && !state.routes.some((r) => r.id === expandedRouteId)) expandedRouteId = null;
   // Offenes Link-Feld übersteht das Neuzeichnen (z. B. Abgleich alle 20 s) samt Eingabe und Fokus
@@ -865,7 +1076,7 @@ function renderRoutes() {
     let details = '';
     if (open) {
       const editing = editingRouteLink === r.id ? editingRouteField : null;
-      const stops = stopsAlong(r);
+      const stops = stopPlan(r);
       const url = safeHttpUrl(r.url);
       const activity = safeHttpUrl(r.activityUrl);
       const tour = url ? linkHtml(url, escapeHtml(linkLabel(url)), 'edit-route-link')
@@ -877,10 +1088,15 @@ function renderRoutes() {
         <div class="route-detail"><span class="route-detail-label">Wetter</span>
           <span><span class="${routeWeather(r)?.rough ? 'route-detail-warn' : ''}">${weatherDetail(r)}</span>
           <span class="muted">(${escapeHtml((weather?.label || weatherDay().label).toLowerCase())} 9–16 Uhr am Start)</span></span></div>
-        <div class="route-detail"><span class="route-detail-label">Unterwegs</span>
+        <div class="route-detail"><span class="route-detail-label">Kaffee</span>
           <span class="route-stop-list">${stops.length
-            ? stops.map((st) => `<button type="button" class="route-stop" data-action="show-stop" data-place="${escapeHtml(st.place.id)}" title="${Math.round(st.distM)} m neben der Strecke">${escapeHtml(st.place.name)}</button>`).join('')
+            ? stops.map((st) => `<button type="button" class="route-stop route-stop-plan${st.halfway ? ' is-halfway' : ''}${st.open === false ? ' is-closed' : ''}" data-action="show-stop" data-place="${escapeHtml(st.place.id)}" title="${Math.round(st.distM)} m neben der Strecke">
+                <span class="route-stop-name">${st.halfway ? '<span class="route-stop-half">Halbzeit</span>' : ''}${escapeHtml(st.place.name)}</span>
+                <span class="route-stop-meta">${stopMeta(st)}</span></button>`).join('')
+              + `<span class="route-stop-note muted">Ankunft bei Start um ${rideStart()} (${escapeHtml(weatherDay().label.toLowerCase())}), ohne Pausen</span>`
             : '<span class="muted">keine Kaffees oder Hotspots in der Nähe</span>'}</span></div>
+        <div class="route-detail"><span class="route-detail-label">Wasser & Velo</span>
+          <span class="route-stop-list">${poiDetailHtml(r)}</span></div>
         <div class="route-detail"><span class="route-detail-label">Links</span>
           ${editing ? linkForm(r, editing) : `<span class="route-links">${tour}${ridden ? `<span class="route-meta-sep">·</span>${ridden}` : ''}</span>`}</div>
         <div class="route-detail-actions">
@@ -988,6 +1204,14 @@ function renderChips(base, pool) {
         <span class="chip-icon">${icon('star', { size: 15, stroke: 2 })}</span>Favoriten<span class="chip-count">${starredCount}</span>
       </button>`
     : '';
+  // „Jetzt offen“, sobald von mindestens einem Ort die Öffnungszeiten bekannt sind
+  const now = new Date();
+  const openCount = base.filter((p) => openAt(p.hours, now) === true).length;
+  const openChip = state.ui.openNow || base.some((p) => p.hours?.p)
+    ? `<button type="button" class="chip chip-open" data-filter="open" aria-pressed="${!!state.ui.openNow}">
+        <span class="chip-icon">${icon('clock', { size: 15, stroke: 2 })}</span>Jetzt offen<span class="chip-count">${openCount}</span>
+      </button>`
+    : '';
   const reservedChip = reservedCount || state.ui.reserved
     ? `<button type="button" class="chip chip-reserved" data-filter="reserved" aria-pressed="${!!state.ui.reserved}">
         <span class="chip-icon">${icon('calendar-check', { size: 15, stroke: 2 })}</span>Reserviert<span class="chip-count">${reservedCount}</span>
@@ -995,7 +1219,7 @@ function renderChips(base, pool) {
     : '';
 
   const html = `<button type="button" class="chip chip-all" data-cat="" aria-pressed="${!selected.size}">Alle<span class="chip-count">${pool.length}</span></button>` +
-    starredChip + reservedChip + chips.join('');
+    openChip + starredChip + reservedChip + chips.join('');
   // Nur bei Änderung neu setzen – so bleibt auf dem Handy auch die seitliche Scrollposition der Reihe stehen
   const box = $('#category-chips');
   if (box.dataset.html !== html) {
@@ -1081,6 +1305,7 @@ function placeItemHtml(p, i, cats) {
   const res = p.reservation;
   // Reservieren nur bei Restaurants – eine bestehende Reservierung bleibt sichtbar, auch wenn die Kategorie wechselt
   const canReserve = p.category === RESERVABLE_CATEGORY || !!res;
+  const hours = hoursStatus(p.hours);
   return `<li class="place${visited ? ' is-visited' : ''}${p.id === activeId ? ' is-active' : ''}${i >= PLACES_PREVIEW ? ' is-extra' : ''}" data-id="${p.id}" style="${categoryStyle(c)}">
     <div class="place-row">
     <button type="button" class="visit-toggle" data-action="visited" aria-pressed="${visited}" aria-label="${escapeHtml(p.name)} besucht" title="${visited ? 'Besucht – antippen zum Entfernen' : 'Als besucht markieren'}">${icon('check', { size: 16, stroke: 3 })}</button>
@@ -1090,6 +1315,7 @@ function placeItemHtml(p, i, cats) {
         <span class="place-name">${escapeHtml(p.name)}</span>
         <span class="place-meta">${escapeHtml(c.label)}${p.address ? ` · ${escapeHtml(p.address)}` : ''}</span>
         ${res ? `<span class="place-res">${icon('calendar-check', { size: 13, stroke: 2.2 })}${escapeHtml(formatReservation(res))}</span>` : ''}
+        ${hours ? `<span class="place-hours ${hours.open ? 'is-open' : 'is-closed'}">${escapeHtml(hours.text)}</span>` : ''}
       </span>
       ${dist}
     </button>
@@ -1109,6 +1335,7 @@ function placeItemHtml(p, i, cats) {
         </label>
         ${!hasCoords(p) ? '<button type="button" class="chip-btn" data-action="geocode">Standort suchen</button>' : ''}
         <a class="chip-btn route-btn" href="${escapeHtml(routeUrl(p))}" target="_blank" rel="noopener" title="Route von deinem Standort in Google Maps">${icon('navigation', { size: 14, stroke: 2.2 })}Route</a>
+        <button type="button" class="chip-btn" data-action="cash" title="Rechnung für diesen Ort in den Ausgaben erfassen">${icon('receipt', { size: 14, stroke: 2 })}Rechnung</button>
         <button type="button" class="chip-btn chip-btn-icon danger" data-action="delete" aria-label="Entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
       </div>
     </div>
@@ -1365,6 +1592,11 @@ $('#category-chips').addEventListener('click', (e) => {
     render();
     return;
   }
+  if (chip.dataset.filter === 'open') {
+    state.ui.openNow = !state.ui.openNow;
+    render();
+    return;
+  }
   if (chip.dataset.filter === 'reserved') {
     state.ui.reserved = !state.ui.reserved;
     render();
@@ -1384,6 +1616,7 @@ function resetFilters() {
   state.ui.categories = [];
   state.ui.reserved = false;
   state.ui.starred = false;
+  state.ui.openNow = false;
   state.ui.search = '';
   $('#search').value = '';
   render({ fit: true });
@@ -1398,7 +1631,7 @@ function resetFilters() {
 const cashDialog = $('#cash-dialog');
 // Auswahl im Formular – bleibt beim Neuzeichnen (z. B. Abgleich alle 20 s) erhalten.
 // splitValues: Eingaben je Person als Text (Anteile bzw. Beträge in der gewählten Währung)
-const cashForm = { editingId: null, payer: null, shared: new Set(), currency: 'EUR', splitMode: 'equal', splitValues: {} };
+const cashForm = { editingId: null, payer: null, shared: new Set(), currency: 'EUR', splitMode: 'equal', splitValues: {}, kind: null };
 const todayIso = () => new Date().toLocaleDateString('sv-SE'); // JJJJ-MM-TT in Ortszeit
 const personName = (id) => state.participants.find((p) => p.id === id)?.name || 'Unbekannt';
 const cashBlocked = () => backend.kind === 'shared' && state.cashMissing;
@@ -1430,6 +1663,7 @@ function renderCash() {
 function resetCashForm() {
   cashForm.editingId = null;
   cashForm.payer = null; // muss bei jeder Rechnung bewusst gewählt werden – keine Vorauswahl
+  cashForm.kind = null;
   cashForm.shared = new Set(state.participants.map((p) => p.id));
   cashForm.currency = 'EUR';
   cashForm.splitMode = 'equal';
@@ -1466,6 +1700,16 @@ function renderCashDialog() {
   const chip = (p, on, attr) => `<button type="button" class="cash-chip" ${attr}="${escapeHtml(p.id)}" aria-pressed="${on}">${escapeHtml(p.name)}</button>`;
   $('#cash-payer').innerHTML = people.map((p) => chip(p, cashForm.payer === p.id, 'data-payer')).join('');
   if (cashForm.payer) $('#cash-payer').classList.remove('is-missing');
+  // Kaffeerunde: wer ist dran? (ab zwei Personen; braucht die Spalte „kind“ in der Datenbank)
+  const coffeeOk = people.length >= 2 && !extrasBlocked();
+  $('#cash-coffee').hidden = !coffeeOk || !!cashForm.editingId || cashForm.kind === 'coffee';
+  if (coffeeOk) {
+    const turns = coffeeTurns(state.expenses, people);
+    $('#cash-coffee-text').innerHTML = `☕ Nächste Kaffeerunde: <strong>${escapeHtml(turns[0].name)}</strong>
+      <small>${turns.map((t) => `${escapeHtml(t.name)} ${t.rounds}`).join(' · ')}</small>`;
+  }
+  $('#cash-coffee-mode').hidden = cashForm.kind !== 'coffee';
+  $('#cash-coffee-off').hidden = !!cashForm.editingId;
   $('#cash-shared').innerHTML = people.map((p) => chip(p, cashForm.shared.has(p.id), 'data-shared')).join('');
 
   // Währung und Aufteilung: Franken braucht einen Kurs, beides die neuen Spalten (gemeinsame Reise)
@@ -1644,7 +1888,7 @@ function renderCashList() {
     const meta = [shortDate(e.date), `bezahlt von ${escapeHtml(personName(e.paidBy))}`, forText].filter(Boolean).join(' · ');
     return `<li class="cash-item${cashForm.editingId === e.id ? ' is-editing' : ''}">
       <div class="cash-item-main">
-        <span class="cash-item-title">${escapeHtml(e.title || 'Rechnung')}</span>
+        <span class="cash-item-title">${e.kind === 'coffee' ? `${icon('coffee', { size: 14, stroke: 2.2 })} ` : ''}${escapeHtml(e.title || 'Rechnung')}</span>
         <span class="cash-item-meta">${meta}</span>
       </div>
       ${amountHtml(e)}
@@ -1675,6 +1919,29 @@ function openCash() {
 }
 
 $('#cash-panel').addEventListener('click', openCash);
+
+// Kaffeerunde: Formular vorbereiten (für alle, „Wofür“ = Kaffeerunde). Wer bezahlt hat, wird wie immer
+// bewusst gewählt – der Hinweis oben sagt, wer dran wäre.
+$('#cash-coffee-btn').addEventListener('click', () => {
+  cashForm.kind = 'coffee';
+  cashForm.shared = new Set(state.participants.map((p) => p.id));
+  const what = $('#cash-what');
+  if (!what.value.trim()) what.value = 'Kaffeerunde';
+  $('#cash-form-fold').open = true;
+  renderCashDialog();
+  $('#cash-amount').focus();
+});
+$('#cash-coffee-off').addEventListener('click', () => {
+  cashForm.kind = null;
+  if ($('#cash-what').value.trim() === 'Kaffeerunde') $('#cash-what').value = '';
+  renderCashDialog();
+});
+
+// Rechnung für einen Ort (aus der Liste oder dem Detailfenster auf der Karte): „Wofür“ ist vorausgefüllt
+function openCashFor(place) {
+  openCash();
+  $('#cash-what').value = String(place.name || '').slice(0, 120);
+}
 
 $('#cash-person-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -1819,6 +2086,7 @@ cashDialog.addEventListener('click', async (e) => {
     if (!exp || isTransfer(exp)) return;
     cashForm.editingId = exp.id;
     cashForm.payer = exp.paidBy;
+    cashForm.kind = exp.kind === 'coffee' ? 'coffee' : null;
     cashForm.shared = new Set(exp.sharedWith);
     cashForm.currency = exp.orig?.currency === 'CHF' ? 'CHF' : 'EUR';
     cashForm.splitMode = exp.split?.mode || 'equal';
@@ -1887,7 +2155,7 @@ $('#cash-form').addEventListener('submit', async (e) => {
     : !cashForm.payer ? PAYER_MISSING
     : !r.ids.length ? 'Bitte bei „Für wen“ mindestens eine Person auswählen.'
     : r.error ? r.error
-    : (r.orig || r.split) && extrasBlocked() ? 'Franken und ungleiche Aufteilung gehen erst, wenn die Datenbank erweitert ist (siehe Hinweis oben).'
+    : (r.orig || r.split || cashForm.kind === 'coffee') && extrasBlocked() ? 'Franken und ungleiche Aufteilung gehen erst, wenn die Datenbank erweitert ist (siehe Hinweis oben).'
     : '';
   if (error.textContent === PAYER_MISSING) {
     // Auswahl rot umranden und ins Bild holen – auf dem Handy liegt sie oft weit über dem Knopf
@@ -1906,6 +2174,7 @@ $('#cash-form').addEventListener('submit', async (e) => {
     date: $('#cash-date').value || '',
   };
   // Erweiterungen: setzen, oder beim Bearbeiten ausdrücklich entfernen (null), sonst gar nicht mitschicken
+  if (cashForm.kind === 'coffee' && !editing) data.kind = 'coffee';
   if (r.orig) data.orig = r.orig; else if (editing?.orig) data.orig = null;
   if (r.split) data.split = r.split; else if (editing?.split) data.split = null;
   if (cashForm.editingId && !editing) {
@@ -1939,7 +2208,9 @@ $('#cash-form').addEventListener('submit', async (e) => {
   render();
   const ok = await persist((b) => b.addExpenses([exp]), 'Rechnung konnte nicht gespeichert werden');
   if (!ok) { state.expenses = state.expenses.filter((x) => x.id !== exp.id); render(); return; }
-  showCashSuccess(`✓ Rechnung erfasst: ${exp.title || 'Rechnung'} · ${enteredMoney(exp)} (bezahlt von ${personName(exp.paidBy)})`);
+  showCashSuccess(exp.kind === 'coffee'
+    ? `✓ Kaffeerunde erfasst: ${enteredMoney(exp)} (bezahlt von ${personName(exp.paidBy)}) – nächste Runde: ${coffeeTurns(state.expenses, state.participants)[0]?.name || '–'}`
+    : `✓ Rechnung erfasst: ${exp.title || 'Rechnung'} · ${enteredMoney(exp)} (bezahlt von ${personName(exp.paidBy)})`);
 });
 
 // --- Liste ---------------------------------------------------------------------------------
@@ -1953,6 +2224,7 @@ $('#place-list').addEventListener('click', async (e) => {
   if (!place) return;
 
   if (action === 'select') selectPlace(id);
+  if (action === 'cash') openCashFor(place);
   if (action === 'gluten-free') {
     place.glutenFree = !place.glutenFree;
     render();
@@ -2045,6 +2317,21 @@ $('#route-list')?.addEventListener('click', async (e) => {
       mapView.fitToRoute(route);
     }
   }
+  if (action === 'show-poi') {
+    const btn = e.target.closest('[data-action]');
+    if (!state.ui.visibleRoutes.includes(id)) {
+      state.ui.visibleRoutes = [...state.ui.visibleRoutes, id];
+      render();
+    }
+    if (isMobile() && sheetState() === 'full') setSheet('half');
+    mapView.centerOn([Number(btn.dataset.lat), Number(btn.dataset.lng)], 16);
+    return;
+  }
+  if (action === 'retry-pois') {
+    poiLoading.delete(id);
+    renderRoutes();
+    return;
+  }
   if (action === 'expand-route') {
     expandedRouteId = expandedRouteId === id ? null : id;
     editingRouteLink = null;
@@ -2095,6 +2382,11 @@ $('#route-list')?.addEventListener('click', async (e) => {
 
 $('#bike-speed')?.addEventListener('change', (e) => {
   writePref('bikeSpeed', Number(e.target.value));
+  renderRoutes();
+});
+$('#ride-start')?.addEventListener('change', (e) => {
+  if (!/^\d{2}:\d{2}$/.test(e.target.value)) return;
+  writePref('rideStart', e.target.value);
   renderRoutes();
 });
 
@@ -2201,6 +2493,7 @@ async function addPlaces(raws, override = 'auto') {
       ...(raw.visited ? { visited: true } : {}),
       ...(raw.starred ? { starred: true } : {}),
       ...(cleanReservation(raw.reservation) ? { reservation: cleanReservation(raw.reservation) } : {}),
+      ...(sanitizeHours(raw.hours) ? { hours: sanitizeHours(raw.hours) } : {}),
     };
     if ((place.url && urls.has(place.url)) || keys.has(coordKey(place))) {
       dupes++;
@@ -2461,6 +2754,7 @@ function setSyncStatus(text) {
 }
 
 function renderShareState() {
+  renderOfflineBadge();
   const shared = backend.kind === 'shared';
   $('#btn-share').classList.toggle('is-shared', shared);
   $('#btn-share .btn-label').textContent = shared ? 'Gemeinsam' : 'Teilen';
@@ -2479,7 +2773,9 @@ function renderShareDialog() {
         <input id="share-link" type="text" readonly value="${escapeHtml(shareUrl(backend.key))}">
         <button id="btn-copy-link" class="btn btn-primary" type="button">Link kopieren</button>
       </div>
-      <p class="hint" id="sync-status">Zuletzt abgeglichen um ${time} · aktualisiert sich alle 20 Sekunden</p>
+      <p class="hint" id="sync-status">${backend.offline
+        ? `Ohne Verbindung – Stand von ${savedAtText(backend.savedAt)}. Sobald Netz da ist, wird abgeglichen.`
+        : `Zuletzt abgeglichen um ${time} · aktualisiert sich alle 20 Sekunden`}</p>
       <div class="share-code">
         <p class="share-text">${backend.codeProtected
           ? '<strong>Mit Zugangscode geschützt:</strong> Der Link allein reicht nicht. Sag den Code deinen Mitreisenden getrennt vom Link, z. B. mündlich.'
@@ -2502,6 +2798,82 @@ function openShare() {
   shareDialog.showModal();
 }
 
+// --- Ohne Netz ---------------------------------------------------------------------------------
+// Der zuletzt geladene Stand der gemeinsamen Reise liegt im Browser (Cache Storage, nur auf diesem Gerät);
+// startet die App ohne Netz, zeigt sie diesen Stand (OfflineBackend) und verbindet sich neu, sobald Netz da ist.
+// Beim Verlassen der Reise oder Abmelden wird er gelöscht.
+const OFFLINE_CACHE = 'llocs-offline';
+const snapshotUrl = (key) => new URL(`offline-data/${key}.json`, location.href).href;
+
+async function saveOfflineSnapshot(key, data) {
+  try {
+    const cache = await caches.open(OFFLINE_CACHE);
+    const body = JSON.stringify({ savedAt: Date.now(), codeProtected: Boolean(backend.codeProtected), data });
+    await cache.put(snapshotUrl(key), new Response(body, { headers: { 'Content-Type': 'application/json' } }));
+  } catch { /* kein Cache Storage (z. B. http) – dann eben ohne Offline-Stand */ }
+}
+
+async function loadOfflineSnapshot(key) {
+  try {
+    const res = await (await caches.open(OFFLINE_CACHE)).match(snapshotUrl(key));
+    return res ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function clearOfflineSnapshots() {
+  try { await caches.delete(OFFLINE_CACHE); } catch { /* nichts zu löschen */ }
+}
+
+// Merker für diese Sitzung (siehe offlineSession); true = gesetzt bzw. entfernt
+function setOfflineSession(on) {
+  try {
+    if (on) sessionStorage.setItem(OFFLINE_MAP_FLAG, '1'); else sessionStorage.removeItem(OFFLINE_MAP_FLAG);
+    return (sessionStorage.getItem(OFFLINE_MAP_FLAG) === '1') === on;
+  } catch {
+    return false;
+  }
+}
+
+const savedAtText = (t) => (t
+  ? new Date(t).toLocaleString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })
+  : 'unbekannt');
+
+// Netz wieder da: echte Verbindung aufbauen und den aktuellen Stand holen. true = erledigt
+let reconnecting = false;
+async function reconnect() {
+  if (reconnecting) return false;
+  reconnecting = true;
+  try {
+    const live = await SharedBackend.connect(backend.key);
+    switchTo(live);
+    setOfflineSession(false); // beim nächsten Öffnen wieder die gewohnte Karte
+    lastSignature = '';
+    toast('Wieder online – die Reise ist auf dem neuesten Stand.');
+    await refresh();
+    return true;
+  } catch (err) {
+    if (err.code === 'CODE_REQUIRED') {
+      showCodeLogin(backend.key, err.wrong);
+      return true;
+    }
+    return false;
+  } finally {
+    reconnecting = false;
+  }
+}
+
+function renderOfflineBadge() {
+  const badge = $('#offline-badge');
+  if (badge) badge.hidden = !backend.offline && navigator.onLine;
+}
+$('#offline-badge')?.addEventListener('click', () => {
+  toast(backend.offline
+    ? `Ohne Verbindung – du siehst den Stand von ${savedAtText(backend.savedAt)}. Anschauen geht, Ändern erst wieder mit Netz.`
+    : 'Gerade keine Verbindung – Änderungen werden erst wieder gespeichert, wenn Netz da ist.', { sticky: true });
+});
+
 function switchTo(next) {
   backend = next;
   if (next.kind === 'shared') {
@@ -2517,6 +2889,7 @@ function switchTo(next) {
 async function leaveTrip() {
   if (!confirm('Reise auf diesem Gerät verlassen? Die gemeinsamen Orte bleiben erhalten – du kommst über den Link und den Zugangscode jederzeit zurück.')) return;
   forgetTripCode();
+  clearOfflineSnapshots();
   switchTo(new DemoBackend(() => state));
   await startDemo();
   toast('Reise auf diesem Gerät verlassen – du siehst die Demo');
@@ -2694,7 +3067,7 @@ $('#code-remove').addEventListener('click', async () => {
 $('#code-logout').addEventListener('click', () => {
   if (!confirm('Auf diesem Gerät abmelden? Beim nächsten Öffnen wird der Zugangscode wieder abgefragt.')) return;
   forgetTripCode();
-  location.reload();
+  clearOfflineSnapshots().finally(() => location.reload());
 });
 $('#member-name').addEventListener('input', (e) => writePref('name', e.target.value.trim().slice(0, 40)));
 
@@ -2767,6 +3140,7 @@ $('.menu-panel').addEventListener('click', async (e) => {
   }
   if (what === 'backup') downloadBackup(state);
   if (what === 'fit') mapView.fitTo(lastVisible, state.airbnb);
+  if (what === 'hours') loadOpeningHours();
   if (what === 'reset') {
     const where = backend.kind === 'shared' ? ' – für alle in dieser gemeinsamen Reise' : '';
     if (!confirm(`Wirklich alle Orte, das Airbnb und eigene Kategorien löschen${where}?`)) return;
@@ -2857,7 +3231,18 @@ async function boot() {
         forgetTripCode();
         history.replaceState(null, '', location.pathname);
         toast('Dieser Reise-Link ist nicht gültig – du siehst die Demo.', { sticky: true });
-      } else toast(`Gemeinsame Reise nicht erreichbar: ${err.message}`);
+      } else {
+        // Kein Netz (oder Server nicht erreichbar): zuletzt gespeicherten Stand zeigen, falls vorhanden
+        const snapshot = await loadOfflineSnapshot(key);
+        if (snapshot?.data && mapVariant === 'google' && setOfflineSession(true)) {
+          location.reload(); // einmal neu laden – dann mit OpenStreetMap (siehe offlineSession)
+          return;
+        }
+        if (snapshot?.data) {
+          switchTo(new OfflineBackend(key, snapshot));
+          toast(`Ohne Verbindung – du siehst den Stand von ${savedAtText(snapshot.savedAt)}. Ändern geht wieder, sobald Netz da ist.`, { sticky: true });
+        } else toast(`Gemeinsame Reise nicht erreichbar: ${err.message}`);
+      }
     }
   }
   if (!codeDialog.open) {
@@ -2873,6 +3258,12 @@ async function boot() {
   document.addEventListener('visibilitychange', () => {
     if (backend.kind === 'shared' && document.visibilityState === 'visible') refresh();
   });
+  // Netz zurück: neu verbinden bzw. abgleichen; Netz weg: Kennzeichen „Offline“ zeigen
+  window.addEventListener('online', () => {
+    renderOfflineBadge();
+    if (backend.kind === 'shared') refresh();
+  });
+  window.addEventListener('offline', renderOfflineBadge);
   window.addEventListener('hashchange', () => {
     const next = tripKeyFromUrl();
     if ((next && next !== backend.key) || /(?:^#|&)demo\b/i.test(location.hash) !== demoForced) location.reload();
@@ -2896,3 +3287,8 @@ $('#app-version').textContent = `Version ${document.querySelector('link[href*="s
 
 boot();
 window.addEventListener('resize', () => mapView.invalidate());
+
+// Ohne Netz nutzbar: sw.js hält App-Dateien und gesehene OpenStreetMap-Kacheln vor (nur über https)
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch((err) => console.warn('Service Worker:', err.message));
+}

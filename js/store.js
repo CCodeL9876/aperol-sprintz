@@ -7,7 +7,7 @@ const DATA_KEY = 'llocs.v1';
 const UI_KEY = 'llocs.ui';
 const BACKUP_KEY = 'llocs.v1.backup';
 
-const DEFAULT_UI = { categories: [], search: '', sort: 'distance', reserved: false, starred: false, visibleRoutes: [] };
+const DEFAULT_UI = { categories: [], search: '', sort: 'distance', reserved: false, starred: false, openNow: false, visibleRoutes: [] };
 
 function read(key) {
   try {

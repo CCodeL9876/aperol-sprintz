@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-06.1" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-06.1">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-06.2" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-06.2">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-06.1">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-06.1">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-06.1">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-06.2">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-06.2">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-06.2">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -46,6 +46,7 @@
     </a>
     <!-- Demo-Kennzeichen: sichtbar ohne gültigen Reise-Link; Tipp erklärt die Demo (Fenster „Teilen“) -->
     <button type="button" id="demo-badge" class="demo-badge" hidden>Demo</button>
+    <button type="button" id="offline-badge" class="demo-badge offline-badge" hidden>Offline</button>
     <nav class="topbar-actions">
       <button class="btn btn-ghost btn-share" id="btn-share" type="button" aria-label="Reise teilen">
         <svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="btn-label">Teilen</span>
@@ -69,6 +70,7 @@
           <button type="button" data-menu="categories">Kategorien verwalten</button>
           <button type="button" data-menu="backup">Backup herunterladen</button>
           <button type="button" data-menu="fit">Alle Orte zeigen</button>
+          <button type="button" data-menu="hours">Öffnungszeiten laden</button>
           <hr>
           <button type="button" data-menu="reset" class="danger">Alle Orte löschen</button>
           <p id="app-version" class="menu-version"></p>
@@ -115,7 +117,8 @@
           <span id="route-count" class="result-count"></span>
         </div>
         <!-- Grundtempo für die Fahrzeit-Schätzung; jedes Gerät merkt sich seins -->
-        <label class="route-speed" id="route-speed" hidden>
+        <div class="route-speed" id="route-speed" hidden>
+          <label class="route-speed-part">
           <span>Fahrzeit bei</span>
           <select id="bike-speed" aria-label="Grundtempo in der Ebene">
             <option value="20">20 km/h</option>
@@ -126,7 +129,13 @@
             <option value="32">32 km/h</option>
           </select>
           <span class="muted">in der Ebene</span>
-        </label>
+          </label>
+          <!-- Startzeit für die Ankunftszeiten bei den Kaffee-Stopps -->
+          <label class="route-speed-part">
+            <span>Start</span>
+            <input id="ride-start" type="time" value="09:00" step="900" aria-label="Startzeit der Etappe">
+          </label>
+        </div>
         <p id="route-empty" class="hint route-empty" hidden>Noch keine Etappe importiert – über „Importieren“ eine GPX-Datei (z. B. aus Strava oder Komoot) hinzufügen.</p>
         <ul id="route-list" class="place-list route-list"></ul>
       </section>
@@ -298,11 +307,11 @@
           <ul class="intro-list">
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--pink)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Karte &amp; Liste</strong><span>Alle Orte auf Karte und Liste – nach Art filtern, suchen oder sortieren. Auf dem Handy die Liste nach unten wischen, dann ist die ganze Karte frei.</span></span>
+              <span class="intro-text"><strong class="intro-name">Karte &amp; Liste</strong><span>Alle Orte auf Karte und Liste – nach Art filtern, suchen oder sortieren. <strong>„Jetzt offen“</strong> zeigt, was gerade geöffnet hat (Öffnungszeiten einmal über das Menü <strong>„Öffnungszeiten laden“</strong> holen). Auf dem Handy die Liste nach unten wischen, dann ist die ganze Karte frei.</span></span>
             </li>
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--mint)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Espresso-Etappen</strong><span>GPX-Dateien über <strong>„+ Importieren“</strong> hinzufügen. Jede Route zeigt Fahrzeit, Wetter am Start und Kaffee-Stopps unterwegs; nach der Fahrt mit dem Haken als gefahren markieren und die Strava-Aktivität verlinken.</span></span>
+              <span class="intro-text"><strong class="intro-name">Espresso-Etappen</strong><span>GPX-Dateien über <strong>„+ Importieren“</strong> hinzufügen. Jede Route zeigt Fahrzeit, Wetter am Start, Kaffee-Stopps mit Ankunftszeit (und ob dann offen ist) sowie Trinkbrunnen und Velo-Werkstätten unterwegs; nach der Fahrt mit dem Haken als gefahren markieren und die Strava-Aktivität verlinken.</span></span>
             </li>
           </ul>
         </section>
@@ -345,11 +354,11 @@
           <ul class="intro-list">
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--orange)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Ausgaben teilen</strong><span>Unter <strong>„Ausgaben“</strong> erfassen, wer was für wen bezahlt hat – in € oder CHF, gleich oder nach Anteilen aufgeteilt. Der Ausgleich zeigt, wer wem wie viel schuldet; nach der Überweisung <strong>„bezahlt“</strong> antippen.</span></span>
+              <span class="intro-text"><strong class="intro-name">Ausgaben teilen</strong><span>Unter <strong>„Ausgaben“</strong> erfassen, wer was für wen bezahlt hat – in € oder CHF, gleich oder nach Anteilen aufgeteilt; bei einem Ort direkt über <strong>„Rechnung“</strong>. <strong>„Kaffeerunde erfassen“</strong> zeigt, wer als Nächstes dran ist. Der Ausgleich zeigt, wer wem wie viel schuldet; nach der Überweisung <strong>„bezahlt“</strong> antippen.</span></span>
             </li>
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--pink)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Zusammen planen</strong><span>Mit dem Reise-Link unter <strong>„Teilen“</strong> sehen und ändern alle dieselben Orte und Ausgaben. Nur an Mitreisende weitergeben.</span></span>
+              <span class="intro-text"><strong class="intro-name">Zusammen planen</strong><span>Mit dem Reise-Link unter <strong>„Teilen“</strong> sehen und ändern alle dieselben Orte und Ausgaben. Nur an Mitreisende weitergeben. Ohne Netz (z. B. in den Bergen) zeigt die App den zuletzt geladenen Stand.</span></span>
             </li>
           </ul>
         </section>
@@ -427,7 +436,14 @@
         </summary>
         <div class="cash-fold-body">
           <p id="cash-form-hint" class="hint" hidden>Zuerst oben bei „Teilnehmende“ die Namen eintragen.</p>
+          <!-- Kaffeerunden: wer als Nächstes dran ist (wer bisher am wenigsten Runden bezahlt hat) -->
+          <div id="cash-coffee" class="cash-coffee" hidden>
+            <span class="cash-coffee-text" id="cash-coffee-text"></span>
+            <button type="button" class="btn btn-small" id="cash-coffee-btn">Kaffeerunde erfassen</button>
+          </div>
           <form id="cash-form" class="cash-form" autocomplete="off" novalidate>
+            <p id="cash-coffee-mode" class="cash-coffee-mode" hidden><span>☕ Kaffeerunde – zählt für „Wer zahlt die nächste Runde?“</span>
+              <button type="button" class="btn-link" id="cash-coffee-off">normale Rechnung</button></p>
             <div class="cash-row">
               <div class="field">
                 <span class="cash-label-row"><label for="cash-amount">Betrag</label>
@@ -592,25 +608,27 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-06.1"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-06.2"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-06.1",
-      "./js/backend.js": "./js/backend.js?v=2026-10-06.1",
-      "./js/cash.js": "./js/cash.js?v=2026-10-06.1",
-      "./js/categories.js": "./js/categories.js?v=2026-10-06.1",
-      "./js/config.js": "./js/config.js?v=2026-10-06.1",
-      "./js/geo.js": "./js/geo.js?v=2026-10-06.1",
-      "./js/icons.js": "./js/icons.js?v=2026-10-06.1",
-      "./js/importers.js": "./js/importers.js?v=2026-10-06.1",
-      "./js/map.js": "./js/map.js?v=2026-10-06.1",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-06.1",
-      "./js/store.js": "./js/store.js?v=2026-10-06.1"
+      "./js/app.js": "./js/app.js?v=2026-10-06.2",
+      "./js/backend.js": "./js/backend.js?v=2026-10-06.2",
+      "./js/cash.js": "./js/cash.js?v=2026-10-06.2",
+      "./js/categories.js": "./js/categories.js?v=2026-10-06.2",
+      "./js/config.js": "./js/config.js?v=2026-10-06.2",
+      "./js/geo.js": "./js/geo.js?v=2026-10-06.2",
+      "./js/hours.js": "./js/hours.js?v=2026-10-06.2",
+      "./js/icons.js": "./js/icons.js?v=2026-10-06.2",
+      "./js/importers.js": "./js/importers.js?v=2026-10-06.2",
+      "./js/map.js": "./js/map.js?v=2026-10-06.2",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-06.2",
+      "./js/pois.js": "./js/pois.js?v=2026-10-06.2",
+      "./js/store.js": "./js/store.js?v=2026-10-06.2"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-06.1"></script>
+  <script type="module" src="js/app.js?v=2026-10-06.2"></script>
 </body>
 </html>

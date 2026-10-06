@@ -180,7 +180,7 @@ export class LocalBackend {
 
 // --- Supabase ------------------------------------------------------------------------
 
-const PATCH_COLUMNS = { name: 'name', address: 'address', lat: 'lat', lng: 'lng', url: 'url', note: 'note', category: 'category', listName: 'list_name', glutenFree: 'gluten_free', reservation: 'reservation', visited: 'visited', starred: 'starred' };
+const PATCH_COLUMNS = { name: 'name', address: 'address', lat: 'lat', lng: 'lng', url: 'url', note: 'note', category: 'category', listName: 'list_name', glutenFree: 'gluten_free', reservation: 'reservation', visited: 'visited', starred: 'starred', hours: 'hours' };
 
 const toRow = (p, key) => ({
   id: p.id,
@@ -203,6 +203,8 @@ const toRow = (p, key) => ({
   // nur wenn besucht – die Spalte ist bewusst ohne „not null“, fehlende Werte gelten als nicht besucht
   ...(p.visited ? { visited: true } : {}),
   ...(p.starred ? { starred: true } : {}),
+  // Öffnungszeiten von Google (siehe hours.js) – nur wenn bekannt
+  ...(p.hours ? { hours: p.hours } : {}),
 });
 
 const fromRow = (r) => ({
@@ -219,6 +221,7 @@ const fromRow = (r) => ({
   visited: r.visited === true,
   starred: r.starred === true,
   reservation: r.reservation && typeof r.reservation === 'object' ? r.reservation : null,
+  hours: r.hours && typeof r.hours === 'object' ? r.hours : null,
   addedBy: r.added_by || '',
   addedAt: Date.parse(r.created_at) || 0,
 });
@@ -350,6 +353,11 @@ export class SharedBackend {
       const probe = await this.db.from('expenses').select('kind,orig,split').limit(1);
       this.cashExtrasMissing = Boolean(probe.error);
     }
+    // ebenso die Spalte für Öffnungszeiten (fehlt sie, werden keine gespeichert – der Rest läuft weiter)
+    if (this.hoursMissing === undefined) {
+      const probe = await this.db.from('places').select('hours').limit(1);
+      this.hoursMissing = Boolean(probe.error);
+    }
     return {
       places: places.data.map(fromRow),
       routes: routes.data.map(fromRouteRow),
@@ -359,18 +367,29 @@ export class SharedBackend {
       expenses: expenses.error ? [] : expenses.data.map(fromExpenseRow),
       cashMissing: Boolean(expenses.error) || !(settings.data == null || 'participants' in settings.data),
       cashExtrasMissing: Boolean(this.cashExtrasMissing),
+      hoursMissing: Boolean(this.hoursMissing),
     };
   }
 
   async addPlaces(places) {
-    for (let i = 0; i < places.length; i += 500) {
-      check(await this.db.from('places').insert(places.slice(i, i + 500).map((p) => toRow(p, this.key))));
+    // Ohne Spalte „hours“ würde das ganze Einfügen scheitern – Öffnungszeiten dann weglassen
+    const rows = places.map((p) => {
+      const row = toRow(p, this.key);
+      if (this.hoursMissing) delete row.hours;
+      return row;
+    });
+    for (let i = 0; i < rows.length; i += 500) {
+      check(await this.db.from('places').insert(rows.slice(i, i + 500)));
     }
   }
 
   async updatePlace(id, patch) {
     const row = { updated_at: new Date().toISOString() };
     for (const [k, v] of Object.entries(patch)) if (PATCH_COLUMNS[k]) row[PATCH_COLUMNS[k]] = v;
+    if (this.hoursMissing && 'hours' in row) {
+      delete row.hours;
+      if (Object.keys(row).length === 1) throw new Error('Öffnungszeiten noch nicht in der Datenbank eingerichtet (supabase/schema.sql ausführen)');
+    }
     check(await this.db.from('places').update(row).eq('id', id).eq('trip_key', this.key));
   }
 
@@ -455,7 +474,12 @@ export class SharedBackend {
 
   async addExpenses(expenses) {
     for (let i = 0; i < expenses.length; i += 500) {
-      check(await this.db.from('expenses').insert(expenses.slice(i, i + 500).map((e) => toExpenseRow(e, this.key))));
+      const res = await this.db.from('expenses').insert(expenses.slice(i, i + 500).map((e) => toExpenseRow(e, this.key)));
+      // Kaffeerunde (kind = 'coffee'), bevor die Datenbank erweitert wurde
+      if (res.error && /kind_check/.test(res.error.message || '')) {
+        throw new Error('Kaffeerunden sind in der Datenbank noch nicht eingerichtet (supabase/schema.sql ausführen)');
+      }
+      check(res);
     }
   }
 
@@ -480,4 +504,44 @@ export class SharedBackend {
       { onConflict: 'trip_key' },
     ));
   }
+}
+
+// Ohne Netz (z. B. unterwegs in den Bergen): zeigt den zuletzt geladenen Stand der gemeinsamen Reise, der im
+// Browser liegt (siehe saveOfflineSnapshot in app.js). Lesen geht, Ändern erst wieder mit Verbindung – app.js
+// verbindet sich von selbst neu, sobald das Netz zurück ist.
+export class OfflineBackend {
+  kind = 'shared';
+  offline = true;
+
+  constructor(key, snapshot) {
+    this.key = key;
+    this.snapshot = snapshot;
+    this.codeProtected = Boolean(snapshot.codeProtected);
+    this.savedAt = snapshot.savedAt || 0;
+  }
+
+  async load() {
+    return this.snapshot.data;
+  }
+
+  #offline() {
+    throw new Error('ohne Netz nicht möglich – sobald wieder Verbindung besteht, klappt es');
+  }
+
+  async addPlaces() { this.#offline(); }
+  async updatePlace() { this.#offline(); }
+  async deletePlace() { this.#offline(); }
+  async deleteAllPlaces() { this.#offline(); }
+  async addRoutes() { this.#offline(); }
+  async updateRoute() { this.#offline(); }
+  async deleteRoute() { this.#offline(); }
+  async deleteAllRoutes() { this.#offline(); }
+  async saveSettings() { this.#offline(); }
+  async saveParticipants() { this.#offline(); }
+  async changeParticipants() { this.#offline(); }
+  async addExpenses() { this.#offline(); }
+  async updateExpense() { this.#offline(); }
+  async deleteExpense() { this.#offline(); }
+  async setCode() { this.#offline(); }
+  async routeGpx() { return null; }
 }

@@ -4,6 +4,8 @@
 import { hasCoords, formatKm, formatReservation, routeUrl, homeRouteUrl } from './geo.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
 import { ROUTE_CATEGORY } from './categories.js';
+import { hoursStatus, hoursToday } from './hours.js';
+import { POI_TYPES } from './pois.js';
 
 export const MALLORCA = { center: [39.62, 2.95], zoom: 9 };
 
@@ -42,6 +44,8 @@ export function airbnbPopupHtml(airbnb) {
 
 export function popupHtml(p, cat) {
   const dist = p.distance != null ? `<span class="popup-dist">${formatKm(p.distance)} von der Unterkunft</span>` : '';
+  const status = hoursStatus(p.hours);
+  const today = hoursToday(p.hours);
   return `
     <div class="popup">
       <span class="popup-cat" style="${categoryStyle(cat)}">${escapeHtml(cat.label)}</span>
@@ -51,8 +55,24 @@ export function popupHtml(p, cat) {
       ${p.visited ? `<span class="popup-visited">${icon('check', { size: 13, stroke: 2.6 })} Besucht</span>` : ''}
       ${p.reservation ? `<span class="popup-res">${icon('calendar-check', { size: 13, stroke: 2 })} ${escapeHtml(formatReservation(p.reservation))}</span>` : ''}
       ${p.glutenFree ? `<span class="popup-gf">${icon('wheat-off', { size: 13, stroke: 2 })} Glutenfrei</span>` : ''}
+      ${status ? `<span class="popup-hours ${status.open ? 'is-open' : 'is-closed'}">${icon('clock', { size: 13, stroke: 2.2 })} ${escapeHtml(status.text)}${today ? ` <small>· heute ${escapeHtml(today)}</small>` : ''}</span>` : ''}
       ${dist}
       <a class="popup-link" href="${escapeHtml(routeUrl(p))}" target="_blank" rel="noopener">${icon('navigation', { size: 13, stroke: 2.2 })} Route in Google Maps ↗</a>
+      <button type="button" class="popup-link popup-cash" data-popup-cash="${escapeHtml(p.id)}">${icon('receipt', { size: 13, stroke: 2 })} Rechnung erfassen</button>
+    </div>`;
+}
+
+// Trinkbrunnen / Velo-Werkstatt entlang einer Etappe (siehe pois.js): kleiner runder Marker und Detailfenster
+export const poiTitle = (x) => `${POI_TYPES[x.type]?.label || 'Punkt'}${x.name ? `: ${x.name}` : ''}`;
+export function poiPinHtml(x) {
+  return `<div class="poi-pin poi-${x.type}" title="${escapeHtml(poiTitle(x))}">${icon(POI_TYPES[x.type]?.icon || 'pin', { size: 12, stroke: 2.4 })}</div>`;
+}
+export function poiPopupHtml(x) {
+  return `<div class="popup">
+      <span class="popup-cat">${escapeHtml(POI_TYPES[x.type]?.label || 'Punkt')}</span>
+      ${x.name ? `<strong class="popup-name">${escapeHtml(x.name)}</strong>` : ''}
+      ${Number.isFinite(x.km) ? `<span class="popup-dist">bei km ${Math.round(x.km)} von „${escapeHtml(x.routeName || 'Etappe')}“</span>` : ''}
+      <a class="popup-link" href="${escapeHtml(routeUrl({ name: x.name || POI_TYPES[x.type]?.label || '', lat: x.lat, lng: x.lng }))}" target="_blank" rel="noopener">${icon('navigation', { size: 13, stroke: 2.2 })} Route in Google Maps ↗</a>
     </div>`;
 }
 
@@ -72,22 +92,56 @@ function createFallbackMap(el) {
   el.innerHTML = '<div class="map-error"><strong>Karte nicht verfügbar</strong><span>Die Kartenbibliothek konnte nicht geladen werden. Liste und Filter funktionieren trotzdem – Seite neu laden versuchen.</span></div>';
   const noop = () => {};
   const fakeMap = { flyTo: noop, getZoom: () => 9, setView: noop, fitBounds: noop };
-  return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, centerOn: noop, invalidate: noop };
+  return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, centerOn: noop, setPois: noop, invalidate: noop };
 }
 
 export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMessage, routePopup }) {
   if (typeof L === 'undefined') return createFallbackMap(el);
   const map = L.map(el, { zoomControl: false, attributionControl: true }).setView(MALLORCA.center, MALLORCA.zoom);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
-  L.tileLayer(TILES.url, { attribution: TILES.attribution, maxZoom: TILES.maxZoom }).addTo(map);
+  // crossOrigin: damit der Service Worker (sw.js) gesehene Kacheln für unterwegs ohne Netz speichern kann
+  L.tileLayer(TILES.url, { attribution: TILES.attribution, maxZoom: TILES.maxZoom, crossOrigin: true }).addTo(map);
 
   const placeLayer = L.layerGroup().addTo(map);
   const routeLayer = L.layerGroup().addTo(map);
+  const poiLayer = L.layerGroup().addTo(map);
   const markers = new Map();
   let airbnbMarker = null;
   let activeId = null;
 
   map.on('click', (e) => onMapClick?.(e.latlng));
+
+  // Geöffnete Detailfenster in den freien Kartenteil schieben: nicht unter die Boxen oben, das Listen-Blatt
+  // unten oder die Knopfreihe (Google | OSM) – Leaflet selbst kennt nur den Kartenrand.
+  // Geprüft wird gleich nach dem Öffnen und jedes Mal, wenn die Karte in den ersten 2 Sekunden danach zur Ruhe
+  // kommt (fährt sie noch zum Ort, stimmt die erste Messung nicht). Danach nicht mehr – sonst würde die Karte
+  // gegen eigenes Verschieben ankämpfen.
+  let openPopup = null;
+  let popupOpenedAt = 0;
+  map.on('popupopen', (e) => {
+    openPopup = e.popup;
+    popupOpenedAt = Date.now();
+    requestAnimationFrame(() => keepPopupFree(e.popup));
+  });
+  map.on('popupclose', (e) => { if (openPopup === e.popup) openPopup = null; });
+  map.on('moveend', () => {
+    // erst im nächsten Bild messen: panBy kann moveend sofort auslösen, noch bevor die Lage neu berechnet ist
+    if (openPopup && Date.now() - popupOpenedAt < 2000) requestAnimationFrame(() => openPopup && keepPopupFree(openPopup));
+  });
+  function keepPopupFree(popup) {
+    {
+      if (!map.hasLayer(popup)) return;
+      const box = popup.getElement()?.getBoundingClientRect();
+      if (!box) return;
+      const m = el.getBoundingClientRect();
+      const { top, bottom } = insets();
+      const toolsTop = el.parentElement.querySelector('.gmap-tools')?.getBoundingClientRect().top ?? Infinity;
+      const freeTop = m.top + top + 12;
+      const freeBottom = Math.min(m.bottom - bottom - 12, toolsTop > m.top ? toolsTop - 8 : Infinity);
+      if (box.top < freeTop - 1) map.panBy([0, -(freeTop - box.top)]);
+      else if (box.bottom > freeBottom + 1 && box.height < freeBottom - freeTop) map.panBy([0, box.bottom - freeBottom]);
+    }
+  }
 
   // Seitenleiste, Boxen-Zeile und (auf dem Handy) die Liste unten liegen über der Karte. getInsets
   // liefert, wie viele Pixel davon an jedem Rand verdeckt sind, damit Orte und Routen in der Mitte
@@ -463,5 +517,22 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     fitPoints(route.points, 14);
   }
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => map.invalidateSize() };
+  // Trinkbrunnen und Velo-Werkstätten entlang der eingeblendeten Etappen: [{ id, type, name, lat, lng, km, routeName }]
+  let poiKey = '';
+  function setPois(pois) {
+    const key = pois.map((x) => `${x.id}@${x.km}`).join('|');
+    if (key === poiKey) return;
+    poiKey = key;
+    poiLayer.clearLayers();
+    for (const x of pois) {
+      L.marker([x.lat, x.lng], {
+        icon: L.divIcon({ className: '', html: poiPinHtml(x), iconSize: [22, 22], iconAnchor: [11, 11], popupAnchor: [0, -12] }),
+        title: poiTitle(x),
+        keyboard: false,
+        zIndexOffset: -500, // unter den eigenen Orten
+      }).bindPopup(poiPopupHtml(x), { closeButton: false, className: 'llocs-popup' }).addTo(poiLayer);
+    }
+  }
+
+  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => map.invalidateSize() };
 }

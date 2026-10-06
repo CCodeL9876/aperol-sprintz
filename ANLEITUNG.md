@@ -61,12 +61,14 @@ Die Datei importierst du in Schritt 4 auf der Online-Seite.
 
 ## 2a. Datenbank aktualisieren (nach neuen Funktionen)
 
-Ausgaben, Reservierungen, „besucht“ und Favoriten brauchen zusätzliche Spalten und die Tabelle `expenses`.
+Ausgaben, Reservierungen, „besucht“, Favoriten, Öffnungszeiten und Kaffeerunden brauchen zusätzliche Spalten
+und die Tabelle `expenses`.
 Dafür im Supabase-Dashboard → **SQL Editor** → **New query** den kompletten Inhalt von `supabase/schema.sql`
 einfügen und auf **Run** klicken. Das Skript ergänzt nur, was fehlt (`if not exists`) – bestehende Orte,
 Routen und Einstellungen bleiben unverändert. Es darf beliebig oft ausgeführt werden.
 
-Solange das nicht passiert ist, läuft die App trotzdem; im Fenster „Ausgaben“ erscheint dann ein Hinweis.
+Solange das nicht passiert ist, läuft die App trotzdem; im Fenster „Ausgaben“ erscheint dann ein Hinweis,
+und „Öffnungszeiten laden“ bzw. „Kaffeerunde erfassen“ melden, dass das SQL noch fehlt.
 
 ## 2b. Google-Maps-Kurzlinks direkt einfügen (einmalig einrichten)
 
@@ -237,6 +239,16 @@ dafür ist kein zusätzlicher Schritt nötig.
 2. Teilen-Symbol → **Zum Home-Bildschirm**.
 3. Die App startet danach im Vollbild, direkt in der gemeinsamen Reise.
 
+### Ohne Netz unterwegs
+
+Die App merkt sich auf jedem Gerät den zuletzt geladenen Stand der Reise (Orte, Etappen, Ausgaben) und ihre
+eigenen Dateien. Ohne Empfang startet sie trotzdem, zeigt oben **„Offline“** und den gespeicherten Stand –
+anschauen geht, ändern erst wieder mit Netz; sobald Verbindung besteht, gleicht sie sich von selbst ab.
+Ohne Netz zeigt sie OpenStreetMap statt Google Maps, und zwar die Kartenausschnitte, die auf diesem Gerät schon
+einmal in der OSM-Ansicht angeschaut wurden. **Tipp:** Vor einer Ausfahrt die Etappe einmal mit Netz in der
+OSM-Ansicht einblenden und entlang der Strecke etwas hineinzoomen. Trinkbrunnen und Velo-Werkstätten einer
+Etappe sind gespeichert, sobald ihre Details einmal mit Netz geöffnet wurden.
+
 ---
 
 ## 5. Google Maps (Standardkarte)
@@ -244,6 +256,11 @@ dafür ist kein zusätzlicher Schritt nötig.
 Mit eingetragenem API-Schlüssel zeigt die App standardmässig Google Maps; ohne Schlüssel die OpenStreetMap-Karte.
 Die Google-Karte bietet: Google-Kartenbild, Satellit, antippbare Restaurants/Cafés mit Bewertung und
 Öffnungszeiten sowie „Zu unseren Orten hinzufügen“.
+
+**Öffnungszeiten:** Neue Orte aus der Google-Karte bringen sie gleich mit. Für bestehende Orte im Menü **„•••“ →
+„Öffnungszeiten laden“** – die App sucht jeden Ort einmal bei Google (Strände und Aussichtspunkte ausgenommen)
+und fragt nach 30 Tagen erneut. Das kostet pro Ort eine Places-Abfrage; Google gewährt dafür ein monatliches
+Gratis-Kontingent (nach aktuellem Stand 1 000 Abfragen), für eure Liste reicht das bei Weitem.
 
 **Einmalig einrichten (ca. 15 Minuten):**
 

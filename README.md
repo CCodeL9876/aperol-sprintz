@@ -34,6 +34,10 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
   Jede Route lässt sich wieder **als GPX herunterladen** (z. B. für Garmin/Wahoo): in voller Auflösung mit Höhen,
   sofern beim Import gespeichert (Tabelle `route_files`); bei älteren Importen aus den Kartenpunkten erzeugt.
   Pro Route lässt sich zudem ein **Link** (Strava, Komoot …) hinterlegen – erscheint unter der Route und im Karten-Popup.
+  **Kaffee-Stopps** (eigene Kaffees und Rennrad-Hotspots bis 500 m neben der Strecke) mit Kilometer, geschätzter
+  Ankunftszeit ab der gewählten Startzeit und ob der Ort dann geöffnet ist; der Stopp um die Streckenmitte ist als
+  Halbzeit markiert. **Trinkbrunnen und Velo-Werkstätten** entlang der Strecke kommen aus OpenStreetMap
+  (Overpass-API, `js/pois.js`) und erscheinen in den Details und als kleine Punkte auf der Karte.
 - **Automatische Kategorie** über Stichwörter im Namen bzw. über den Listennamen (`Rennrad.csv` → Rennrad-Hotspot).
   Google exportiert keine Orts-Typen, daher lässt sich die Kategorie pro Ort in der Liste ändern.
 - **Fehlende Standorte** (typisch bei Listen-CSVs) werden über OpenStreetMap gesucht (1 Anfrage/Sekunde).
@@ -42,7 +46,15 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
   nie im Quellcode (siehe `js/config.js`).
 - **Hin- & Rückreise**: Datum und Uhrzeit von Hin- und Rückflug eintragen (Box über der Unterkunft),
   wird wie die Unterkunft gespeichert und in einer gemeinsamen Reise mit allen geteilt.
-- **Filter**: Kategorie-Chips (Mehrfachauswahl), Volltextsuche, Sortierung nach Entfernung/Name/Art/Datum.
+- **Filter**: Kategorie-Chips (Mehrfachauswahl), „Jetzt offen“, Volltextsuche, Sortierung nach Entfernung/Name/Art/Datum.
+- **Öffnungszeiten** von Google Places (Spalte `places.hours`, `js/hours.js`): beim Hinzufügen aus der Google-Karte
+  automatisch, für bestehende Orte über Menü `•••` → „Öffnungszeiten laden“. Liste und Karten-Popup zeigen
+  „Offen bis …“ bzw. „Geschlossen · öffnet …“.
+- **Ausgaben**: Rechnung direkt bei einem Ort erfassen („Rechnung“ in der Liste bzw. im Karten-Popup);
+  **Kaffeerunden** (`expenses.kind = 'coffee'`) zeigen, wer als Nächstes dran ist.
+- **Ohne Netz**: `sw.js` hält App-Dateien und gesehene OpenStreetMap-Kacheln vor; der zuletzt geladene Stand
+  der gemeinsamen Reise liegt im Cache Storage. Ohne Verbindung zeigt die App diesen Stand (nur lesen) und
+  verbindet sich neu, sobald Netz da ist.
 - **Eigene Kategorien** mit Emoji, Farbe und Stichwörtern (Standard-Kategorien nutzen Linien-Symbole) (Menü `•••` → „Kategorien verwalten“).
 - **Gemeinsame Reise**: Über „Teilen“ werden die Orte in eine Supabase-Datenbank hochgeladen; alle mit dem
   geheimen Reise-Link sehen dieselbe Liste und können mitplanen (Abgleich alle 20 s). Einrichtung: [ANLEITUNG.md](ANLEITUNG.md).

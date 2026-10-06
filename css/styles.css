@@ -1522,3 +1522,54 @@ button, a, input, select, textarea, summary, label { touch-action: manipulation;
   .dialog-inner::before { filter: none; }
   .dialog .btn::before { filter: none; }
 }
+
+/* --- Öffnungszeiten ---------------------------------------------------------------------- */
+.place-hours { align-self: flex-start; margin-top: 3px; font-size: 12px; font-weight: 700; }
+.place-hours.is-open, .popup-hours.is-open { color: var(--green); }
+.place-hours.is-closed, .popup-hours.is-closed { color: var(--red); }
+.popup-hours { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; font-weight: 700; }
+.popup-hours small { font-weight: 500; color: var(--text-soft); }
+.chip-open::before { border-style: dashed; }
+.chip-open[aria-pressed="true"]::before { border-style: solid; }
+button.popup-link { padding: 0; border: 0; background: none; cursor: pointer; font-family: inherit; text-align: left; }
+
+/* --- Espresso-Etappen: Kaffee-Stopps mit Ankunftszeit, Trinkwasser und Velo-Werkstätten ---------- */
+.route-speed-part { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.route-speed { column-gap: 14px; }
+.route-speed input[type="time"] { width: auto; min-height: 32px; padding: 2px 8px; font-size: 13px; }
+.route-stop-plan { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 4px 10px; border-radius: 12px; text-align: left; }
+.route-stop-name { display: inline-flex; align-items: center; gap: 5px; }
+.route-stop-meta { font-size: 11px; font-weight: 500; color: var(--text-soft); }
+.route-stop.is-halfway { background: var(--orange-tint); }
+.route-stop-half { padding: 0 6px; border-radius: 999px; background: var(--orange); color: #FFFFFF; font-size: 10px; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; }
+.route-stop.is-closed .route-stop-meta, .route-stop.is-closed small { color: var(--red); }
+.route-stop small { font-weight: 500; color: var(--text-soft); }
+.route-stop-note { flex-basis: 100%; font-size: 11.5px; }
+.route-poi { display: inline-flex; align-items: center; gap: 4px; }
+.route-poi.poi-water .icon { color: #2F6E8C; }
+.route-poi.poi-bike .icon, .route-poi.poi-repair .icon { color: var(--green); }
+.poi-pin {
+  width: 20px; height: 20px; display: grid; place-items: center;
+  border: 2px solid #FFFFFF; border-radius: 999px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  color: #FFFFFF; background: #2F6E8C;
+}
+.poi-pin.poi-bike, .poi-pin.poi-repair { background: var(--green); }
+
+/* --- Kaffeerunde in den Ausgaben ---------------------------------------------------------------- */
+.cash-coffee {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px;
+  margin-bottom: 12px; padding: 10px 12px; border-radius: var(--radius);
+  background: #F6EBDF; color: #6B4526; font-size: 14px;
+}
+.cash-coffee-text small { display: block; margin-top: 2px; font-size: 12px; color: #8A5A34; }
+.cash-coffee-mode {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px;
+  margin: 0; padding: 8px 12px; border-radius: var(--radius);
+  background: #F6EBDF; color: #6B4526; font-size: 13px; font-weight: 700;
+}
+.cash-coffee-mode .btn-link { padding: 0; font-size: 12.5px; }
+.cash-item-title .icon { vertical-align: -2px; color: #8A5A34; }
+
+/* Ohne Netz: Kennzeichen in der Kopfzeile */
+.offline-badge { background: var(--ink, #25321F); color: #FFFFFF; }
+.offline-badge:hover { background: var(--ink, #25321F); color: #FFFFFF; opacity: 0.85; }

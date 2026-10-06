@@ -4,10 +4,11 @@
 // Aktiv, solange ein API-Schlüssel in config.js steht und auf dem Gerät nicht OpenStreetMap gewählt wurde.
 /* global google */
 
-import { hasCoords } from './geo.js';
+import { hasCoords, haversineKm } from './geo.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
 import { ROUTE_CATEGORY } from './categories.js';
-import { MALLORCA, popupHtml, routePopupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl, pinHtml, pinFlags } from './map.js';
+import { MALLORCA, popupHtml, routePopupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl, pinHtml, pinFlags, poiPinHtml, poiPopupHtml, poiTitle } from './map.js';
+import { hoursFromGoogle } from './hours.js';
 
 const LOAD_TIMEOUT_MS = 12000;
 
@@ -71,6 +72,37 @@ function placesErrorHint(err) {
   return 'gerade keine Verbindung zu Google.';
 }
 
+// Öffnungszeiten eigener Orte nachschlagen: Places-Textsuche „Name, Adresse“ nahe der gespeicherten Position.
+// Lädt die Google-Bibliothek bei Bedarf – auch wenn gerade OpenStreetMap angezeigt wird. Ein Treffer zählt nur,
+// wenn er höchstens 400 m neben dem Ort liegt; sonst gilt „keine Angaben“ (hours.p = null).
+// onResult(place, hours) je Ort; ein grundsätzlicher Fehler (Schlüssel, API) bricht mit verständlichem Text ab.
+export async function lookupHours(apiKey, places, onResult) {
+  await loadGoogleMaps(apiKey);
+  const { Place } = await google.maps.importLibrary('places');
+  for (const p of places) {
+    let hours;
+    try {
+      const { places: found } = await Place.searchByText({
+        textQuery: p.address ? `${p.name}, ${p.address}` : p.name,
+        fields: ['location', 'regularOpeningHours'],
+        locationBias: { center: { lat: p.lat, lng: p.lng }, radius: 300 },
+        maxResultCount: 1,
+        language: 'de',
+        region: 'es',
+      });
+      const hit = found?.[0];
+      const near = hit?.location && haversineKm(hit.location.lat(), hit.location.lng(), p.lat, p.lng) <= 0.4;
+      hours = hoursFromGoogle(near ? hit.regularOpeningHours : null);
+    } catch (err) {
+      const msg = String(err?.message || '');
+      if (/referer|PERMISSION_DENIED|not been used|disabled|not enabled/i.test(msg)) throw new Error(placesErrorHint(err));
+      console.warn('Öffnungszeiten:', p.name, msg);
+      continue; // einzelner Fehler (z. B. kurz kein Netz): Ort beim nächsten Mal erneut versuchen
+    }
+    await onResult(p, hours);
+  }
+}
+
 export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerClick, getInsets, onAddPlace, onError, routePopup, onLocateMessage }) {
   // Ungültiger Schlüssel oder nicht freigegebene Adresse: Google ruft diese globale Funktion auf
   window.gm_authFailure = () => onError?.('Google Maps lehnt den API-Schlüssel ab – Einschränkungen (Website-Adressen) in der Google Cloud Console prüfen.');
@@ -119,19 +151,32 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
   // --- Popups nicht unter Boxen oder Listen-Blatt -----------------------------------------------------
   // Googles Popup kennt die Boxen oben und das Blatt unten nicht und schiebt sich nur in den Kartenrand.
   // Nach dem Öffnen daher prüfen und die Karte so verschieben, dass es im freien Teil liegt.
+  // Geprüft wird gleich nach dem Öffnen und jedes Mal, wenn die Karte in den ersten 2 Sekunden danach zur Ruhe
+  // kommt: Beim Antippen eines Orts fährt die Karte noch hin, während das Fenster schon aufgeht. Danach nicht
+  // mehr – sonst würde die Karte gegen eigenes Verschieben ankämpfen.
+  let popupOpenedAt = 0;
   info.addListener('domready', () => {
-    requestAnimationFrame(() => {
+    popupOpenedAt = Date.now();
+    requestAnimationFrame(keepPopupFree);
+  });
+  map.addListener('idle', () => {
+    if (info.isOpen && Date.now() - popupOpenedAt < 2000) keepPopupFree();
+  });
+  function keepPopupFree() {
+    {
       const box = el.querySelector('.gm-style-iw-c');
       if (!box) return;
       const r = box.getBoundingClientRect();
       const m = el.getBoundingClientRect();
       const { top, bottom } = insets();
       const freeTop = m.top + top + 12;
-      const freeBottom = m.bottom - bottom - 12;
-      if (r.top < freeTop) map.panBy(0, -(freeTop - r.top));
-      else if (r.bottom > freeBottom && r.height < freeBottom - freeTop) map.panBy(0, r.bottom - freeBottom);
-    });
-  });
+      // auch über der Knopfreihe unten (Google | OSM, Satellit) bleiben
+      const toolsTop = tools.getBoundingClientRect().top;
+      const freeBottom = Math.min(m.bottom - bottom - 12, toolsTop > m.top ? toolsTop - 8 : Infinity);
+      if (r.top < freeTop - 1) map.panBy(0, -(freeTop - r.top));
+      else if (r.bottom > freeBottom + 1 && r.height < freeBottom - freeTop) map.panBy(0, r.bottom - freeBottom);
+    }
+  }
 
   // --- Live-Standort (wie in map.js) ------------------------------------------------------------------
   // Knopf über den Zoom-Knöpfen. 1. Tipp: Standort verfolgen, die Karte läuft beim Gehen mit. Verschiebt
@@ -356,6 +401,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
         lng: place.location.lng(),
         url: mapsUrl,
         types: [place.primaryType, ...(place.types || [])].filter(Boolean),
+        hours: hoursFromGoogle(place.regularOpeningHours),
       });
       btn.textContent = result === 'added' ? '✓ Hinzugefügt' : result === 'dupe' ? 'Schon in eurer Liste' : 'Zu unseren Orten hinzufügen';
       btn.disabled = result === 'added' || result === 'dupe';
@@ -624,5 +670,26 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     searchMarker = null;
   }
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, searchPlaces, openSearchResult, clearSearchMarker, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
+  // Trinkbrunnen und Velo-Werkstätten entlang der eingeblendeten Etappen: [{ id, type, name, lat, lng, km, routeName }]
+  let poiMarkers = [];
+  let poiKey = '';
+  function setPois(pois) {
+    const key = pois.map((x) => `${x.id}@${x.km}`).join('|');
+    if (key === poiKey) return;
+    poiKey = key;
+    for (const m of poiMarkers) m.map = null;
+    poiMarkers = pois.map((x) => {
+      const content = document.createElement('div');
+      content.innerHTML = poiPinHtml(x);
+      content.style.transform = 'translateY(50%)'; // mittig auf den Punkt statt mit der Unterkante
+      const m = new AdvancedMarkerElement({ map, position: { lat: x.lat, lng: x.lng }, content, title: poiTitle(x), zIndex: 0 });
+      m.addListener('click', () => {
+        info.setContent(poiPopupHtml(x));
+        info.open({ shouldFocus: false, map, anchor: m });
+      });
+      return m;
+    });
+  }
+
+  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, searchPlaces, openSearchResult, clearSearchMarker, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
 }
