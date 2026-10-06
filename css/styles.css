@@ -941,31 +941,52 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .pick-banner .btn { min-height: 34px; color: #FFFFFF; }
 .pick-banner .btn::before { background: rgba(255, 255, 255, 0.18); }
 
-/* Etappe planen: Feld oben auf der Karte, Wegpunkte als kleine nummerierte Punkte */
+/* Etappe planen: kompaktes Feld oben auf der Karte – Kennzahlen links, Symbol-Knöpfe rechts,
+   Name + Speichern erst mit Strecke. Wegpunkte als kleine nummerierte Punkte. */
 .plan-panel {
-  position: absolute; left: 50%; top: 24px; transform: translateX(-50%);
+  position: absolute; left: 50%; top: 16px; transform: translateX(-50%);
   z-index: 1000;
-  width: min(460px, calc(100% - 32px));
+  width: min(440px, calc(100% - 24px));
   display: grid; gap: 8px;
-  padding: 12px 14px;
+  padding: 8px 8px 8px 14px;
   background: var(--card); color: var(--text);
   border-radius: var(--radius); box-shadow: var(--shadow-lg);
 }
-.plan-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.plan-title { font-family: var(--font-display); font-size: 17px; color: var(--green); }
-.plan-stats { font-size: 14px; font-weight: 700; color: var(--text); }
-.plan-hint { margin: 0; font-size: 13px; line-height: 1.4; color: var(--text-soft); }
-.plan-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.plan-actions .btn, .plan-save .btn { min-height: 36px; padding: 0 12px; }
-.plan-panel .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.plan-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.plan-stats { font-size: 14px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.plan-stats.is-hint { font-weight: 600; color: var(--text-soft); }
+.plan-tools { display: inline-flex; gap: 4px; flex: none; }
+.plan-tool {
+  width: 36px; height: 36px; display: grid; place-items: center;
+  border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--chip); color: var(--green);
+}
+.plan-tool:hover { background: var(--chip-hover); }
+.plan-tool:disabled { opacity: 0.35; cursor: not-allowed; background: var(--chip); }
+.plan-save { display: flex; gap: 6px; }
+.plan-save[hidden] { display: none; }
+.plan-save .btn { min-height: 36px; padding: 0 14px; }
+.plan-save .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.plan-save input { flex: 1; min-width: 0; min-height: 36px; padding-top: 4px; padding-bottom: 4px; }
 /* .btn-small färbt sonst auch den Hauptknopf grau */
 .plan-save .btn-primary { color: var(--on-orange); }
 .plan-save .btn-primary::before { background: var(--orange); }
 .plan-save .btn-primary:hover::before { background: var(--orange-hover); }
-/* Beim Planen die Boxen über der Karte (Unterkunft, Ausgaben …) ausblenden – sie lägen über dem Planer */
+/* Beim Planen mehr Platz für die Karte: Boxen über der Karte (Unterkunft, Ausgaben …), Kartenschalter
+   (ein Wechsel lädt die Seite neu und verwirft die Planung) und der Knopf „Orte & Filter“ weg */
 .is-planning .panel-row { visibility: hidden; }
-.plan-save { display: flex; gap: 6px; }
-.plan-save input { flex: 1; min-width: 0; min-height: 36px; padding-top: 4px; padding-bottom: 4px; }
+.is-planning .map-switch, .is-planning .sheet-open { display: none !important; }
+/* Desktop: Seitenleiste ausblenden – die Karte liegt ohnehin über die ganze Breite darunter */
+@media (min-width: 900px) {
+  .is-planning .sidebar { display: none; }
+}
+/* Handy: auch die Kopfzeile – die Karte reicht dann bis ganz oben (Feld unter der Statusleiste) */
+@media (max-width: 899px) {
+  body.is-planning { --topbar-h: 0px; }
+  .is-planning .topbar { display: none; }
+  .is-planning .layout { height: 100dvh; }
+  .plan-panel { top: calc(10px + env(safe-area-inset-top, 0px)); }
+}
 .plan-pin {
   width: 22px; height: 22px; display: grid; place-items: center;
   border: 2px solid #FFFFFF; border-radius: 999px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
@@ -973,10 +994,6 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 }
 .plan-pin.is-start { background: var(--green); }
 .routes-head-right { display: inline-flex; align-items: center; gap: 10px; }
-/* Desktop: die Karte liegt auch unter der Seitenleiste – mittig wäre das Feld links verdeckt, daher oben rechts */
-@media (min-width: 900px) {
-  .plan-panel { left: auto; right: 24px; transform: none; }
-}
 .routes-head-right .btn { min-height: 34px; padding: 0 12px; }
 
 /* --- Dialoge --------------------------------------------------------------------- */

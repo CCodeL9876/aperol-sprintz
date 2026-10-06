@@ -3170,7 +3170,9 @@ function startPlan() {
   $('#plan-name').value = '';
   $('#plan-panel').hidden = false;
   $('#map').classList.add('is-picking');
+  // Mehr Platz für die Karte: Seitenleiste bzw. Kopfzeile und Knöpfe ausblenden (siehe .is-planning in styles.css)
   document.body.classList.add('is-planning');
+  requestAnimationFrame(() => mapView.invalidate());
   if (isMobile()) {
     // Karte freimachen wie beim Setzen des Airbnb
     setSheet('hidden');
@@ -3187,6 +3189,7 @@ function endPlan() {
   $('#plan-panel').hidden = true;
   $('#map').classList.remove('is-picking');
   document.body.classList.remove('is-planning');
+  requestAnimationFrame(() => mapView.invalidate());
   mapView.setDraft(null);
   if (isMobile() && sheetState() === 'hidden') setSheet('half');
 }
@@ -3244,25 +3247,24 @@ function renderPlan() {
   const failed = plan.segments.some((s) => s.error);
   const track = planTrack();
   const stats = $('#plan-stats');
+  let text = '';
   if (track) {
     const sum = summarizeTrack('', track);
     const hours = rideHours(sum);
-    stats.textContent = [formatKm(sum.distanceKm), formatHm(sum.elevationGainM), hours ? formatDuration(hours) : ''].filter(Boolean).join(' · ');
+    text = [formatKm(sum.distanceKm), formatHm(sum.elevationGainM), hours ? formatDuration(hours) : ''].filter(Boolean).join(' · ');
   } else if (plan.segments.length) {
-    stats.textContent = failed ? 'Ein Abschnitt fehlt – „Rückgängig“ und anderen Punkt wählen.' : 'Berechne Strecke …';
-  } else {
-    stats.textContent = '';
+    text = failed ? 'Abschnitt fehlt – Rückgängig' : 'Berechne …';
   }
-  $('#plan-hint').textContent = plan.waypoints.length === 0
-    ? 'Tippe auf die Karte, um den Start zu setzen.'
-    : plan.segments.length === 0
-      ? `Tippe auf die Karte oder einen eurer Orte – die Strecke ${state.airbnb ? 'ab dem Airbnb ' : ''}folgt Straßen fürs Rennrad.`
-      : 'Weitere Punkte antippen oder speichern.';
-  const start = plan.waypoints[0];
+  // Ohne Strecke steht hier der Hinweis (gedämpft) – spart eine eigene Zeile
+  stats.classList.toggle('is-hint', !text);
+  stats.textContent = text || (plan.waypoints.length ? 'Punkte auf die Karte tippen' : 'Start auf die Karte tippen');
   $('#plan-undo').disabled = plan.waypoints.length <= (state.airbnb ? 1 : 0);
   const loop = $('#plan-loop');
-  loop.textContent = state.airbnb ? 'Zurück zum Airbnb' : 'Zurück zum Start';
-  loop.disabled = plan.waypoints.length < 2 || samePoint(plan.waypoints.at(-1), start);
+  const loopLabel = state.airbnb ? 'Zurück zum Airbnb' : 'Zurück zum Start';
+  loop.title = loopLabel;
+  loop.setAttribute('aria-label', loopLabel);
+  loop.disabled = plan.waypoints.length < 2 || samePoint(plan.waypoints.at(-1), plan.waypoints[0]);
+  $('#plan-save-row').hidden = !plan.segments.length;
   $('#plan-save').disabled = !track || pending || failed;
 }
 
@@ -3285,6 +3287,9 @@ async function savePlan() {
   toast(`Etappe „${route.name}“ gespeichert (${formatKm(route.distanceKm)}) – sie steht unter „Espresso-Etappen“.`);
 }
 
+$('#plan-undo').innerHTML = icon('undo', { size: 18, stroke: 2 });
+$('#plan-loop').innerHTML = icon('home', { size: 18, stroke: 2 });
+$('#plan-cancel').innerHTML = icon('close', { size: 18, stroke: 2.2 });
 $('#btn-plan').addEventListener('click', () => (plan.on ? cancelPlan() : startPlan()));
 $('#plan-undo').addEventListener('click', undoPlanPoint);
 $('#plan-loop').addEventListener('click', () => {
