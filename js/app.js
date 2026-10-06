@@ -422,7 +422,7 @@ function initMapSearch() {
 const HOURS_SKIP = new Set(['strand', 'aussicht']);
 let hoursLoading = false;
 async function loadOpeningHours() {
-  if (hoursLoading) return;
+  if (hoursLoading || backend.kind === 'demo') return;
   if (!GOOGLE_MAPS_API_KEY) return toast('Für Öffnungszeiten fehlt der Google-API-Schlüssel in js/config.js.', { sticky: true });
   if (backend.kind === 'shared' && state.hoursMissing) {
     return toast('Öffnungszeiten sind in der Datenbank noch nicht eingerichtet – bitte supabase/schema.sql im Supabase SQL Editor ausführen.', { sticky: true });
@@ -2759,6 +2759,8 @@ function renderShareState() {
   const mapSearch = $('#map-search');
   if (mapSearch.dataset.ready) mapSearch.hidden = backend.kind === 'demo';
   $('#intro-map-search').hidden = backend.kind === 'demo';
+  // Öffnungszeiten laden kostet Google-Kontingent – in der Demo ausgegraut
+  $('[data-menu="hours"]').disabled = backend.kind === 'demo';
   if (shareDialog.open) renderShareDialog();
 }
 

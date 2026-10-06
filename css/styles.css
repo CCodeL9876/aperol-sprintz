@@ -240,6 +240,7 @@ select {
   padding: 10px 12px; border: 0; border-radius: var(--radius-sm); background: none; cursor: pointer;
 }
 .menu-panel button:hover { background: var(--chip); }
+.menu-panel button:disabled { opacity: 0.45; cursor: not-allowed; background: none; }
 /* Link-Eintrag (easyJet-App): sieht aus wie die Knöpfe, mit Flugzeug-Symbol */
 .menu-panel .menu-link {
   display: flex; align-items: center; gap: 8px;
