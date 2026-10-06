@@ -194,7 +194,7 @@ export function parseKML(text, listName = '') {
 // Maß, das schnell zeichnet und klein genug zum Speichern/Teilen bleibt.
 const GPX_MAX_POINTS = 800;
 const round5 = (n) => Math.round(n * 1e5) / 1e5; // ~1,1 m genau, reicht für eine Linie auf der Karte
-const round6 = (n) => Math.round(n * 1e6) / 1e6; // ~0,1 m – für die herunterladbare GPX-Datei
+export const round6 = (n) => Math.round(n * 1e6) / 1e6; // ~0,1 m – für die herunterladbare GPX-Datei
 const GPX_FILE_MAX_POINTS = 20000; // Obergrenze fürs Speichern der Datei (~1 MB)
 
 function decimate(points, max) {
@@ -212,41 +212,44 @@ export function parseGpx(text, fallbackName = 'Route') {
   const doc = new DOMParser().parseFromString(text, 'application/xml');
   if (doc.querySelector('parsererror')) throw new Error('GPX-Datei konnte nicht gelesen werden.');
 
-  const points = [];
-  const elevations = [];
   const full = []; // volle Auflösung inkl. Höhe – für den GPX-Download (Navigation auf dem Radcomputer)
   const readPoints = (parent, tag) => {
     for (const pt of parent.getElementsByTagName(tag)) {
       const lat = parseFloat(pt.getAttribute('lat'));
       const lon = parseFloat(pt.getAttribute('lon'));
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-      points.push([round5(lat), round5(lon)]);
       const ele = parseFloat(pt.getElementsByTagName('ele')[0]?.textContent);
-      if (Number.isFinite(ele)) elevations.push(ele);
       full.push([round6(lat), round6(lon), Number.isFinite(ele) ? Math.round(ele * 10) / 10 : null]);
     }
   };
   for (const trk of doc.getElementsByTagName('trk')) readPoints(trk, 'trkpt');
-  if (!points.length) for (const rte of doc.getElementsByTagName('rte')) readPoints(rte, 'rtept');
-  if (!points.length) throw new Error('Keine Streckenpunkte gefunden (weder <trkpt> noch <rtept>).');
-
-  let distanceKm = 0;
-  for (let i = 1; i < points.length; i++) {
-    distanceKm += haversineKm(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]);
-  }
+  if (!full.length) for (const rte of doc.getElementsByTagName('rte')) readPoints(rte, 'rtept');
+  if (!full.length) throw new Error('Keine Streckenpunkte gefunden (weder <trkpt> noch <rtept>).');
 
   const nameEl = doc.getElementsByTagName('trk')[0]?.getElementsByTagName('name')[0]
     || doc.getElementsByTagName('rte')[0]?.getElementsByTagName('name')[0]
     || doc.getElementsByTagName('metadata')[0]?.getElementsByTagName('name')[0];
   const name = nameEl?.textContent?.trim() || fallbackName;
 
+  return summarizeTrack(name, full);
+}
+
+// Kartenlinie, Länge, Höhenmeter und bereinigte GPX-Datei aus den Streckenpunkten [lat, lon, ele|null].
+// Auch für Etappen, die beim Import ans Airbnb angeschlossen werden (siehe home-loop.js).
+export function summarizeTrack(name, full) {
+  const points = full.map(([lat, lon]) => [round5(lat), round5(lon)]);
+  let distanceKm = 0;
+  for (let i = 1; i < points.length; i++) {
+    distanceKm += haversineKm(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]);
+  }
   return {
     name,
     points: decimate(points, GPX_MAX_POINTS),
     distanceKm,
-    ...elevationGain(elevations),
+    ...elevationGain(full.map((p) => p[2]).filter(Number.isFinite)),
     // Bereinigte Kopie der Originaldatei (nur Punkte + Höhe, ohne Zeitstempel, Puls usw.)
     gpx: buildGpx(name, decimate(full, GPX_FILE_MAX_POINTS)),
+    track: full, // volle Auflösung – nur für den Import, wird nicht gespeichert
   };
 }
 

@@ -9,6 +9,7 @@ import { expandMapsLinks, hasShortMapsLinks,
 import { createMap } from './map.js';
 import { sanitizeHours, hoursStale, openAt, hoursStatus } from './hours.js';
 import { cachedPois, loadPois, sanitizePois, POI_TYPES } from './pois.js';
+import { connectToHome } from './home-loop.js';
 import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './config.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
 import { formatEuro, formatChf, toRappen, toEuroCents, cachedRate, loadRate, parseAmount, parseShare, computeBalances, settle, splitCents, sharesOf, expenseTotal, isTransfer, sanitizeParticipants, sanitizeExpense } from './cash.js';
@@ -2529,6 +2530,21 @@ async function importRaw(raws, sourceLabel) {
   return { added, missing };
 }
 
+// Start und Ziel ans Airbnb anschließen (Checkbox im Import-Fenster, Standard: an) – siehe home-loop.js
+async function homeLoop(parsed, sourceLabel) {
+  if (!$('#import-home').checked) return parsed;
+  if (!state.airbnb) {
+    log(`${sourceLabel}: Kein Airbnb gesetzt – Start und Ziel bleiben, wie sie in der Datei stehen.`);
+    return parsed;
+  }
+  log(`${sourceLabel}: Schließe Start und Ziel ans Airbnb an …`);
+  const { route, notes, error } = await connectToHome(parsed, state.airbnb);
+  if (error) log(`${sourceLabel}: ${error}.`, 'error');
+  if (notes.length) log(`${sourceLabel}: ${notes.join(', ')}.`, 'ok');
+  else if (!error) log(`${sourceLabel}: Start und Ziel liegen schon beim Airbnb.`);
+  return route;
+}
+
 // Fügt eine importierte GPX-Route hinzu. Keine Kategorie-Erkennung nötig – die Art steht fest.
 async function addRoute(parsed, sourceLabel) {
   const route = {
@@ -2563,7 +2579,7 @@ async function handleFiles(files) {
       const text = await file.text();
       const result = parseFile(file.name, text);
       if (result.kind === 'gpx') {
-        await addRoute(result.route, file.name);
+        await addRoute(await homeLoop(result.route, file.name), file.name);
         continue;
       }
       if (result.kind === 'backup') {
@@ -2719,7 +2735,12 @@ function selectImportTab(name) {
   // die Kategorie lässt sich danach in der Liste pro Ort ändern.
   $('#import-category-field').hidden = name !== 'file';
   $('#import-gpx-hint').hidden = name !== 'file';
+  $('#import-home-field').hidden = name !== 'file';
 }
+
+// „Start und Ziel beim Airbnb“ pro Gerät merken
+$('#import-home').checked = readPref('gpxHome') !== false;
+$('#import-home').addEventListener('change', (e) => writePref('gpxHome', e.target.checked));
 
 $$('.tab', importDialog).forEach((tab) => tab.addEventListener('click', () => selectImportTab(tab.dataset.tab)));
 

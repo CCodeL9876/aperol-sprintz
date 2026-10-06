@@ -33,6 +33,10 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
   Standardmäßig ausgeblendet; der Schalter pro Route zeichnet die Strecke (Linie, keine Punkte) auf der Karte ein.
   Jede Route lässt sich wieder **als GPX herunterladen** (z. B. für Garmin/Wahoo): in voller Auflösung mit Höhen,
   sofern beim Import gespeichert (Tabelle `route_files`); bei älteren Importen aus den Kartenpunkten erzeugt.
+  **Start und Ziel beim Airbnb** (Checkbox im Import-Fenster, Standard an, `js/home-loop.js`): Rundtouren, die bis
+  1 km am Airbnb vorbeiführen, beginnen dort; sonst werden Anfahrt und Rückfahrt mit dem Rennrad-Routenplaner
+  [BRouter](https://brouter.de) (Profil `fastbike`, ohne Schlüssel) ergänzt – Länge, Höhenmeter und GPX-Datei gelten
+  dann für die ganze Runde. Ist BRouter nicht erreichbar, wird die Etappe unverändert übernommen.
   Pro Route lässt sich zudem ein **Link** (Strava, Komoot …) hinterlegen – erscheint unter der Route und im Karten-Popup.
   **Kaffee-Stopps** (eigene Kaffees und Rennrad-Hotspots bis 500 m neben der Strecke) mit Kilometer, geschätzter
   Ankunftszeit ab der gewählten Startzeit und ob der Ort dann geöffnet ist; der Stopp um die Streckenmitte ist als
