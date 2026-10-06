@@ -11,7 +11,7 @@ import { sanitizeHours, hoursStale, openAt, hoursStatus } from './hours.js';
 import { cachedPois, loadPois, sanitizePois, POI_TYPES } from './pois.js';
 import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './config.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
-import { formatEuro, formatChf, toRappen, toEuroCents, cachedRate, loadRate, parseAmount, parseShare, computeBalances, settle, splitCents, sharesOf, expenseTotal, isTransfer, coffeeTurns, sanitizeParticipants, sanitizeExpense } from './cash.js';
+import { formatEuro, formatChf, toRappen, toEuroCents, cachedRate, loadRate, parseAmount, parseShare, computeBalances, settle, splitCents, sharesOf, expenseTotal, isTransfer, sanitizeParticipants, sanitizeExpense } from './cash.js';
 
 const MALLORCA_CENTER = { lat: 39.62, lng: 2.95 };
 const SYNC_INTERVAL_MS = 20000;
@@ -1655,7 +1655,7 @@ function resetFilters() {
 const cashDialog = $('#cash-dialog');
 // Auswahl im Formular – bleibt beim Neuzeichnen (z. B. Abgleich alle 20 s) erhalten.
 // splitValues: Eingaben je Person als Text (Anteile bzw. Beträge in der gewählten Währung)
-const cashForm = { editingId: null, payer: null, shared: new Set(), currency: 'EUR', splitMode: 'equal', splitValues: {}, kind: null };
+const cashForm = { editingId: null, payer: null, shared: new Set(), currency: 'EUR', splitMode: 'equal', splitValues: {} };
 const todayIso = () => new Date().toLocaleDateString('sv-SE'); // JJJJ-MM-TT in Ortszeit
 const personName = (id) => state.participants.find((p) => p.id === id)?.name || 'Unbekannt';
 const cashBlocked = () => backend.kind === 'shared' && state.cashMissing;
@@ -1687,7 +1687,6 @@ function renderCash() {
 function resetCashForm() {
   cashForm.editingId = null;
   cashForm.payer = null; // muss bei jeder Rechnung bewusst gewählt werden – keine Vorauswahl
-  cashForm.kind = null;
   cashForm.shared = new Set(state.participants.map((p) => p.id));
   cashForm.currency = 'EUR';
   cashForm.splitMode = 'equal';
@@ -1724,16 +1723,6 @@ function renderCashDialog() {
   const chip = (p, on, attr) => `<button type="button" class="cash-chip" ${attr}="${escapeHtml(p.id)}" aria-pressed="${on}">${escapeHtml(p.name)}</button>`;
   $('#cash-payer').innerHTML = people.map((p) => chip(p, cashForm.payer === p.id, 'data-payer')).join('');
   if (cashForm.payer) $('#cash-payer').classList.remove('is-missing');
-  // Kaffeerunde: wer ist dran? (ab zwei Personen; braucht die Spalte „kind“ in der Datenbank)
-  const coffeeOk = people.length >= 2 && !extrasBlocked();
-  $('#cash-coffee').hidden = !coffeeOk || !!cashForm.editingId || cashForm.kind === 'coffee';
-  if (coffeeOk) {
-    const turns = coffeeTurns(state.expenses, people);
-    $('#cash-coffee-text').innerHTML = `☕ Nächste Kaffeerunde: <strong>${escapeHtml(turns[0].name)}</strong>
-      <small>${turns.map((t) => `${escapeHtml(t.name)} ${t.rounds}`).join(' · ')}</small>`;
-  }
-  $('#cash-coffee-mode').hidden = cashForm.kind !== 'coffee';
-  $('#cash-coffee-off').hidden = !!cashForm.editingId;
   $('#cash-shared').innerHTML = people.map((p) => chip(p, cashForm.shared.has(p.id), 'data-shared')).join('');
 
   // Währung und Aufteilung: Franken braucht einen Kurs, beides die neuen Spalten (gemeinsame Reise)
@@ -1912,7 +1901,7 @@ function renderCashList() {
     const meta = [shortDate(e.date), `bezahlt von ${escapeHtml(personName(e.paidBy))}`, forText].filter(Boolean).join(' · ');
     return `<li class="cash-item${cashForm.editingId === e.id ? ' is-editing' : ''}">
       <div class="cash-item-main">
-        <span class="cash-item-title">${e.kind === 'coffee' ? `${icon('coffee', { size: 14, stroke: 2.2 })} ` : ''}${escapeHtml(e.title || 'Rechnung')}</span>
+        <span class="cash-item-title">${escapeHtml(e.title || 'Rechnung')}</span>
         <span class="cash-item-meta">${meta}</span>
       </div>
       ${amountHtml(e)}
@@ -1943,23 +1932,6 @@ function openCash() {
 }
 
 $('#cash-panel').addEventListener('click', openCash);
-
-// Kaffeerunde: Formular vorbereiten (für alle, „Wofür“ = Kaffeerunde). Wer bezahlt hat, wird wie immer
-// bewusst gewählt – der Hinweis oben sagt, wer dran wäre.
-$('#cash-coffee-btn').addEventListener('click', () => {
-  cashForm.kind = 'coffee';
-  cashForm.shared = new Set(state.participants.map((p) => p.id));
-  const what = $('#cash-what');
-  if (!what.value.trim()) what.value = 'Kaffeerunde';
-  $('#cash-form-fold').open = true;
-  renderCashDialog();
-  $('#cash-amount').focus();
-});
-$('#cash-coffee-off').addEventListener('click', () => {
-  cashForm.kind = null;
-  if ($('#cash-what').value.trim() === 'Kaffeerunde') $('#cash-what').value = '';
-  renderCashDialog();
-});
 
 // Rechnung für einen Ort (aus der Liste oder dem Detailfenster auf der Karte): „Wofür“ ist vorausgefüllt
 function openCashFor(place) {
@@ -2110,7 +2082,6 @@ cashDialog.addEventListener('click', async (e) => {
     if (!exp || isTransfer(exp)) return;
     cashForm.editingId = exp.id;
     cashForm.payer = exp.paidBy;
-    cashForm.kind = exp.kind === 'coffee' ? 'coffee' : null;
     cashForm.shared = new Set(exp.sharedWith);
     cashForm.currency = exp.orig?.currency === 'CHF' ? 'CHF' : 'EUR';
     cashForm.splitMode = exp.split?.mode || 'equal';
@@ -2179,7 +2150,7 @@ $('#cash-form').addEventListener('submit', async (e) => {
     : !cashForm.payer ? PAYER_MISSING
     : !r.ids.length ? 'Bitte bei „Für wen“ mindestens eine Person auswählen.'
     : r.error ? r.error
-    : (r.orig || r.split || cashForm.kind === 'coffee') && extrasBlocked() ? 'Franken und ungleiche Aufteilung gehen erst, wenn die Datenbank erweitert ist (siehe Hinweis oben).'
+    : (r.orig || r.split) && extrasBlocked() ? 'Franken und ungleiche Aufteilung gehen erst, wenn die Datenbank erweitert ist (siehe Hinweis oben).'
     : '';
   if (error.textContent === PAYER_MISSING) {
     // Auswahl rot umranden und ins Bild holen – auf dem Handy liegt sie oft weit über dem Knopf
@@ -2198,7 +2169,6 @@ $('#cash-form').addEventListener('submit', async (e) => {
     date: $('#cash-date').value || '',
   };
   // Erweiterungen: setzen, oder beim Bearbeiten ausdrücklich entfernen (null), sonst gar nicht mitschicken
-  if (cashForm.kind === 'coffee' && !editing) data.kind = 'coffee';
   if (r.orig) data.orig = r.orig; else if (editing?.orig) data.orig = null;
   if (r.split) data.split = r.split; else if (editing?.split) data.split = null;
   if (cashForm.editingId && !editing) {
@@ -2232,9 +2202,7 @@ $('#cash-form').addEventListener('submit', async (e) => {
   render();
   const ok = await persist((b) => b.addExpenses([exp]), 'Rechnung konnte nicht gespeichert werden');
   if (!ok) { state.expenses = state.expenses.filter((x) => x.id !== exp.id); render(); return; }
-  showCashSuccess(exp.kind === 'coffee'
-    ? `✓ Kaffeerunde erfasst: ${enteredMoney(exp)} (bezahlt von ${personName(exp.paidBy)}) – nächste Runde: ${coffeeTurns(state.expenses, state.participants)[0]?.name || '–'}`
-    : `✓ Rechnung erfasst: ${exp.title || 'Rechnung'} · ${enteredMoney(exp)} (bezahlt von ${personName(exp.paidBy)})`);
+  showCashSuccess(`✓ Rechnung erfasst: ${exp.title || 'Rechnung'} · ${enteredMoney(exp)} (bezahlt von ${personName(exp.paidBy)})`);
 });
 
 // --- Liste ---------------------------------------------------------------------------------

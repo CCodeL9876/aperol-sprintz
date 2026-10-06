@@ -5,7 +5,6 @@
 // Rechnung:     { id, title, amountCents, paidBy: id, sharedWith: [id, …], date: 'JJJJ-MM-TT' | '' }
 //   amountCents ist immer der Euro-Betrag – darauf beruhen alle Rechnungen. Optional:
 //   kind:  'transfer'                          Rückzahlung aus dem Ausgleich: paidBy hat sharedWith[0] überwiesen
-//          'coffee'                            Kaffeerunde – rechnet wie eine normale Rechnung
 //   orig:  { currency: 'CHF', cents, rate }    in Franken erfasst; rate = CHF pro € am Erfassungstag (bleibt fest)
 //   split: { mode: 'shares'|'amounts', values: { id: Zahl } }   ungleich aufgeteilt: Anteile (z. B. 2 und 1)
 //          oder Beträge in Cent/Rappen der Eingabewährung; ohne split gleichmässig
@@ -54,20 +53,6 @@ export const toRappen = (cents, rate) => Math.round(cents * rate);
 export const toEuroCents = (rappen, rate) => Math.round(rappen / rate);
 
 export const isTransfer = (e) => e?.kind === 'transfer';
-
-// Wer zahlt die nächste Kaffeerunde? Wer bisher am wenigsten Runden bezahlt hat; bei Gleichstand wer am
-// längsten keine mehr bezahlt hat, dann die Reihenfolge der Teilnehmenden. Rückgabe: [{ id, name, rounds }]
-// sortiert – der Erste ist dran.
-export function coffeeTurns(expenses, participants) {
-  const stats = new Map(participants.map((p, i) => [p.id, { id: p.id, name: p.name, rounds: 0, last: 0, i }]));
-  for (const e of expenses) {
-    const s = e.kind === 'coffee' ? stats.get(e.paidBy) : null;
-    if (!s) continue;
-    s.rounds++;
-    s.last = Math.max(s.last, e.addedAt || 0);
-  }
-  return [...stats.values()].sort((a, b) => a.rounds - b.rounds || a.last - b.last || a.i - b.i);
-}
 // Summe der Ausgaben ohne Rückzahlungen (die verschieben nur Geld zwischen Mitreisenden)
 export const expenseTotal = (expenses) => expenses.reduce((sum, e) => sum + (isTransfer(e) ? 0 : e.amountCents), 0);
 
@@ -197,7 +182,6 @@ export function sanitizeExpense(e) {
     addedAt: Number(e.addedAt) || 0,
   };
   if (e.kind === 'transfer' && out.sharedWith.length === 1) out.kind = 'transfer';
-  if (e.kind === 'coffee') out.kind = 'coffee'; // Kaffeerunde: normale Rechnung, zählt für „Wer ist dran?“
   const o = e.orig;
   if (o?.currency === 'CHF' && Number(o.cents) > 0 && Number(o.rate) > 0) {
     out.orig = { currency: 'CHF', cents: Math.round(Number(o.cents)), rate: Number(o.rate) };

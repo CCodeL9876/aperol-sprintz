@@ -1555,20 +1555,6 @@ button.popup-link { padding: 0; border: 0; background: none; cursor: pointer; fo
 }
 .poi-pin.poi-bike, .poi-pin.poi-repair { background: var(--green); }
 
-/* --- Kaffeerunde in den Ausgaben ---------------------------------------------------------------- */
-.cash-coffee {
-  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px;
-  margin-bottom: 12px; padding: 10px 12px; border-radius: var(--radius);
-  background: #F6EBDF; color: #6B4526; font-size: 14px;
-}
-.cash-coffee-text small { display: block; margin-top: 2px; font-size: 12px; color: #8A5A34; }
-.cash-coffee-mode {
-  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px;
-  margin: 0; padding: 8px 12px; border-radius: var(--radius);
-  background: #F6EBDF; color: #6B4526; font-size: 13px; font-weight: 700;
-}
-.cash-coffee-mode .btn-link { padding: 0; font-size: 12.5px; }
-.cash-item-title .icon { vertical-align: -2px; color: #8A5A34; }
 
 /* Ohne Netz: Kennzeichen in der Kopfzeile */
 .offline-badge { background: var(--ink, #25321F); color: #FFFFFF; }

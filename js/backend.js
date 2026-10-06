@@ -492,12 +492,7 @@ export class SharedBackend {
 
   async addExpenses(expenses) {
     for (let i = 0; i < expenses.length; i += 500) {
-      const res = await this.db.from('expenses').insert(expenses.slice(i, i + 500).map((e) => toExpenseRow(e, this.key)));
-      // Kaffeerunde (kind = 'coffee'), bevor die Datenbank erweitert wurde
-      if (res.error && /kind_check/.test(res.error.message || '')) {
-        throw new Error('Kaffeerunden sind in der Datenbank noch nicht eingerichtet (supabase/schema.sql ausführen)');
-      }
-      check(res);
+      check(await this.db.from('expenses').insert(expenses.slice(i, i + 500).map((e) => toExpenseRow(e, this.key))));
     }
   }
 

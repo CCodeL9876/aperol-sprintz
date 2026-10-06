@@ -51,8 +51,7 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
 - **Öffnungszeiten** von Google Places (Spalte `places.hours`, `js/hours.js`): beim Hinzufügen aus der Google-Karte
   automatisch, für bestehende Orte über Menü `•••` → „Öffnungszeiten laden“. Liste und Karten-Popup zeigen
   „Offen bis …“ bzw. „Geschlossen · öffnet …“.
-- **Ausgaben**: Rechnung direkt bei einem Ort erfassen („Rechnung“ in der Liste bzw. im Karten-Popup);
-  **Kaffeerunden** (`expenses.kind = 'coffee'`) zeigen, wer als Nächstes dran ist.
+- **Ausgaben**: Rechnung direkt bei einem Ort erfassen („Rechnung“ in der Liste bzw. im Karten-Popup).
 - **Ohne Netz**: `sw.js` hält App-Dateien und gesehene OpenStreetMap-Kacheln vor; der zuletzt geladene Stand
   der gemeinsamen Reise liegt im Cache Storage. Ohne Verbindung zeigt die App diesen Stand (nur lesen) und
   verbindet sich neu, sobald Netz da ist.

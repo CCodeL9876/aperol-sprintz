@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-06.5" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-06.5">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-06.6" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-06.6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-06.5">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-06.5">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-06.5">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-06.6">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-06.6">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-06.6">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -355,7 +355,7 @@
           <ul class="intro-list">
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--orange)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Ausgaben teilen</strong><span>Unter <strong>„Ausgaben“</strong> erfassen, wer was für wen bezahlt hat – in € oder CHF, gleich oder nach Anteilen aufgeteilt; bei einem Ort direkt über <strong>„Rechnung“</strong>. <strong>„Kaffeerunde erfassen“</strong> zeigt, wer als Nächstes dran ist. Der Ausgleich zeigt, wer wem wie viel schuldet; nach der Überweisung <strong>„bezahlt“</strong> antippen.</span></span>
+              <span class="intro-text"><strong class="intro-name">Ausgaben teilen</strong><span>Unter <strong>„Ausgaben“</strong> erfassen, wer was für wen bezahlt hat – in € oder CHF, gleich oder nach Anteilen aufgeteilt; bei einem Ort direkt über <strong>„Rechnung“</strong>. Der Ausgleich zeigt, wer wem wie viel schuldet; nach der Überweisung <strong>„bezahlt“</strong> antippen.</span></span>
             </li>
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--pink)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
@@ -437,14 +437,7 @@
         </summary>
         <div class="cash-fold-body">
           <p id="cash-form-hint" class="hint" hidden>Zuerst oben bei „Teilnehmende“ die Namen eintragen.</p>
-          <!-- Kaffeerunden: wer als Nächstes dran ist (wer bisher am wenigsten Runden bezahlt hat) -->
-          <div id="cash-coffee" class="cash-coffee" hidden>
-            <span class="cash-coffee-text" id="cash-coffee-text"></span>
-            <button type="button" class="btn btn-small" id="cash-coffee-btn">Kaffeerunde erfassen</button>
-          </div>
           <form id="cash-form" class="cash-form" autocomplete="off" novalidate>
-            <p id="cash-coffee-mode" class="cash-coffee-mode" hidden><span>☕ Kaffeerunde – zählt für „Wer zahlt die nächste Runde?“</span>
-              <button type="button" class="btn-link" id="cash-coffee-off">normale Rechnung</button></p>
             <div class="cash-row">
               <div class="field">
                 <span class="cash-label-row"><label for="cash-amount">Betrag</label>
@@ -609,27 +602,27 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-06.5"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-06.6"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-06.5",
-      "./js/backend.js": "./js/backend.js?v=2026-10-06.5",
-      "./js/cash.js": "./js/cash.js?v=2026-10-06.5",
-      "./js/categories.js": "./js/categories.js?v=2026-10-06.5",
-      "./js/config.js": "./js/config.js?v=2026-10-06.5",
-      "./js/geo.js": "./js/geo.js?v=2026-10-06.5",
-      "./js/hours.js": "./js/hours.js?v=2026-10-06.5",
-      "./js/icons.js": "./js/icons.js?v=2026-10-06.5",
-      "./js/importers.js": "./js/importers.js?v=2026-10-06.5",
-      "./js/map.js": "./js/map.js?v=2026-10-06.5",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-06.5",
-      "./js/pois.js": "./js/pois.js?v=2026-10-06.5",
-      "./js/store.js": "./js/store.js?v=2026-10-06.5"
+      "./js/app.js": "./js/app.js?v=2026-10-06.6",
+      "./js/backend.js": "./js/backend.js?v=2026-10-06.6",
+      "./js/cash.js": "./js/cash.js?v=2026-10-06.6",
+      "./js/categories.js": "./js/categories.js?v=2026-10-06.6",
+      "./js/config.js": "./js/config.js?v=2026-10-06.6",
+      "./js/geo.js": "./js/geo.js?v=2026-10-06.6",
+      "./js/hours.js": "./js/hours.js?v=2026-10-06.6",
+      "./js/icons.js": "./js/icons.js?v=2026-10-06.6",
+      "./js/importers.js": "./js/importers.js?v=2026-10-06.6",
+      "./js/map.js": "./js/map.js?v=2026-10-06.6",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-06.6",
+      "./js/pois.js": "./js/pois.js?v=2026-10-06.6",
+      "./js/store.js": "./js/store.js?v=2026-10-06.6"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-06.5"></script>
+  <script type="module" src="js/app.js?v=2026-10-06.6"></script>
 </body>
 </html>

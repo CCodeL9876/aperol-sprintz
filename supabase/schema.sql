@@ -105,9 +105,6 @@ create index if not exists expenses_trip_key_idx on public.expenses (trip_key);
 alter table public.expenses add column if not exists kind text check (kind in ('transfer'));
 alter table public.expenses add column if not exists orig jsonb;
 alter table public.expenses add column if not exists split jsonb;
--- Kaffeerunde (kind = 'coffee'): normale Rechnung, die für „Wer zahlt die nächste Runde?“ zählt
-alter table public.expenses drop constraint if exists expenses_kind_check;
-alter table public.expenses add constraint expenses_kind_check check (kind in ('transfer', 'coffee'));
 
 -- Schlüssel aus dem Anfrage-Header lesen (leer → null → kein Zugriff)
 create or replace function public.request_trip_key()
