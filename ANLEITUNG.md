@@ -61,15 +61,15 @@ Die Datei importierst du in Schritt 4 auf der Online-Seite.
 
 ## 2a. Datenbank aktualisieren (nach neuen Funktionen)
 
-Ausgaben, Reservierungen, „besucht“, Favoriten, Öffnungszeiten sowie Trinkwasser/Velo bei den
-Etappen brauchen zusätzliche Spalten
+Ausgaben, Reservierungen, „besucht“, Favoriten, Öffnungszeiten, der Link zum Fotoalbum sowie
+Trinkwasser/Velo bei den Etappen brauchen zusätzliche Spalten
 und die Tabelle `expenses`.
 Dafür im Supabase-Dashboard → **SQL Editor** → **New query** den kompletten Inhalt von `supabase/schema.sql`
 einfügen und auf **Run** klicken. Das Skript ergänzt nur, was fehlt (`if not exists`) – bestehende Orte,
 Routen und Einstellungen bleiben unverändert. Es darf beliebig oft ausgeführt werden.
 
 Solange das nicht passiert ist, läuft die App trotzdem; im Fenster „Ausgaben“ erscheint dann ein Hinweis,
-und „Öffnungszeiten laden“ meldet, dass das SQL noch fehlt.
+„Öffnungszeiten laden“ meldet, dass das SQL noch fehlt, und der Fotoalbum-Link lässt sich nicht speichern.
 
 ## 2b. Google-Maps-Kurzlinks direkt einfügen (einmalig einrichten)
 

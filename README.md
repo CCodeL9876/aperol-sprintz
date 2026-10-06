@@ -52,6 +52,9 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
   automatisch, für bestehende Orte über Menü `•••` → „Öffnungszeiten laden“. Liste und Karten-Popup zeigen
   „Offen bis …“ bzw. „Geschlossen · öffnet …“.
 - **Ausgaben**: Rechnung direkt bei einem Ort erfassen („Rechnung“ in der Liste bzw. im Karten-Popup).
+- **Fotos**: Menü `•••` → „Fotos · Geteiltes Album“ öffnet euer geteiltes Apple-Fotoalbum. Den Link (öffentliche
+  Website des Albums) trägt man einmal ein; er liegt in der gemeinsamen Reise (Spalte `trip_settings.photo_album`),
+  nicht im Quellcode. Ändern über „Fotoalbum-Link ändern“ im selben Menü.
 - **Ohne Netz**: `sw.js` hält App-Dateien und gesehene OpenStreetMap-Kacheln vor; der zuletzt geladene Stand
   der gemeinsamen Reise liegt im Cache Storage. Ohne Verbindung zeigt die App diesen Stand (nur lesen) und
   verbindet sich neu, sobald Netz da ist.

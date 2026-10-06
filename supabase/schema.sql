@@ -86,6 +86,9 @@ alter table public.trip_settings add column if not exists flights jsonb not null
 -- Reisekasse: Teilnehmende (Namen) pro Reise und erfasste Rechnungen
 alter table public.trip_settings add column if not exists participants jsonb not null default '[]'::jsonb;
 
+-- Link zum geteilten Apple-Fotoalbum (Menü „Fotos“) – nur der Link, die Fotos bleiben bei Apple
+alter table public.trip_settings add column if not exists photo_album text check (char_length(photo_album) <= 500);
+
 create table if not exists public.expenses (
   id            uuid primary key default gen_random_uuid(),
   trip_key      text not null check (char_length(trip_key) between 32 and 128),

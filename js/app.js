@@ -30,6 +30,7 @@ const state = {
   // Reisekasse: [{ id, name }] und Rechnungen (siehe js/cash.js)
   participants: [],
   expenses: [],
+  photoAlbum: '', // Link zum geteilten Fotoalbum (Menü „Fotos“)
   cashMissing: false, // gemeinsame Reise, aber Tabelle/Spalte in Supabase fehlt noch
   cashExtrasMissing: false, // gemeinsame Reise, aber Spalten für Franken/Aufteilung/Ausgleich fehlen noch
   ui: loadUi(),
@@ -99,6 +100,7 @@ function applyData(data) {
   state.customCategories = (data.customCategories || []).map(sanitizeCategory);
   state.participants = sanitizeParticipants(data.participants);
   state.expenses = (data.expenses || []).map(sanitizeExpense).filter(Boolean);
+  state.photoAlbum = safeHttpUrl(data.photoAlbum);
   state.cashMissing = Boolean(data.cashMissing);
   state.cashExtrasMissing = Boolean(data.cashExtrasMissing);
   state.hoursMissing = Boolean(data.hoursMissing);
@@ -587,6 +589,7 @@ let lastVisible = [];
 let listItems = new Map(); // Ortsliste: id → { html, el } (siehe patchList)
 
 function render({ fit = false } = {}) {
+  renderPhotoMenu();
   const all = placesWithDistance();
   const base = filterBase(all);
   const selected = new Set(state.ui.categories);
@@ -2757,6 +2760,8 @@ function renderShareState() {
 
 function renderShareDialog() {
   const body = $('#share-body');
+  // In der Demo wird nichts gespeichert – das Namensfeld wäre dort sinnlos
+  $('#member-name').closest('.field').hidden = backend.kind === 'demo';
   if (backend.kind === 'shared') {
     const time = lastSync ? lastSync.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '–';
     body.innerHTML = `
@@ -3122,10 +3127,64 @@ $('#category-form').addEventListener('submit', (e) => {
 const isAppleMobile = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 $('#menu-wallet').hidden = !isAppleMobile;
 
+// Geteiltes Fotoalbum: mit Link öffnet der Menüpunkt das Album, ohne Link das Fenster zum Eintragen
+function renderPhotoMenu() {
+  const link = $('#menu-photos');
+  link.href = state.photoAlbum || '#';
+  $('#menu-photos-edit').hidden = !state.photoAlbum;
+}
+
+const photoDialog = $('#photo-dialog');
+
+function openPhotoDialog() {
+  $('#photo-input').value = state.photoAlbum;
+  $('#photo-error').textContent = '';
+  $('#photo-remove').hidden = !state.photoAlbum;
+  photoDialog.showModal();
+}
+
+async function savePhotoAlbum(url) {
+  const prev = state.photoAlbum;
+  state.photoAlbum = url;
+  renderPhotoMenu();
+  if (!await persist((b) => b.savePhotoAlbum(url), 'Fotoalbum-Link konnte nicht gespeichert werden')) {
+    state.photoAlbum = prev;
+    renderPhotoMenu();
+    return false;
+  }
+  return true;
+}
+
+$('#photo-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const url = normalizeLink($('#photo-input').value);
+  if (!url) {
+    $('#photo-error').textContent = url === null ? 'Das sieht nicht nach einem Link aus – bitte den kopierten Link einfügen.' : 'Bitte zuerst den Link einfügen.';
+    return;
+  }
+  if (url.length > 500) {
+    $('#photo-error').textContent = 'Der Link ist zu lang.';
+    return;
+  }
+  photoDialog.close();
+  if (await savePhotoAlbum(url)) toast('Fotoalbum verknüpft – „Fotos“ im Menü öffnet es jetzt für alle.');
+});
+
+$('#photo-remove').addEventListener('click', async () => {
+  if (!confirm('Link zum Fotoalbum entfernen? Das Album selbst bleibt bei Apple unverändert.')) return;
+  photoDialog.close();
+  if (await savePhotoAlbum('')) toast('Link zum Fotoalbum entfernt');
+});
+
 $('.menu-panel').addEventListener('click', async (e) => {
   const what = e.target.closest('[data-menu]')?.dataset.menu;
   if (!what) return;
   $('.menu').open = false;
+  if (what === 'photos' && !state.photoAlbum) {
+    e.preventDefault();
+    openPhotoDialog();
+  }
+  if (what === 'photos-link') openPhotoDialog();
   if (what === 'intro') openIntro();
   if (what === 'categories') {
     renderCategoryManager();
