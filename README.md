@@ -43,6 +43,9 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
   eingeblendete Etappe –, BRouter verbindet sie fürs Rennrad. Start ist das Airbnb; Kilometer, Höhenmeter und
   Fahrzeit laufend, „Rückgängig“, „Zurück zum Airbnb“. Gespeichert wird wie eine importierte GPX-Etappe
   (Kaffee-Stopps, Trinkwasser, GPX-Download).
+  **Höhenprofil** (`js/profile.js`) beim Planen (abschaltbar über den Kurven-Knopf) und in den aufgeklappten
+  Etappen-Details – aus den Höhen der gespeicherten GPX-Datei; Fadenkreuz mit Kilometer und Höhe, die Stelle
+  erscheint als Punkt auf der Karte. Ältere Etappen ohne Höhen in der Datei zeigen einen Hinweis.
   Pro Route lässt sich zudem ein **Link** (Strava, Komoot …) hinterlegen – erscheint unter der Route und im Karten-Popup.
   **Kaffee-Stopps** (eigene Kaffees und Rennrad-Hotspots bis 500 m neben der Strecke) mit Kilometer, geschätzter
   Ankunftszeit ab der gewählten Startzeit und ob der Ort dann geöffnet ist; der Stopp um die Streckenmitte ist als

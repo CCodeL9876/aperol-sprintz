@@ -1,6 +1,7 @@
 import { DEFAULT_CATEGORIES, FALLBACK_CATEGORY, ROUTE_CATEGORY, routeColor } from './categories.js';
 import { haversineKm, hasCoords, parseCoords, formatKm, geocode, formatReservation, routeUrl, homeRouteUrl } from './geo.js';
-import { parseFile, parseGeoJSON, parseLinks, assignCategory, buildGpx, summarizeTrack } from './importers.js';
+import { parseFile, parseGeoJSON, parseLinks, assignCategory, buildGpx, summarizeTrack, parseGpx } from './importers.js';
+import { elevationProfile, profileHtml, bindProfile } from './profile.js';
 import { loadUi, saveUi, readPref, writePref, downloadBackup, newId, newTripKey, loadLocalBackup, clearLocalBackup } from './store.js';
 import { expandMapsLinks, hasShortMapsLinks,
   DemoBackend, SharedBackend, OfflineBackend, sharingConfigured, tripKeyFromUrl,
@@ -216,7 +217,7 @@ const mapView = mapVariant === 'google' ? createGoogleMapView($('#map')) : creat
 function createGoogleMapView(el) {
   let impl = null;
   const view = { map: { getZoom: () => impl?.map.getZoom() ?? 9 } };
-  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'setPois', 'setDraft', 'searchPlaces', 'openSearchResult', 'clearSearchMarker', 'locate', 'invalidate']) {
+  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'setPois', 'setDraft', 'setCursor', 'searchPlaces', 'openSearchResult', 'clearSearchMarker', 'locate', 'invalidate']) {
     view[k] = (...args) => impl?.[k](...args);
   }
   const ready = (m, shown) => {
@@ -1028,6 +1029,36 @@ document.addEventListener('click', (e) => {
 // Ein- und ausblenden auf der Karte macht der Schalter rechts (state.ui.visibleRoutes, standardmäßig leer).
 let expandedRouteId = null;
 
+// Höhenprofil gespeicherter Etappen: aus der GPX-Datei in voller Auflösung (beim Import bzw. Planen gespeichert,
+// siehe downloadRouteGpx) – erst beim Aufklappen geladen. Wert je Etappe: Profil, 'loading' oder 'none'.
+const routeProfiles = new Map();
+async function loadRouteProfile(r) {
+  routeProfiles.set(r.id, 'loading');
+  // Erst nach dem laufenden Zeichnen der Liste weitermachen – liegt die Datei schon im Speicher, würde das
+  // Ergebnis sonst sofort gezeichnet und gleich wieder von „wird geladen …“ überschrieben
+  await Promise.resolve();
+  let profile = null;
+  try {
+    let gpx = gpxCache.get(r.id);
+    if (!gpx && backend.routeGpx) gpx = await backend.routeGpx(r.id);
+    if (gpx) {
+      gpxCache.set(r.id, gpx);
+      profile = elevationProfile(parseGpx(gpx).track);
+    }
+  } catch (err) {
+    console.warn('Höhenprofil nicht ladbar:', err.message);
+  }
+  routeProfiles.set(r.id, profile || 'none');
+  renderRoutes();
+}
+function routeProfileHtml(r) {
+  const p = routeProfiles.get(r.id);
+  if (p === undefined) loadRouteProfile(r);
+  if (p === undefined || p === 'loading') return '<span class="muted">wird geladen …</span>';
+  if (p === 'none') return '<span class="muted">nicht verfügbar – die GPX-Datei dieser Etappe hat keine Höhenangaben</span>';
+  return profileHtml(p, { height: 90, key: r.id });
+}
+
 function renderRoutes() {
   const list = $('#route-list');
   if (!list) return; // Null-sicher: altes index.html im Cache
@@ -1099,6 +1130,7 @@ function renderRoutes() {
                 <span class="route-stop-meta">${stopMeta(st)}</span></button>`).join('')
               + `<span class="route-stop-note muted">Ankunft bei Start um ${rideStart()} (${escapeHtml(weatherDay().label.toLowerCase())}), ohne Pausen</span>`
             : '<span class="muted">keine Kaffees oder Hotspots in der Nähe</span>'}</span></div>
+        <div class="route-detail route-detail-elev"><span class="route-detail-label">Höhenprofil</span>${routeProfileHtml(r)}</div>
         <div class="route-detail"><span class="route-detail-label">Wasser & Velo</span>
           <span class="route-stop-list">${poiDetailHtml(r)}</span></div>
         <div class="route-detail"><span class="route-detail-label">Links</span>
@@ -1125,6 +1157,12 @@ function renderRoutes() {
       ${details}
     </li>`;
   }).join('');
+  // Höhenprofile der aufgeklappten Etappe: Fadenkreuz mit Punkt auf der Karte
+  mapView.setCursor(null);
+  list.querySelectorAll('.elev[data-key]').forEach((el) => {
+    const p = routeProfiles.get(el.dataset.key);
+    if (p && typeof p === 'object') bindProfile(el, p, profileHover);
+  });
   const input = $('.route-link-form input', list);
   if (input && draft) {
     input.value = draft.value;
@@ -3155,6 +3193,7 @@ function endPlan() {
   plan.waypoints = [];
   plan.segments = [];
   $('#plan-panel').hidden = true;
+  renderPlanProfile(null);
   $('#map').classList.remove('is-picking');
   document.body.classList.remove('is-planning');
   requestAnimationFrame(() => mapView.invalidate());
@@ -3220,6 +3259,7 @@ function renderPlan() {
     const sum = summarizeTrack('', track);
     const hours = rideHours(sum);
     text = [formatKm(sum.distanceKm), formatHm(sum.elevationGainM), hours ? formatDuration(hours) : ''].filter(Boolean).join(' · ');
+    renderPlanProfile(elevationProfile(track));
   } else if (plan.segments.length) {
     text = failed ? 'Abschnitt fehlt – Rückgängig' : 'Berechne …';
   }
@@ -3234,7 +3274,24 @@ function renderPlan() {
   loop.disabled = plan.waypoints.length < 2 || samePoint(plan.waypoints.at(-1), plan.waypoints[0]);
   $('#plan-save-row').hidden = !plan.segments.length;
   $('#plan-save').disabled = !track || pending || failed;
+  // Während ein Abschnitt berechnet wird, bleibt das bisherige Profil stehen; ohne Strecke weg
+  if (!plan.segments.length) renderPlanProfile(null);
 }
+
+// Höhenprofil im Planer (Knopf mit Kurve schaltet es ab – jedes Gerät merkt sich das)
+const showPlanProfile = () => readPref('planProfile') !== false;
+let planProfile = null;
+function renderPlanProfile(profile) {
+  planProfile = profile;
+  const box = $('#plan-profile');
+  $('#plan-elev').setAttribute('aria-pressed', String(showPlanProfile()));
+  box.hidden = !profile || !showPlanProfile();
+  mapView.setCursor(null);
+  if (box.hidden) { box.innerHTML = ''; return; }
+  box.innerHTML = profileHtml(profile, { height: 56 });
+  bindProfile(box.firstElementChild, profile, profileHover);
+}
+const profileHover = (p) => mapView.setCursor(p ? [p.lat, p.lng] : null);
 
 async function savePlan() {
   const track = planTrack();
@@ -3255,6 +3312,11 @@ async function savePlan() {
   toast(`Etappe „${route.name}“ gespeichert (${formatKm(route.distanceKm)}) – sie steht unter „Espresso-Etappen“.`);
 }
 
+$('#plan-elev').innerHTML = icon('trending-up', { size: 18, stroke: 2 });
+$('#plan-elev').addEventListener('click', () => {
+  writePref('planProfile', !showPlanProfile());
+  renderPlanProfile(planProfile);
+});
 $('#plan-undo').innerHTML = icon('undo', { size: 18, stroke: 2 });
 $('#plan-loop').innerHTML = icon('home', { size: 18, stroke: 2 });
 $('#plan-cancel').innerHTML = icon('close', { size: 18, stroke: 2.2 });

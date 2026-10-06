@@ -992,6 +992,43 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .routes-head-right { display: inline-flex; align-items: center; gap: 10px; }
 .routes-head-right .btn { min-height: 34px; padding: 0 12px; }
 
+/* Höhenprofil (profile.js): grüne Linie 2px mit zarter Fläche, Hilfslinien als Haarlinien, Beschriftung in
+   Textfarben; Fadenkreuz mit Wert beim Darüberfahren/Wischen. Beim Planen und in den Etappen-Details. */
+.elev { min-width: 0; }
+.elev-plot { position: relative; height: var(--elev-h); margin-top: 14px; touch-action: pan-y; cursor: crosshair; }
+.elev-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.elev-line { fill: none; stroke: var(--green); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.elev-area { fill: var(--green); fill-opacity: 0.12; stroke: none; }
+.elev-grid, .elev-base { fill: none; stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.elev-y {
+  position: absolute; left: 0; transform: translateY(-100%);
+  padding: 0 3px 1px 0; font-size: 10.5px; line-height: 1; color: var(--muted); font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.elev-xaxis { position: relative; height: 15px; }
+.elev-x {
+  position: absolute; top: 3px; transform: translateX(-50%);
+  font-size: 10.5px; line-height: 1; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.elev-x.is-end { transform: translateX(-100%); font-weight: 700; color: var(--text-soft); }
+.elev-cross { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--text-soft); pointer-events: none; }
+.elev-dot {
+  position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 999px;
+  background: var(--green); box-shadow: 0 0 0 2px #FFFFFF; pointer-events: none;
+}
+.elev-tip {
+  position: absolute; top: -12px; padding: 3px 7px; border-radius: 6px;
+  background: var(--text); color: #FFFFFF; font-size: 11.5px; font-weight: 700; white-space: nowrap;
+  font-variant-numeric: tabular-nums; pointer-events: none;
+}
+.elev-cross[hidden], .elev-dot[hidden], .elev-tip[hidden] { display: none; }
+/* Punkt auf der Google-Karte zum Fadenkreuz (Leaflet zeichnet einen Kreis, siehe map.js) */
+.elev-map-dot { width: 14px; height: 14px; border-radius: 999px; background: var(--orange); border: 2px solid #FFFFFF; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); }
+.plan-profile { margin: -4px 4px 0 0; }
+.plan-profile[hidden] { display: none; }
+.plan-tool[aria-pressed="true"] { background: var(--green); color: #FFFFFF; }
+.route-detail.route-detail-elev { grid-template-columns: 1fr; gap: 0; }
+
 /* --- Dialoge --------------------------------------------------------------------- */
 
 .dialog {

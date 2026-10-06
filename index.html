@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-06.22" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-06.22">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-06.23" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-06.23">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-06.22">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-06.22">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-06.22">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-06.23">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-06.23">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-06.23">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -237,11 +237,13 @@
           <span id="plan-stats" class="plan-stats" aria-live="polite"></span>
           <!-- Symbole setzt app.js (icons.js) -->
           <span class="plan-tools">
+            <button id="plan-elev" class="plan-tool" type="button" aria-label="Höhenprofil" title="Höhenprofil" aria-pressed="true"></button>
             <button id="plan-undo" class="plan-tool" type="button" aria-label="Letzten Punkt entfernen" title="Rückgängig"></button>
             <button id="plan-loop" class="plan-tool" type="button" aria-label="Zurück zum Airbnb" title="Zurück zum Airbnb"></button>
             <button id="plan-cancel" class="plan-tool" type="button" aria-label="Planung abbrechen" title="Abbrechen"></button>
           </span>
         </div>
+        <div id="plan-profile" class="plan-profile" hidden></div>
         <!-- Name und Speichern erst, sobald es eine Strecke gibt -->
         <div class="plan-save" id="plan-save-row" hidden>
           <input id="plan-name" type="text" maxlength="120" placeholder="Name, z. B. Sa Calobra" aria-label="Name der Etappe">
@@ -627,28 +629,29 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-06.22"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-06.23"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-06.22",
-      "./js/backend.js": "./js/backend.js?v=2026-10-06.22",
-      "./js/cash.js": "./js/cash.js?v=2026-10-06.22",
-      "./js/categories.js": "./js/categories.js?v=2026-10-06.22",
-      "./js/config.js": "./js/config.js?v=2026-10-06.22",
-      "./js/geo.js": "./js/geo.js?v=2026-10-06.22",
-      "./js/hours.js": "./js/hours.js?v=2026-10-06.22",
-      "./js/icons.js": "./js/icons.js?v=2026-10-06.22",
-      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-06.22",
-      "./js/importers.js": "./js/importers.js?v=2026-10-06.22",
-      "./js/map.js": "./js/map.js?v=2026-10-06.22",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-06.22",
-      "./js/pois.js": "./js/pois.js?v=2026-10-06.22",
-      "./js/store.js": "./js/store.js?v=2026-10-06.22"
+      "./js/app.js": "./js/app.js?v=2026-10-06.23",
+      "./js/backend.js": "./js/backend.js?v=2026-10-06.23",
+      "./js/cash.js": "./js/cash.js?v=2026-10-06.23",
+      "./js/categories.js": "./js/categories.js?v=2026-10-06.23",
+      "./js/config.js": "./js/config.js?v=2026-10-06.23",
+      "./js/geo.js": "./js/geo.js?v=2026-10-06.23",
+      "./js/hours.js": "./js/hours.js?v=2026-10-06.23",
+      "./js/icons.js": "./js/icons.js?v=2026-10-06.23",
+      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-06.23",
+      "./js/importers.js": "./js/importers.js?v=2026-10-06.23",
+      "./js/map.js": "./js/map.js?v=2026-10-06.23",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-06.23",
+      "./js/profile.js": "./js/profile.js?v=2026-10-06.23",
+      "./js/pois.js": "./js/pois.js?v=2026-10-06.23",
+      "./js/store.js": "./js/store.js?v=2026-10-06.23"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-06.22"></script>
+  <script type="module" src="js/app.js?v=2026-10-06.23"></script>
 </body>
 </html>

@@ -96,7 +96,7 @@ function createFallbackMap(el) {
   el.innerHTML = '<div class="map-error"><strong>Karte nicht verfügbar</strong><span>Die Kartenbibliothek konnte nicht geladen werden. Liste und Filter funktionieren trotzdem – Seite neu laden versuchen.</span></div>';
   const noop = () => {};
   const fakeMap = { flyTo: noop, getZoom: () => 9, setView: noop, fitBounds: noop };
-  return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, centerOn: noop, setPois: noop, setDraft: noop, invalidate: noop };
+  return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, centerOn: noop, setPois: noop, setDraft: noop, setCursor: noop, invalidate: noop };
 }
 
 export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMessage, routePopup }) {
@@ -553,6 +553,18 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     });
   }
 
+  // Punkt zum Fadenkreuz im Höhenprofil (profile.js): [lat, lng] oder null
+  let cursor = null;
+  function setCursor(p) {
+    if (!p) {
+      cursor?.remove();
+      cursor = null;
+      return;
+    }
+    if (!cursor) cursor = L.circleMarker(p, { radius: 6, weight: 2, color: '#FFFFFF', fillColor: PLAN_COLOR, fillOpacity: 1, interactive: false }).addTo(map);
+    else cursor.setLatLng(p);
+  }
+
   // Trinkbrunnen und Velo-Werkstätten entlang der eingeblendeten Etappen: [{ id, type, name, lat, lng, km, routeName }]
   let poiKey = '';
   function setPois(pois) {
@@ -570,5 +582,5 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     }
   }
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => map.invalidateSize() };
+  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => map.invalidateSize() };
 }

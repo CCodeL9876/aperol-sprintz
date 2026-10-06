@@ -700,6 +700,24 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     });
   }
 
+  // Punkt zum Fadenkreuz im Höhenprofil (profile.js): [lat, lng] oder null
+  let cursor = null;
+  function setCursor(p) {
+    if (!p) {
+      if (cursor) cursor.map = null;
+      cursor = null;
+      return;
+    }
+    if (!cursor) {
+      const content = document.createElement('div');
+      content.className = 'elev-map-dot';
+      content.style.transform = 'translateY(50%)'; // mittig auf den Punkt
+      cursor = new AdvancedMarkerElement({ map, position: toLatLng(p), content, zIndex: 3000 });
+    } else {
+      cursor.position = toLatLng(p);
+    }
+  }
+
   // Trinkbrunnen und Velo-Werkstätten entlang der eingeblendeten Etappen: [{ id, type, name, lat, lng, km, routeName }]
   let poiMarkers = [];
   let poiKey = '';
@@ -721,5 +739,5 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     });
   }
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, searchPlaces, openSearchResult, clearSearchMarker, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
+  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, searchPlaces, openSearchResult, clearSearchMarker, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
 }
