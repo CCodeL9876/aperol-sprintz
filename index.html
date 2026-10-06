@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-06.14" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-06.14">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-06.15" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-06.15">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-06.14">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-06.14">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-06.14">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-06.15">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-06.15">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-06.15">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -69,13 +69,9 @@
                dokumentiert). Einen Link direkt in ein Album gibt es nicht – dort „Geteilte Alben“ wählen. Apple zeigt
                nur Alben, zu denen man eingeladen ist. Nur auf iPhone/iPad sichtbar (siehe app.js). -->
           <a class="menu-link" id="menu-photos" data-menu="photos" href="photos-redirect://" hidden><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>Fotos · Geteiltes Album</a>
-          <!-- Geteiltes Apple-Fotoalbum: öffnet den gespeicherten Link (öffentliche Website des Albums); ohne Link
-               öffnet sich das Fenster zum Eintragen (siehe app.js) -->
-          <a class="menu-link" id="menu-photos" data-menu="photos" href="#" target="_blank" rel="noopener"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>Fotos · Geteiltes Album</a>
           <hr>
           <button type="button" data-menu="intro">So funktioniert's</button>
           <button type="button" data-menu="categories">Kategorien verwalten</button>
-          <button type="button" data-menu="photos-link" id="menu-photos-edit" hidden>Fotoalbum-Link ändern</button>
           <button type="button" data-menu="backup">Backup herunterladen</button>
           <button type="button" data-menu="fit">Alle Orte zeigen</button>
           <button type="button" data-menu="hours">Öffnungszeiten laden</button>
@@ -608,53 +604,29 @@
     </form>
   </dialog>
 
-  <!-- Link zum geteilten Apple-Fotoalbum eintragen, ändern oder entfernen (Menü „Fotos“) -->
-  <dialog id="photo-dialog" class="dialog" aria-labelledby="photo-title">
-    <form id="photo-form" class="dialog-inner" autocomplete="off" novalidate>
-      <header class="dialog-head">
-        <div>
-          <span class="eyebrow">Gemeinsame Reise</span>
-          <h2 id="photo-title">Geteiltes Fotoalbum</h2>
-        </div>
-        <button class="icon-btn" type="button" data-close aria-label="Schließen"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
-      </header>
-      <p class="code-lead">Hinterlege den Link zu eurem geteilten Album – dann öffnet „Fotos“ im Menü es für alle direkt.</p>
-      <p class="code-lead">So bekommst du ihn: In der Fotos-App das geteilte Album öffnen → oben das Personen-Symbol → „Öffentliche Website“ einschalten (kann nur, wer das Album erstellt hat) → „Link teilen“ → „Kopieren“. Wer den Link hat, sieht die Fotos – auch ohne Apple-Konto.</p>
-      <label class="field">
-        <span>Link zum Album</span>
-        <input id="photo-input" type="url" inputmode="url" placeholder="https://www.icloud.com/sharedalbum/#…" autocapitalize="off" spellcheck="false" maxlength="500">
-      </label>
-      <p id="photo-error" class="code-error" role="alert"></p>
-      <footer class="dialog-foot code-manage-foot">
-        <button class="btn-link muted" type="button" id="photo-remove" hidden>Link entfernen</button>
-        <button class="btn btn-primary" type="submit" id="photo-save">Speichern</button>
-      </footer>
-    </form>
-  </dialog>
-
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-06.14"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-06.15"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-06.14",
-      "./js/backend.js": "./js/backend.js?v=2026-10-06.14",
-      "./js/cash.js": "./js/cash.js?v=2026-10-06.14",
-      "./js/categories.js": "./js/categories.js?v=2026-10-06.14",
-      "./js/config.js": "./js/config.js?v=2026-10-06.14",
-      "./js/geo.js": "./js/geo.js?v=2026-10-06.14",
-      "./js/hours.js": "./js/hours.js?v=2026-10-06.14",
-      "./js/icons.js": "./js/icons.js?v=2026-10-06.14",
-      "./js/importers.js": "./js/importers.js?v=2026-10-06.14",
-      "./js/map.js": "./js/map.js?v=2026-10-06.14",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-06.14",
-      "./js/pois.js": "./js/pois.js?v=2026-10-06.14",
-      "./js/store.js": "./js/store.js?v=2026-10-06.14"
+      "./js/app.js": "./js/app.js?v=2026-10-06.15",
+      "./js/backend.js": "./js/backend.js?v=2026-10-06.15",
+      "./js/cash.js": "./js/cash.js?v=2026-10-06.15",
+      "./js/categories.js": "./js/categories.js?v=2026-10-06.15",
+      "./js/config.js": "./js/config.js?v=2026-10-06.15",
+      "./js/geo.js": "./js/geo.js?v=2026-10-06.15",
+      "./js/hours.js": "./js/hours.js?v=2026-10-06.15",
+      "./js/icons.js": "./js/icons.js?v=2026-10-06.15",
+      "./js/importers.js": "./js/importers.js?v=2026-10-06.15",
+      "./js/map.js": "./js/map.js?v=2026-10-06.15",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-06.15",
+      "./js/pois.js": "./js/pois.js?v=2026-10-06.15",
+      "./js/store.js": "./js/store.js?v=2026-10-06.15"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-06.14"></script>
+  <script type="module" src="js/app.js?v=2026-10-06.15"></script>
 </body>
 </html>

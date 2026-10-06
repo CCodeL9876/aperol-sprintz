@@ -1,5 +1,5 @@
 // Speicher im Browser (localStorage):
-//  - lokale Orte, Airbnb, eigene Kategorien und der Link zum Fotoalbum (wenn keine gemeinsame Reise aktiv ist)
+//  - lokale Orte, Airbnb und eigene Kategorien (wenn keine gemeinsame Reise aktiv ist)
 //  - Anzeige-Einstellungen (Filter, Sortierung) – immer pro Gerät
 //  - kleine Vorlieben wie der eigene Name oder der zuletzt geöffnete Reise-Schlüssel
 
@@ -37,16 +37,15 @@ export function loadLocalData() {
     customCategories: Array.isArray(saved.customCategories) ? saved.customCategories : [],
     participants: Array.isArray(saved.participants) ? saved.participants : [],
     expenses: Array.isArray(saved.expenses) ? saved.expenses : [],
-    photoAlbum: typeof saved.photoAlbum === 'string' ? saved.photoAlbum : '',
   };
 }
 
 // Schrumpft die Liste, wird der bisherige Stand vorher als Sicherung abgelegt (siehe loadLocalBackup).
-export function saveLocalData({ places, routes, airbnb, customCategories, participants, expenses, photoAlbum }) {
+export function saveLocalData({ places, routes, airbnb, customCategories, participants, expenses }) {
   const previous = read(DATA_KEY);
   const prevCount = Array.isArray(previous?.places) ? previous.places.length : 0;
   if (prevCount > places.length) write(BACKUP_KEY, { ...previous, savedAt: new Date().toISOString() });
-  return write(DATA_KEY, { places, routes, airbnb, customCategories, participants, expenses, photoAlbum });
+  return write(DATA_KEY, { places, routes, airbnb, customCategories, participants, expenses });
 }
 
 export function loadLocalBackup() {

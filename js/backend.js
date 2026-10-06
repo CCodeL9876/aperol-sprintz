@@ -125,10 +125,10 @@ export class DemoBackend {
   async load() {
     if (!this.started) {
       this.started = true;
-      return { places: [], routes: [], airbnb: null, customCategories: [], participants: [], expenses: [], photoAlbum: '' };
+      return { places: [], routes: [], airbnb: null, customCategories: [], participants: [], expenses: [] };
     }
     const st = this.getState();
-    return { places: st.places, routes: st.routes, airbnb: st.airbnb, customCategories: st.customCategories, participants: st.participants, expenses: st.expenses, photoAlbum: st.photoAlbum };
+    return { places: st.places, routes: st.routes, airbnb: st.airbnb, customCategories: st.customCategories, participants: st.participants, expenses: st.expenses };
   }
 
   async addPlaces() {}
@@ -140,7 +140,6 @@ export class DemoBackend {
   async deleteRoute() {}
   async deleteAllRoutes() {}
   async saveSettings() {}
-  async savePhotoAlbum() {}
   async saveParticipants() {}
   async changeParticipants() { return null; }
   async addExpenses() {}
@@ -172,7 +171,6 @@ export class LocalBackend {
   async deleteRoute() { this.#save(); }
   async deleteAllRoutes() { this.#save(); }
   async saveSettings() { this.#save(); }
-  async savePhotoAlbum() { this.#save(); }
   async saveParticipants() { this.#save(); }
   async changeParticipants() { this.#save(); return null; }
   async addExpenses() { this.#save(); }
@@ -373,7 +371,6 @@ export class SharedBackend {
       airbnb: settings.data?.airbnb ?? null,
       customCategories: settings.data?.custom_categories ?? [],
       participants: settings.data?.participants ?? [],
-      photoAlbum: settings.data?.photo_album || '',
       expenses: expenses.error ? [] : expenses.data.map(fromExpenseRow),
       cashMissing: Boolean(expenses.error) || !(settings.data == null || 'participants' in settings.data),
       cashExtrasMissing: Boolean(this.cashExtrasMissing),
@@ -493,17 +490,6 @@ export class SharedBackend {
     ));
   }
 
-  // Link zum geteilten Fotoalbum – eigene Abfrage wie bei den Teilnehmenden: fehlt die Spalte noch,
-  // scheitert nur dieses Speichern, nicht das der Unterkunft und Kategorien
-  async savePhotoAlbum(url) {
-    const { error } = await this.db.from('trip_settings').upsert(
-      { trip_key: this.key, photo_album: url || null, updated_at: new Date().toISOString() },
-      { onConflict: 'trip_key' },
-    );
-    if (error && /photo_album/.test(error.message)) throw new Error('Spalte „photo_album“ fehlt (supabase/schema.sql ausführen)');
-    check({ error });
-  }
-
   async addExpenses(expenses) {
     for (let i = 0; i < expenses.length; i += 500) {
       check(await this.db.from('expenses').insert(expenses.slice(i, i + 500).map((e) => toExpenseRow(e, this.key))));
@@ -564,7 +550,6 @@ export class OfflineBackend {
   async deleteRoute() { this.#offline(); }
   async deleteAllRoutes() { this.#offline(); }
   async saveSettings() { this.#offline(); }
-  async savePhotoAlbum() { this.#offline(); }
   async saveParticipants() { this.#offline(); }
   async changeParticipants() { this.#offline(); }
   async addExpenses() { this.#offline(); }
