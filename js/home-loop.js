@@ -17,11 +17,12 @@ const TIMEOUT_MS = 20000;
 
 const dist = (a, b) => haversineKm(a[0], a[1], b[0], b[1]);
 
-// Rennrad-Route zwischen zwei Punkten [lat, lon] → Punkte [lat, lon, ele|null]
-async function bikeRoute(from, to) {
+// Rennrad-Route zwischen zwei Punkten [lat, lon] → Punkte [lat, lon, ele|null] (auch für „Etappe planen“ in app.js)
+export async function bikeRoute(from, to) {
   const url = `${BROUTER}?lonlats=${from[1]},${from[0]}|${to[1]},${to[0]}&profile=${PROFILE}&alternativeidx=0&format=geojson`;
   const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
-  if (!res.ok) throw new Error(`Routenplaner antwortet nicht (${res.status})`);
+  // 400: kein Weg (z. B. Punkt weitab jeder Straße); sonst Server-Problem
+  if (!res.ok) throw new Error(res.status === 400 ? 'kein befahrbarer Weg dorthin' : `Routenplaner antwortet nicht (${res.status})`);
   const coords = (await res.json())?.features?.[0]?.geometry?.coordinates;
   if (!Array.isArray(coords) || coords.length < 2) throw new Error('keine Route gefunden');
   return coords.map(([lon, lat, ele]) => [round6(lat), round6(lon), Number.isFinite(ele) ? Math.round(ele * 10) / 10 : null]);

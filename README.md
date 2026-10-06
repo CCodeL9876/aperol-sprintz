@@ -37,6 +37,10 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
   1 km am Airbnb vorbeiführen, beginnen dort; sonst werden Anfahrt und Rückfahrt mit dem Rennrad-Routenplaner
   [BRouter](https://brouter.de) (Profil `fastbike`, ohne Schlüssel) ergänzt – Länge, Höhenmeter und GPX-Datei gelten
   dann für die ganze Runde. Ist BRouter nicht erreichbar, wird die Etappe unverändert übernommen.
+  **Etappe planen** (Knopf bei den Espresso-Etappen): Wegpunkte auf der Karte antippen – auch eigene Orte oder eine
+  eingeblendete Etappe –, BRouter verbindet sie fürs Rennrad. Start ist das Airbnb; Kilometer, Höhenmeter und
+  Fahrzeit laufend, „Rückgängig“, „Zurück zum Airbnb“. Gespeichert wird wie eine importierte GPX-Etappe
+  (Kaffee-Stopps, Trinkwasser, GPX-Download). Läuft auf der Google- und der OSM-Karte.
   Pro Route lässt sich zudem ein **Link** (Strava, Komoot …) hinterlegen – erscheint unter der Route und im Karten-Popup.
   **Kaffee-Stopps** (eigene Kaffees und Rennrad-Hotspots bis 500 m neben der Strecke) mit Kilometer, geschätzter
   Ankunftszeit ab der gewählten Startzeit und ob der Ort dann geöffnet ist; der Stopp um die Streckenmitte ist als

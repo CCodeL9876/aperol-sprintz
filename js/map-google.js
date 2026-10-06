@@ -7,7 +7,7 @@
 import { hasCoords, haversineKm } from './geo.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
 import { ROUTE_CATEGORY } from './categories.js';
-import { MALLORCA, popupHtml, routePopupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl, pinHtml, pinFlags, poiPinHtml, poiPopupHtml, poiTitle } from './map.js';
+import { MALLORCA, popupHtml, routePopupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl, pinHtml, pinFlags, poiPinHtml, poiPopupHtml, poiTitle, PLAN_COLOR, planPinHtml } from './map.js';
 import { hoursFromGoogle } from './hours.js';
 
 const LOAD_TIMEOUT_MS = 12000;
@@ -134,6 +134,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
   let activeId = null;
   let routeShapes = [];
   let zTop = 10;
+  let drafting = false; // „Etappe planen“ läuft: Tipps setzen Wegpunkte statt Fenster zu öffnen
 
   // --- Kartenart: eigener Knopf, damit er nicht unter Leiste/Blatt verschwindet ------------------------
   const tools = document.createElement('div');
@@ -474,7 +475,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
         content.innerHTML = pin;
         const marker = new AdvancedMarkerElement({ map, position: { lat: p.lat, lng: p.lng }, content, title: p.name, zIndex });
         marker.addListener('click', () => {
-          openPlacePopup(p.id);
+          if (!drafting) openPlacePopup(p.id); // beim Planen wird der Ort zum Wegpunkt
           onMarkerClick?.(p.id);
         });
         entry = { marker, pin };
@@ -592,6 +593,8 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       hit.addListener('mouseover', raise);
       hit.addListener('mouseout', lower);
       hit.addListener('click', (e) => {
+        // Beim Planen: Tipp auf eine eingeblendete Etappe setzt dort einen Wegpunkt
+        if (drafting) return onMapClick?.({ lat: e.latLng.lat(), lng: e.latLng.lng() });
         raise();
         info.setContent(routePopup ? routePopup(current(), color) : routePopupHtml(current(), color));
         info.setPosition(e.latLng);
@@ -670,6 +673,33 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     searchMarker = null;
   }
 
+  // Etappe planen: Entwurf { waypoints: [[lat, lng]], segments: [{ points, pending, error }] } oder null (beenden).
+  // Noch nicht berechnete Abschnitte gestrichelt als Luftlinie, fehlgeschlagene rot.
+  let draftShapes = [];
+  const dashed = (color) => [{ icon: { path: 'M 0,-1 0,1', strokeColor: color, strokeOpacity: 0.9, strokeWeight: 4, scale: 2 }, offset: '0', repeat: '12px' }];
+  function setDraft(draft) {
+    drafting = Boolean(draft);
+    for (const s of draftShapes) {
+      if (s.setMap) s.setMap(null); else s.map = null;
+    }
+    draftShapes = [];
+    if (!draft) return;
+    if (draft.segments.length || draft.waypoints.length) info.close();
+    for (const seg of draft.segments) {
+      const path = seg.points.map(toLatLng);
+      const color = seg.error ? '#C92A2A' : PLAN_COLOR;
+      const plain = !seg.error && !seg.pending;
+      draftShapes.push(new google.maps.Polyline({ map, path, strokeColor: '#FFFFFF', strokeOpacity: plain ? 0.9 : 0, strokeWeight: 7, clickable: false, zIndex: 9000 }));
+      draftShapes.push(new google.maps.Polyline({ map, path, strokeColor: color, strokeOpacity: plain ? 0.95 : 0, strokeWeight: 4, clickable: false, zIndex: 9001, icons: plain ? null : dashed(color) }));
+    }
+    draft.waypoints.forEach((p, i) => {
+      const content = document.createElement('div');
+      content.innerHTML = planPinHtml(i);
+      content.style.transform = 'translateY(50%)'; // mittig auf den Punkt statt mit der Unterkante
+      draftShapes.push(new AdvancedMarkerElement({ map, position: toLatLng(p), content, zIndex: 2500 }));
+    });
+  }
+
   // Trinkbrunnen und Velo-Werkstätten entlang der eingeblendeten Etappen: [{ id, type, name, lat, lng, km, routeName }]
   let poiMarkers = [];
   let poiKey = '';
@@ -691,5 +721,5 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     });
   }
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, searchPlaces, openSearchResult, clearSearchMarker, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
+  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, searchPlaces, openSearchResult, clearSearchMarker, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
 }

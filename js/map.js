@@ -86,13 +86,17 @@ export function routePopupHtml(r, color) {
     </div>`;
 }
 
+// Etappe planen: Farbe der Entwurfslinie (Aperol-Orange) und Wegpunkt – S = Start, dann nummeriert
+export const PLAN_COLOR = '#E8733A';
+export const planPinHtml = (i) => `<span class="plan-pin${i === 0 ? ' is-start' : ''}">${i === 0 ? 'S' : i}</span>`;
+
 // Ersatz, falls Leaflet nicht geladen werden konnte: Die App läuft ohne Karte weiter,
 // statt beim Start komplett abzubrechen (dann fehlte auch die Ortsliste).
 function createFallbackMap(el) {
   el.innerHTML = '<div class="map-error"><strong>Karte nicht verfügbar</strong><span>Die Kartenbibliothek konnte nicht geladen werden. Liste und Filter funktionieren trotzdem – Seite neu laden versuchen.</span></div>';
   const noop = () => {};
   const fakeMap = { flyTo: noop, getZoom: () => 9, setView: noop, fitBounds: noop };
-  return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, centerOn: noop, setPois: noop, invalidate: noop };
+  return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, centerOn: noop, setPois: noop, setDraft: noop, invalidate: noop };
 }
 
 export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMessage, routePopup }) {
@@ -105,6 +109,8 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
   const placeLayer = L.layerGroup().addTo(map);
   const routeLayer = L.layerGroup().addTo(map);
   const poiLayer = L.layerGroup().addTo(map);
+  const draftLayer = L.layerGroup().addTo(map);
+  let drafting = false; // „Etappe planen“ läuft: Tipps setzen Wegpunkte statt Popups zu öffnen
   const markers = new Map();
   let airbnbMarker = null;
   let activeId = null;
@@ -372,7 +378,10 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
       if (!entry) {
         const m = L.marker([p.lat, p.lng], { icon: placeIcon(cat, active, flags), title: p.name, zIndexOffset: zIndex, riseOnHover: true });
         m.bindPopup(popup, { closeButton: false, className: 'llocs-popup' });
-        m.on('click', () => onMarkerClick?.(p.id));
+        m.on('click', () => {
+          if (drafting) m.closePopup(); // beim Planen wird der Ort zum Wegpunkt
+          onMarkerClick?.(p.id);
+        });
         m.addTo(placeLayer);
         entry = { marker: m, pin, popup, place: p };
         markers.set(p.id, entry);
@@ -508,6 +517,12 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
         casing.setStyle({ weight: 6 });
       };
       hit.on('mouseover', raise).on('mouseout', lower).on('popupopen', raise).on('popupclose', lower);
+      // Beim Planen: Tipp auf eine eingeblendete Etappe setzt dort einen Wegpunkt
+      hit.on('click', (e) => {
+        if (!drafting) return;
+        hit.closePopup();
+        onMapClick?.(e.latlng);
+      });
     }
   }
 
@@ -515,6 +530,27 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     if (!route?.points?.length) return;
     if (route.points.length === 1) return centerOn(route.points[0], 13);
     fitPoints(route.points, 14);
+  }
+
+  // Etappe planen: Entwurf { waypoints: [[lat, lng]], segments: [{ points, pending, error }] } oder null (beenden).
+  // Noch nicht berechnete Abschnitte gestrichelt als Luftlinie, fehlgeschlagene rot.
+  function setDraft(draft) {
+    drafting = Boolean(draft);
+    draftLayer.clearLayers();
+    if (!draft) return;
+    for (const seg of draft.segments) {
+      const style = seg.error ? { color: '#C92A2A', dashArray: '6 8' } : seg.pending ? { color: PLAN_COLOR, dashArray: '6 8', opacity: 0.7 } : { color: PLAN_COLOR };
+      L.polyline(seg.points, { color: '#FFFFFF', weight: 7, opacity: 0.9, lineJoin: 'round', interactive: false }).addTo(draftLayer);
+      L.polyline(seg.points, { weight: 4, opacity: 0.95, lineJoin: 'round', interactive: false, ...style }).addTo(draftLayer);
+    }
+    draft.waypoints.forEach((p, i) => {
+      L.marker(p, {
+        icon: L.divIcon({ className: '', html: planPinHtml(i), iconSize: [22, 22], iconAnchor: [11, 11] }),
+        interactive: false,
+        keyboard: false,
+        zIndexOffset: 1500,
+      }).addTo(draftLayer);
+    });
   }
 
   // Trinkbrunnen und Velo-Werkstätten entlang der eingeblendeten Etappen: [{ id, type, name, lat, lng, km, routeName }]
@@ -534,5 +570,5 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     }
   }
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => map.invalidateSize() };
+  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => map.invalidateSize() };
 }

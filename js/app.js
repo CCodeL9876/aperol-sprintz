@@ -1,6 +1,6 @@
 import { DEFAULT_CATEGORIES, FALLBACK_CATEGORY, ROUTE_CATEGORY, routeColor } from './categories.js';
 import { haversineKm, hasCoords, parseCoords, formatKm, geocode, formatReservation, routeUrl, homeRouteUrl } from './geo.js';
-import { parseFile, parseGeoJSON, parseLinks, assignCategory, buildGpx } from './importers.js';
+import { parseFile, parseGeoJSON, parseLinks, assignCategory, buildGpx, summarizeTrack } from './importers.js';
 import { loadUi, saveUi, readPref, writePref, downloadBackup, newId, newTripKey, loadLocalBackup, clearLocalBackup } from './store.js';
 import { expandMapsLinks, hasShortMapsLinks,
   DemoBackend, SharedBackend, OfflineBackend, sharingConfigured, tripKeyFromUrl,
@@ -9,7 +9,7 @@ import { expandMapsLinks, hasShortMapsLinks,
 import { createMap } from './map.js';
 import { sanitizeHours, hoursStale, openAt, hoursStatus } from './hours.js';
 import { cachedPois, loadPois, sanitizePois, POI_TYPES } from './pois.js';
-import { connectToHome } from './home-loop.js';
+import { connectToHome, bikeRoute } from './home-loop.js';
 import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './config.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
 import { formatEuro, formatChf, toRappen, toEuroCents, cachedRate, loadRate, parseAmount, parseShare, computeBalances, settle, splitCents, sharesOf, expenseTotal, isTransfer, sanitizeParticipants, sanitizeExpense } from './cash.js';
@@ -42,6 +42,8 @@ let backend = new DemoBackend(() => state);
 const demoForced = /(?:^#|&)demo\b/i.test(location.hash);
 let activeId = null;
 let pickMode = false;
+// Etappe planen: Wegpunkte [lat, lng] und die Abschnitte dazwischen (siehe „Etappe planen“ weiter unten)
+const plan = { on: false, waypoints: [], segments: [] };
 let airbnbFormAuto = false; // Unterkunft-Formular nur geöffnet, weil noch keine Unterkunft eingetragen war
 let geocodeRunning = false;
 let pendingWrites = 0;
@@ -175,6 +177,10 @@ const mapOptions = {
   routePopup: (r, color) => routePopupHtml(r, color),
   // true = Klick verarbeitet (die Google-Variante zeigt sonst Details zu angetippten Google-Orten)
   onMapClick: (latlng) => {
+    if (plan.on) {
+      addPlanPoint([latlng.lat, latlng.lng]);
+      return true;
+    }
     if (!pickMode) return false;
     setPickMode(false);
     // Bezeichnung und Adresse aus dem Formular übernehmen; die Route führt weiterhin zur Adresse
@@ -185,7 +191,11 @@ const mapOptions = {
     setAirbnb({ ...(state.airbnb || {}), name, address, url, mapsUrl, label: airbnbLabel(name, address) || `Gewählter Punkt (${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)})`, lat: latlng.lat, lng: latlng.lng });
     return true;
   },
-  onMarkerClick: (id) => selectPlace(id, { fly: false, scrollList: true }),
+  onMarkerClick: (id) => {
+    const place = plan.on && state.places.find((p) => p.id === id);
+    if (place && hasCoords(place)) return addPlanPoint([place.lat, place.lng]); // eigener Ort als Wegpunkt
+    if (!plan.on) selectPlace(id, { fly: false, scrollList: true });
+  },
   onLocateMessage: (kind, detail) => locateProblem(kind, detail),
   getInsets: mapInsets,
 };
@@ -248,7 +258,7 @@ function switchMap(next) {
 function createGoogleMapView(el) {
   let impl = null;
   const view = { map: { getZoom: () => impl?.map.getZoom() ?? 9 } };
-  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'setPois', 'searchPlaces', 'openSearchResult', 'clearSearchMarker', 'locate', 'invalidate']) {
+  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'setPois', 'setDraft', 'searchPlaces', 'openSearchResult', 'clearSearchMarker', 'locate', 'invalidate']) {
     view[k] = (...args) => impl?.[k](...args);
   }
   const ready = (m, shown) => {
@@ -1507,6 +1517,7 @@ function closeAirbnbForm() {
 }
 
 function setPickMode(on) {
+  if (on && plan.on) endPlan(); // Airbnb setzen beendet eine laufende Planung
   pickMode = on;
   $('#pick-banner').hidden = !on;
   $('#map').classList.toggle('is-picking', on);
@@ -2565,10 +2576,11 @@ async function addRoute(parsed, sourceLabel) {
   if (!ok) {
     state.routes = state.routes.filter((r) => r.id !== route.id);
     render();
-    return;
+    return null;
   }
   log(`${sourceLabel}: Etappe „${route.name}“ importiert (${formatKm(route.distanceKm)}${route.elevationGainM != null ? `, ${formatHm(route.elevationGainM)}` : ''}, standardmäßig ausgeblendet).`, 'ok');
   poisFor(route); // Trinkwasser und Velo-Werkstätten gleich laden und für alle speichern
+  return route;
 }
 
 async function handleFiles(files) {
@@ -3143,6 +3155,147 @@ $('#category-form').addEventListener('submit', (e) => {
   toast(`Kategorie „${label}“ angelegt`);
 });
 
+// --- Etappe planen ----------------------------------------------------------------------------
+// Wegpunkte auf der Karte antippen (auch eigene Orte oder eine eingeblendete Etappe); der Rennrad-Routenplaner
+// (BRouter, siehe home-loop.js) verbindet je zwei Punkte. Start ist das Airbnb, falls gesetzt.
+// Gespeichert wird wie eine importierte GPX-Etappe – Kaffee-Stopps, Trinkwasser und GPX-Download inklusive.
+// plan.segments[i] ist der Weg von waypoints[i] zu waypoints[i + 1]:
+// { points: [[lat, lng]], track: [[lat, lng, ele]] | null, pending, error }
+
+function startPlan() {
+  if (pickMode) setPickMode(false);
+  plan.on = true;
+  plan.waypoints = state.airbnb ? [[state.airbnb.lat, state.airbnb.lng]] : [];
+  plan.segments = [];
+  $('#plan-name').value = '';
+  $('#plan-panel').hidden = false;
+  $('#map').classList.add('is-picking');
+  document.body.classList.add('is-planning');
+  if (isMobile()) {
+    // Karte freimachen wie beim Setzen des Airbnb
+    setSheet('hidden');
+    $$('.panel-row details[open]').forEach((d) => { d.open = false; });
+  }
+  if (state.airbnb) mapView.centerOn([state.airbnb.lat, state.airbnb.lng], Math.max(mapView.map.getZoom(), 11));
+  renderPlan();
+}
+
+function endPlan() {
+  plan.on = false;
+  plan.waypoints = [];
+  plan.segments = [];
+  $('#plan-panel').hidden = true;
+  $('#map').classList.remove('is-picking');
+  document.body.classList.remove('is-planning');
+  mapView.setDraft(null);
+  if (isMobile() && sheetState() === 'hidden') setSheet('half');
+}
+
+function cancelPlan() {
+  if (plan.segments.length && !confirm('Planung verwerfen? Die gesetzten Wegpunkte gehen verloren.')) return;
+  endPlan();
+}
+
+function addPlanPoint(to) {
+  const from = plan.waypoints.at(-1);
+  plan.waypoints.push(to);
+  if (from) {
+    const seg = { points: [from, to], track: null, pending: true, error: false };
+    plan.segments.push(seg);
+    bikeRoute(from, to)
+      .then((track) => {
+        seg.track = track;
+        seg.points = track.map(([lat, lng]) => [lat, lng]);
+      })
+      .catch((err) => {
+        seg.error = true;
+        // Nur melden, wenn der Abschnitt noch zur Planung gehört (nicht schon rückgängig gemacht)
+        if (plan.segments.includes(seg)) {
+          toast(`Keine Rennrad-Strecke zu diesem Punkt gefunden (${err.name === 'TimeoutError' ? 'Routenplaner antwortet nicht' : err.message}) – „Rückgängig“ und einen anderen Punkt wählen.`);
+        }
+      })
+      .finally(() => {
+        seg.pending = false;
+        if (plan.on) renderPlan();
+      });
+  }
+  renderPlan();
+}
+
+function undoPlanPoint() {
+  // Das Airbnb als Start bleibt stehen
+  if (plan.waypoints.length <= (state.airbnb ? 1 : 0)) return;
+  plan.waypoints.pop();
+  plan.segments.length = Math.max(0, plan.waypoints.length - 1);
+  renderPlan();
+}
+
+const samePoint = (a, b) => a && b && Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
+
+// Ganze Strecke in voller Auflösung, oder null, solange ein Abschnitt fehlt oder noch berechnet wird
+function planTrack() {
+  if (!plan.segments.length || plan.segments.some((s) => !s.track)) return null;
+  return plan.segments.flatMap((s, i) => (i ? s.track.slice(1) : s.track));
+}
+
+function renderPlan() {
+  mapView.setDraft({ waypoints: plan.waypoints, segments: plan.segments });
+  const pending = plan.segments.some((s) => s.pending);
+  const failed = plan.segments.some((s) => s.error);
+  const track = planTrack();
+  const stats = $('#plan-stats');
+  if (track) {
+    const sum = summarizeTrack('', track);
+    const hours = rideHours(sum);
+    stats.textContent = [formatKm(sum.distanceKm), formatHm(sum.elevationGainM), hours ? formatDuration(hours) : ''].filter(Boolean).join(' · ');
+  } else if (plan.segments.length) {
+    stats.textContent = failed ? 'Ein Abschnitt fehlt – „Rückgängig“ und anderen Punkt wählen.' : 'Berechne Strecke …';
+  } else {
+    stats.textContent = '';
+  }
+  $('#plan-hint').textContent = plan.waypoints.length === 0
+    ? 'Tippe auf die Karte, um den Start zu setzen.'
+    : plan.segments.length === 0
+      ? `Tippe auf die Karte oder einen eurer Orte – die Strecke ${state.airbnb ? 'ab dem Airbnb ' : ''}folgt Straßen fürs Rennrad.`
+      : 'Weitere Punkte antippen oder speichern.';
+  const start = plan.waypoints[0];
+  $('#plan-undo').disabled = plan.waypoints.length <= (state.airbnb ? 1 : 0);
+  const loop = $('#plan-loop');
+  loop.textContent = state.airbnb ? 'Zurück zum Airbnb' : 'Zurück zum Start';
+  loop.disabled = plan.waypoints.length < 2 || samePoint(plan.waypoints.at(-1), start);
+  $('#plan-save').disabled = !track || pending || failed;
+}
+
+async function savePlan() {
+  const track = planTrack();
+  if (!track) return;
+  const name = $('#plan-name').value.trim().slice(0, 300)
+    || `Etappe vom ${new Date().toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric' })}`;
+  const btn = $('#plan-save');
+  btn.disabled = true;
+  const route = await addRoute(summarizeTrack(name, track), 'Geplant');
+  if (!route) {
+    renderPlan(); // Speichern fehlgeschlagen (Meldung kam schon) – Planung bleibt offen
+    return;
+  }
+  endPlan();
+  if (!state.ui.visibleRoutes.includes(route.id)) state.ui.visibleRoutes = [...state.ui.visibleRoutes, route.id];
+  render();
+  mapView.fitToRoute(route);
+  toast(`Etappe „${route.name}“ gespeichert (${formatKm(route.distanceKm)}) – sie steht unter „Espresso-Etappen“.`);
+}
+
+$('#btn-plan').addEventListener('click', () => (plan.on ? cancelPlan() : startPlan()));
+$('#plan-undo').addEventListener('click', undoPlanPoint);
+$('#plan-loop').addEventListener('click', () => {
+  if (plan.waypoints.length) addPlanPoint(plan.waypoints[0]);
+});
+$('#plan-cancel').addEventListener('click', cancelPlan);
+$('#plan-panel').addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (!$('#plan-save').disabled) savePlan();
+});
+
 // --- Menü -------------------------------------------------------------------------------------
 
 // Wallet- und Fotos-Link nur auf iPhone/iPad zeigen (iPadOS meldet sich als „Macintosh“ mit Touch)
@@ -3182,6 +3335,7 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && pickMode) setPickMode(false);
+  if (e.key === 'Escape' && plan.on && !document.querySelector('dialog[open]')) cancelPlan();
 });
 
 // --- Toast ------------------------------------------------------------------------------------

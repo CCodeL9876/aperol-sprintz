@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-06.16" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-06.16">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-06.17" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-06.17">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-06.16">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-06.16">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-06.16">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-06.17">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-06.17">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-06.17">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -118,7 +118,10 @@
       <section class="list-section routes-section" aria-label="Espresso-Etappen">
         <div class="list-head">
           <h2 class="list-title">Espresso-Etappen</h2>
-          <span id="route-count" class="result-count"></span>
+          <span class="routes-head-right">
+            <span id="route-count" class="result-count"></span>
+            <button id="btn-plan" class="btn btn-small" type="button">Etappe planen</button>
+          </span>
         </div>
         <!-- Grundtempo für die Fahrzeit-Schätzung; jedes Gerät merkt sich seins -->
         <div class="route-speed" id="route-speed" hidden>
@@ -141,7 +144,7 @@
             <input id="ride-start" type="time" value="09:00" step="900" aria-label="Startzeit der Etappe">
           </label>
         </div>
-        <p id="route-empty" class="hint route-empty" hidden>Noch keine Etappe importiert – über „Importieren“ eine GPX-Datei (z. B. aus Strava oder Komoot) hinzufügen.</p>
+        <p id="route-empty" class="hint route-empty" hidden>Noch keine Etappe – mit „Etappe planen“ auf der Karte zusammenklicken oder über „Importieren“ eine GPX-Datei (z. B. aus Strava oder Komoot) hinzufügen.</p>
         <ul id="route-list" class="place-list route-list"></ul>
       </section>
     </aside>
@@ -228,6 +231,23 @@
         <span>Tippe auf die Karte, um unser Airbnb zu setzen</span>
         <button id="btn-pick-cancel" class="btn btn-small btn-ghost" type="button">Abbrechen</button>
       </div>
+      <!-- Etappe planen: Wegpunkte antippen, BRouter verbindet sie (siehe app.js, „Etappe planen“) -->
+      <form id="plan-panel" class="plan-panel" autocomplete="off" novalidate hidden>
+        <div class="plan-top">
+          <strong class="plan-title">Etappe planen</strong>
+          <span id="plan-stats" class="plan-stats" aria-live="polite"></span>
+        </div>
+        <p id="plan-hint" class="plan-hint"></p>
+        <div class="plan-actions">
+          <button id="plan-undo" class="btn btn-small" type="button">Rückgängig</button>
+          <button id="plan-loop" class="btn btn-small" type="button">Zurück zum Airbnb</button>
+          <button id="plan-cancel" class="btn btn-small btn-ghost" type="button">Abbrechen</button>
+        </div>
+        <div class="plan-save">
+          <input id="plan-name" type="text" maxlength="120" placeholder="Name, z. B. Sa Calobra" aria-label="Name der Etappe">
+          <button id="plan-save" class="btn btn-primary btn-small" type="submit">Speichern</button>
+        </div>
+      </form>
     </section>
   </main>
 
@@ -607,28 +627,28 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-06.16"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-06.17"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-06.16",
-      "./js/backend.js": "./js/backend.js?v=2026-10-06.16",
-      "./js/cash.js": "./js/cash.js?v=2026-10-06.16",
-      "./js/categories.js": "./js/categories.js?v=2026-10-06.16",
-      "./js/config.js": "./js/config.js?v=2026-10-06.16",
-      "./js/geo.js": "./js/geo.js?v=2026-10-06.16",
-      "./js/hours.js": "./js/hours.js?v=2026-10-06.16",
-      "./js/icons.js": "./js/icons.js?v=2026-10-06.16",
-      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-06.16",
-      "./js/importers.js": "./js/importers.js?v=2026-10-06.16",
-      "./js/map.js": "./js/map.js?v=2026-10-06.16",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-06.16",
-      "./js/pois.js": "./js/pois.js?v=2026-10-06.16",
-      "./js/store.js": "./js/store.js?v=2026-10-06.16"
+      "./js/app.js": "./js/app.js?v=2026-10-06.17",
+      "./js/backend.js": "./js/backend.js?v=2026-10-06.17",
+      "./js/cash.js": "./js/cash.js?v=2026-10-06.17",
+      "./js/categories.js": "./js/categories.js?v=2026-10-06.17",
+      "./js/config.js": "./js/config.js?v=2026-10-06.17",
+      "./js/geo.js": "./js/geo.js?v=2026-10-06.17",
+      "./js/hours.js": "./js/hours.js?v=2026-10-06.17",
+      "./js/icons.js": "./js/icons.js?v=2026-10-06.17",
+      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-06.17",
+      "./js/importers.js": "./js/importers.js?v=2026-10-06.17",
+      "./js/map.js": "./js/map.js?v=2026-10-06.17",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-06.17",
+      "./js/pois.js": "./js/pois.js?v=2026-10-06.17",
+      "./js/store.js": "./js/store.js?v=2026-10-06.17"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-06.16"></script>
+  <script type="module" src="js/app.js?v=2026-10-06.17"></script>
 </body>
 </html>
