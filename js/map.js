@@ -295,27 +295,68 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
   }
 
 
+  const hiddenMarkers = new Map(); // ausgeblendete Marker zum Wiederverwenden
+  // Wird bei jeder Änderung (Filter, Stern, Suche …) aufgerufen. Bestehende Marker werden weiterverwendet
+  // und nur angepasst, wo sich etwas geändert hat – alle neu zu erzeugen ist bei vielen Orten spürbar träge.
   function setPlaces(places, catOf, currentId) {
     activeId = currentId;
-    placeLayer.clearLayers();
-    markers.clear();
+    const keep = new Set();
     for (const p of places) {
       if (!hasCoords(p)) continue;
       const cat = catOf(p.category);
-      const m = L.marker([p.lat, p.lng], {
-        icon: placeIcon(cat, p.id === currentId, pinFlags(p)),
-        title: p.name,
-        zIndexOffset: p.id === currentId ? 1000 : p.starred ? 500 : 0, // Favoriten über den anderen
-        riseOnHover: true,
-      });
-      m.bindPopup(popupHtml(p, cat), { closeButton: false, className: 'llocs-popup' });
-      m.on('click', () => onMarkerClick?.(p.id));
-      m.addTo(placeLayer);
-      markers.set(p.id, { marker: m, cat, flags: pinFlags(p) });
+      const active = p.id === currentId;
+      const flags = pinFlags(p);
+      const pin = pinHtml(cat, active, flags);
+      const popup = popupHtml(p, cat);
+      const zIndex = active ? 1000 : p.starred ? 500 : 0; // Favoriten über den anderen
+      let entry = markers.get(p.id) || hiddenMarkers.get(p.id);
+      if (entry && hiddenMarkers.has(p.id)) {
+        hiddenMarkers.delete(p.id);
+        entry.marker.addTo(placeLayer);
+        markers.set(p.id, entry);
+      }
+      if (!entry) {
+        const m = L.marker([p.lat, p.lng], { icon: placeIcon(cat, active, flags), title: p.name, zIndexOffset: zIndex, riseOnHover: true });
+        m.bindPopup(popup, { closeButton: false, className: 'llocs-popup' });
+        m.on('click', () => onMarkerClick?.(p.id));
+        m.addTo(placeLayer);
+        entry = { marker: m, pin, popup, place: p };
+        markers.set(p.id, entry);
+      } else {
+        const m = entry.marker;
+        if (entry.pin !== pin || m.options.title !== p.name) {
+          m.options.title = p.name;
+          m.setIcon(placeIcon(cat, active, flags));
+          entry.pin = pin;
+        }
+        if (entry.place.lat !== p.lat || entry.place.lng !== p.lng) m.setLatLng([p.lat, p.lng]);
+        if (entry.popup !== popup) {
+          m.setPopupContent(popup);
+          entry.popup = popup;
+        }
+        if (m.options.zIndexOffset !== zIndex) m.setZIndexOffset(zIndex);
+      }
+      entry.cat = cat;
+      entry.flags = flags;
+      entry.place = p;
+      keep.add(p.id);
+    }
+    for (const [id, entry] of markers) {
+      if (keep.has(id)) continue;
+      placeLayer.removeLayer(entry.marker); // aufbewahren: kommt der Ort wieder (Filter aus), geht das schneller
+      markers.delete(id);
+      hiddenMarkers.set(id, entry);
     }
   }
 
+  let airbnbAt = '';
   function setAirbnb(airbnb) {
+    const at = airbnb ? `${airbnb.lat},${airbnb.lng}` : '';
+    if (at && at === airbnbAt) { // gleiche Stelle: Marker stehen lassen, nur Text auffrischen
+      airbnbMarker.setPopupContent(airbnbPopupHtml(airbnb));
+      return;
+    }
+    airbnbAt = at;
     if (airbnbMarker) airbnbMarker.remove();
     airbnbMarker = null;
     if (!airbnb) return;
@@ -342,6 +383,7 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
       if (!entry) continue;
       const on = key === id;
       entry.marker.setIcon(placeIcon(entry.cat, on, entry.flags));
+      entry.pin = pinHtml(entry.cat, on, entry.flags);
       entry.marker.setZIndexOffset(on ? 1000 : entry.flags.starred ? 500 : 0);
     }
     activeId = id;
@@ -367,11 +409,21 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
   // Zeichnet nur die gerade eingeblendeten Routen (Auswahl kommt aus app.js/state.ui.visibleRoutes) –
   // standardmäßig ist die Liste leer, also ist auch die Karte frei von Strecken.
   // Weiße Kontur + farbige Linie darüber, damit die Strecke auf jedem Kartenuntergrund lesbar bleibt.
+  // Linien nur neu zeichnen, wenn sich Auswahl, Farbe oder Strecke geändert haben. Die Daten fürs
+  // Detailfenster (gefahren, Links, Wetter) kommen beim Öffnen immer frisch aus routeNow.
+  const routeNow = new Map();
+  let routeKey = [];
   function setRoutes(routes) {
+    routeNow.clear();
+    for (const r of routes) routeNow.set(r.id, r);
+    const key = routes.flatMap((r) => [r.id, r.color, r.points]);
+    if (key.length === routeKey.length && key.every((v, i) => v === routeKey[i])) return;
+    routeKey = key;
     routeLayer.clearLayers();
     for (const r of routes) {
       if (!r.points?.length) continue;
       const color = r.color || ROUTE_CATEGORY.ink;
+      const current = () => routeNow.get(r.id) || r;
       const casing = L.polyline(r.points, { color: '#FFFFFF', weight: 6, opacity: 0.9, lineJoin: 'round', interactive: false }).addTo(routeLayer);
       const line = L.polyline(r.points, { color, weight: 3.5, opacity: 0.95, lineJoin: 'round', interactive: false }).addTo(routeLayer);
       // Unsichtbare, breite Tippfläche über der Linie – die 3,5 px schmale Linie trifft man auf dem Handy kaum
@@ -384,7 +436,7 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
         const popup = hit.getPopup();
         popup.options.autoPanPaddingTopLeft = L.point(left + 12, top + 12);
         popup.options.autoPanPaddingBottomRight = L.point(right + 12, bottom + 12);
-        return routePopup ? routePopup(r, color) : routePopupHtml(r, color);
+        return routePopup ? routePopup(current(), color) : routePopupHtml(current(), color);
       }, { closeButton: false, className: 'llocs-popup', maxWidth: 300 }).addTo(routeLayer);
       // Bei überlappenden Strecken: die berührte/angetippte Route nach vorne holen und hervorheben.
       // Nur umsortieren, wenn sie nicht schon vorne liegt – das Umsortieren mitten im Klick würde ihn verschlucken.

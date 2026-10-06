@@ -517,6 +517,7 @@ function sortPlaces(list) {
 // --- Rendering -----------------------------------------------------------------------
 
 let lastVisible = [];
+let listItems = new Map(); // Ortsliste: id → { html, el } (siehe patchList)
 
 function render({ fit = false } = {}) {
   const all = placesWithDistance();
@@ -611,15 +612,36 @@ function formatDuration(hours) {
 // in Fahrtrichtung sortiert. Abstand flach genähert – auf Inselgröße auf wenige Meter genau.
 const STOP_CATEGORIES = new Set(['kaffee', 'rennrad']);
 const STOP_RADIUS_M = 500;
+// Ergebnis je Strecke merken, solange sich die Kaffee-/Rennrad-Orte nicht ändern (wird sonst bei jedem
+// Zeichnen der Liste für jede Strecke neu gerechnet)
+const stopsCache = new WeakMap(); // route.points → { sig, stops }
 function stopsAlong(route) {
   const pts = route.points;
   if (!pts?.length) return [];
+  const sig = state.places
+    .filter((p) => STOP_CATEGORIES.has(p.category) && hasCoords(p))
+    .map((p) => `${p.id}|${p.lat}|${p.lng}|${p.name}`)
+    .join('\n');
+  const hit = stopsCache.get(pts);
+  if (hit?.sig === sig) return hit.stops.map((s) => ({ ...s, place: state.places.find((p) => p.id === s.place.id) || s.place }));
+  const stops = computeStops(pts);
+  stopsCache.set(pts, { sig, stops });
+  return stops;
+}
+
+function computeStops(pts) {
   const kx = 111320 * Math.cos((pts[0][0] * Math.PI) / 180);
   const ky = 110540;
   const xy = pts.map(([lat, lng]) => [lng * kx, lat * ky]);
-  const xs = xy.map((p) => p[0]);
-  const ys = xy.map((p) => p[1]);
-  const box = [Math.min(...xs) - STOP_RADIUS_M, Math.max(...xs) + STOP_RADIUS_M, Math.min(...ys) - STOP_RADIUS_M, Math.max(...ys) + STOP_RADIUS_M];
+  // Umgebendes Rechteck per Schleife: Math.min(...xs) scheitert in Safari ab ca. 65 000 Punkten
+  const box = [Infinity, -Infinity, Infinity, -Infinity];
+  for (const [x, y] of xy) {
+    if (x < box[0]) box[0] = x;
+    if (x > box[1]) box[1] = x;
+    if (y < box[2]) box[2] = y;
+    if (y > box[3]) box[3] = y;
+  }
+  box[0] -= STOP_RADIUS_M; box[1] += STOP_RADIUS_M; box[2] -= STOP_RADIUS_M; box[3] += STOP_RADIUS_M;
   const stops = [];
   for (const p of state.places) {
     if (!STOP_CATEGORIES.has(p.category) || !hasCoords(p)) continue;
@@ -972,9 +994,14 @@ function renderChips(base, pool) {
       </button>`
     : '';
 
-  $('#category-chips').innerHTML =
-    `<button type="button" class="chip chip-all" data-cat="" aria-pressed="${!selected.size}">Alle<span class="chip-count">${pool.length}</span></button>` +
+  const html = `<button type="button" class="chip chip-all" data-cat="" aria-pressed="${!selected.size}">Alle<span class="chip-count">${pool.length}</span></button>` +
     starredChip + reservedChip + chips.join('');
+  // Nur bei Änderung neu setzen – so bleibt auf dem Handy auch die seitliche Scrollposition der Reihe stehen
+  const box = $('#category-chips');
+  if (box.dataset.html !== html) {
+    box.innerHTML = html;
+    box.dataset.html = html;
+  }
 }
 
 // Startansicht: nur die ersten PLACES_PREVIEW Orte, der Rest ist über „Alle … anzeigen“ aufklappbar.
@@ -1015,7 +1042,7 @@ function renderList(visible, total) {
   $('.sort').hidden = !!state.ui.reserved;
 
   if (!visible.length) {
-    list.innerHTML = '';
+    list.replaceChildren();
     empty.hidden = false;
     empty.innerHTML = total
       ? `<div class="empty-arch" aria-hidden="true">${icon('search', { size: 24, stroke: 1.6 })}</div>
@@ -1035,49 +1062,83 @@ function renderList(visible, total) {
   empty.hidden = true;
 
   const cats = displayCategories();
-  list.innerHTML = visible.map((p, i) => {
-    const c = catOf(p.category);
-    const dist = p.distance != null
-      ? `<span class="place-dist">${distanceHtml(p.distance)}</span>`
-      : !hasCoords(p) ? '<span class="place-dist is-missing" title="Kein Standort">ohne Standort</span>' : '';
-    const gf = !!p.glutenFree;
-    const visited = !!p.visited;
-    const res = p.reservation;
-    // Reservieren nur bei Restaurants – eine bestehende Reservierung bleibt sichtbar, auch wenn die Kategorie wechselt
-    const canReserve = p.category === RESERVABLE_CATEGORY || !!res;
-    return `<li class="place${visited ? ' is-visited' : ''}${p.id === activeId ? ' is-active' : ''}${i >= PLACES_PREVIEW ? ' is-extra' : ''}" data-id="${p.id}" style="${categoryStyle(c)}">
-      <div class="place-row">
-      <button type="button" class="visit-toggle" data-action="visited" aria-pressed="${visited}" aria-label="${escapeHtml(p.name)} besucht" title="${visited ? 'Besucht – antippen zum Entfernen' : 'Als besucht markieren'}">${icon('check', { size: 16, stroke: 3 })}</button>
-      <button type="button" class="place-main" data-action="select" aria-expanded="${p.id === activeId}">
-        <span class="place-icon" aria-hidden="true">${categoryIcon(c, { size: 18, stroke: 1.7 })}</span>
-        <span class="place-body">
-          <span class="place-name">${escapeHtml(p.name)}</span>
-          <span class="place-meta">${escapeHtml(c.label)}${p.address ? ` · ${escapeHtml(p.address)}` : ''}</span>
-          ${res ? `<span class="place-res">${icon('calendar-check', { size: 13, stroke: 2.2 })}${escapeHtml(formatReservation(res))}</span>` : ''}
-        </span>
-        ${dist}
-      </button>
-      <button type="button" class="star-toggle" data-action="starred" aria-pressed="${!!p.starred}" aria-label="${escapeHtml(p.name)} als Favorit" title="${p.starred ? 'Favorit – antippen zum Entfernen' : 'Als Favorit markieren'}">${icon('star', { size: 18, stroke: 2 })}</button>
-      <button type="button" class="gf-toggle" data-action="gluten-free" aria-pressed="${gf}" aria-label="Glutenfrei" title="${gf ? 'Glutenfrei – antippen zum Entfernen' : 'Als glutenfrei markieren'}">${icon('wheat-off', { size: 17, stroke: 1.9 })}<span class="gf-label">GF</span></button>
+  patchList(list, listItems, visible.map((p, i) => [p.id, placeItemHtml(p, i, cats)]));
+  // Aufbewahrte Einträge gelöschter Orte vergessen
+  if (listItems.size > visible.length) {
+    const ids = new Set(state.places.map((p) => p.id));
+    for (const id of listItems.keys()) if (!ids.has(id)) listItems.delete(id);
+  }
+}
+
+// Ein Eintrag der Ortsliste als HTML (Vergleich mit dem bisherigen Stand in patchList)
+function placeItemHtml(p, i, cats) {
+  const c = catOf(p.category);
+  const dist = p.distance != null
+    ? `<span class="place-dist">${distanceHtml(p.distance)}</span>`
+    : !hasCoords(p) ? '<span class="place-dist is-missing" title="Kein Standort">ohne Standort</span>' : '';
+  const gf = !!p.glutenFree;
+  const visited = !!p.visited;
+  const res = p.reservation;
+  // Reservieren nur bei Restaurants – eine bestehende Reservierung bleibt sichtbar, auch wenn die Kategorie wechselt
+  const canReserve = p.category === RESERVABLE_CATEGORY || !!res;
+  return `<li class="place${visited ? ' is-visited' : ''}${p.id === activeId ? ' is-active' : ''}${i >= PLACES_PREVIEW ? ' is-extra' : ''}" data-id="${p.id}" style="${categoryStyle(c)}">
+    <div class="place-row">
+    <button type="button" class="visit-toggle" data-action="visited" aria-pressed="${visited}" aria-label="${escapeHtml(p.name)} besucht" title="${visited ? 'Besucht – antippen zum Entfernen' : 'Als besucht markieren'}">${icon('check', { size: 16, stroke: 3 })}</button>
+    <button type="button" class="place-main" data-action="select" aria-expanded="${p.id === activeId}">
+      <span class="place-icon" aria-hidden="true">${categoryIcon(c, { size: 18, stroke: 1.7 })}</span>
+      <span class="place-body">
+        <span class="place-name">${escapeHtml(p.name)}</span>
+        <span class="place-meta">${escapeHtml(c.label)}${p.address ? ` · ${escapeHtml(p.address)}` : ''}</span>
+        ${res ? `<span class="place-res">${icon('calendar-check', { size: 13, stroke: 2.2 })}${escapeHtml(formatReservation(res))}</span>` : ''}
+      </span>
+      ${dist}
+    </button>
+    <button type="button" class="star-toggle" data-action="starred" aria-pressed="${!!p.starred}" aria-label="${escapeHtml(p.name)} als Favorit" title="${p.starred ? 'Favorit – antippen zum Entfernen' : 'Als Favorit markieren'}">${icon('star', { size: 18, stroke: 2 })}</button>
+    <button type="button" class="gf-toggle" data-action="gluten-free" aria-pressed="${gf}" aria-label="Glutenfrei" title="${gf ? 'Glutenfrei – antippen zum Entfernen' : 'Als glutenfrei markieren'}">${icon('wheat-off', { size: 17, stroke: 1.9 })}<span class="gf-label">GF</span></button>
+    </div>
+    <div class="place-details">
+      ${p.note ? `<p class="place-note">${escapeHtml(p.note)}</p>` : ''}
+      ${p.addedBy ? `<p class="place-by">Hinzugefügt von ${escapeHtml(p.addedBy)}</p>` : ''}
+      ${canReserve ? reservationHtml(res) : ''}
+      <div class="place-actions">
+        <label class="cat-select-wrap">
+          <span class="visually-hidden">Kategorie</span>
+          <select class="cat-select" data-action="category">
+            ${cats.map((k) => `<option value="${k.id}"${k.id === p.category ? ' selected' : ''}>${optionLabel(k)}</option>`).join('')}
+          </select>
+        </label>
+        ${!hasCoords(p) ? '<button type="button" class="chip-btn" data-action="geocode">Standort suchen</button>' : ''}
+        <a class="chip-btn route-btn" href="${escapeHtml(routeUrl(p))}" target="_blank" rel="noopener" title="Route von deinem Standort in Google Maps">${icon('navigation', { size: 14, stroke: 2.2 })}Route</a>
+        <button type="button" class="chip-btn chip-btn-icon danger" data-action="delete" aria-label="Entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
       </div>
-      <div class="place-details">
-        ${p.note ? `<p class="place-note">${escapeHtml(p.note)}</p>` : ''}
-        ${p.addedBy ? `<p class="place-by">Hinzugefügt von ${escapeHtml(p.addedBy)}</p>` : ''}
-        ${canReserve ? reservationHtml(res) : ''}
-        <div class="place-actions">
-          <label class="cat-select-wrap">
-            <span class="visually-hidden">Kategorie</span>
-            <select class="cat-select" data-action="category">
-              ${cats.map((k) => `<option value="${k.id}"${k.id === p.category ? ' selected' : ''}>${optionLabel(k)}</option>`).join('')}
-            </select>
-          </label>
-          ${!hasCoords(p) ? '<button type="button" class="chip-btn" data-action="geocode">Standort suchen</button>' : ''}
-          <a class="chip-btn route-btn" href="${escapeHtml(routeUrl(p))}" target="_blank" rel="noopener" title="Route von deinem Standort in Google Maps">${icon('navigation', { size: 14, stroke: 2.2 })}Route</a>
-          <button type="button" class="chip-btn chip-btn-icon danger" data-action="delete" aria-label="Entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
-        </div>
-      </div>
-    </li>`;
-  }).join('');
+    </div>
+  </li>`;
+}
+
+// Liste nur dort ändern, wo sich ein Eintrag geändert hat: unveränderte Einträge bleiben stehen und
+// werden höchstens umsortiert; ausgeblendete (z. B. weggefiltert) werden für später aufbewahrt. Die ganze
+// Liste bei jedem Tipp neu aufzubauen ist bei vielen Orten auf dem Handy spürbar träge.
+// rows: [[id, html], …] in Anzeigereihenfolge; cache: id → { html, el }.
+function patchList(list, cache, rows) {
+  const els = rows.map(([id, html]) => {
+    let entry = cache.get(id);
+    if (!entry || entry.html !== html) {
+      const tpl = document.createElement('template');
+      tpl.innerHTML = html;
+      entry = { html, el: tpl.content.firstElementChild };
+      cache.set(id, entry);
+    }
+    return entry.el;
+  });
+  const wanted = new Set(els);
+  let ref = list.firstElementChild;
+  const dropRef = () => { const after = ref.nextElementSibling; ref.remove(); ref = after; };
+  for (const el of els) {
+    while (ref && !wanted.has(ref)) dropRef();
+    if (el === ref) ref = ref.nextElementSibling;
+    else list.insertBefore(el, ref);
+  }
+  while (ref) dropRef();
 }
 
 // --- Reservierung (nur Restaurants) ----------------------------------------------------
@@ -1940,6 +2001,15 @@ $('#place-list').addEventListener('click', async (e) => {
     selectPlace(id);
   }
 });
+
+// Auswahlfelder in der Liste (Kategorie, Reservierung) ändern den Eintrag direkt im Browser – beim nächsten
+// Zeichnen daher neu aufbauen, auch wenn die Daten gleich geblieben sind (z. B. Speichern fehlgeschlagen)
+for (const type of ['input', 'change']) {
+  $('#place-list').addEventListener(type, (e) => {
+    const entry = listItems.get(e.target.closest('.place')?.dataset.id);
+    if (entry) entry.html = '';
+  }, true);
+}
 
 $('#place-list').addEventListener('change', (e) => {
   const field = { 'res-date': 'date', 'res-time': 'time' }[e.target.dataset.action];

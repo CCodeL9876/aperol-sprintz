@@ -1363,6 +1363,17 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   }
   .sheet-grabber { width: 42px; height: 5px; border-radius: 999px; background: var(--line); }
   .sheet-handle:active .sheet-grabber { background: var(--muted); }
+  /* Arten als eine seitlich wischbare Reihe statt mehrerer Zeilen: so ist schon im halb offenen Blatt die
+     Liste zu sehen. Die angeschnittene letzte Art am Rand zeigt, dass es weitergeht. */
+  .panel.filters { gap: 14px; }
+  .filter-block .filter-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .chips {
+    flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain;
+    margin: 0 -16px; padding: 2px 16px 4px; scroll-padding: 0 16px;
+    scrollbar-width: none;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chips .chip { flex: none; }
   .place-list { margin: 0 -8px; }
   .place-details { padding-left: 12px; }
   .route-link-line, .route-link-form, .route-extra { padding-left: 12px; }

@@ -391,39 +391,77 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
   }
 
   // --- Eigene Orte --------------------------------------------------------------------------------
-  function pinElement(cat, active, flags) {
-    const wrap = document.createElement('div');
-    wrap.className = 'gpin';
-    wrap.innerHTML = pinHtml(cat, active, flags);
-    return wrap;
-  }
+  // Offenes Detailfenster eines eigenen Orts: Inhalt merken, damit setPlaces es aktuell halten kann
+  let popupId = null;
+  let popupShown = '';
+  const hiddenMarkers = new Map(); // ausgeblendete Marker zum Wiederverwenden
 
   function openPlacePopup(id) {
     const entry = markers.get(id);
     if (!entry) return;
-    info.setContent(popupHtml(entry.place, entry.cat));
+    popupId = id;
+    popupShown = popupHtml(entry.place, entry.cat);
+    info.setContent(popupShown);
     info.open({ shouldFocus: false, map, anchor: entry.marker });
   }
 
+  // Wird bei jeder Änderung (Filter, Stern, Suche …) aufgerufen. Bestehende Marker werden weiterverwendet
+  // und nur angepasst, wo sich etwas geändert hat – alle neu zu erzeugen ist bei vielen Orten spürbar träge.
   function setPlaces(places, catOf, currentId) {
     activeId = currentId;
-    for (const { marker } of markers.values()) marker.map = null;
-    markers.clear();
+    const keep = new Set();
     for (const p of places) {
       if (!hasCoords(p)) continue;
       const cat = catOf(p.category);
-      const marker = new AdvancedMarkerElement({
-        map,
-        position: { lat: p.lat, lng: p.lng },
-        content: pinElement(cat, p.id === currentId, pinFlags(p)),
-        title: p.name,
-        zIndex: p.id === currentId ? 1000 : p.starred ? 500 : 1,
-      });
-      marker.addListener('click', () => {
-        openPlacePopup(p.id);
-        onMarkerClick?.(p.id);
-      });
-      markers.set(p.id, { marker, cat, place: p });
+      const active = p.id === currentId;
+      const pin = pinHtml(cat, active, pinFlags(p));
+      const zIndex = active ? 1000 : p.starred ? 500 : 1;
+      let entry = markers.get(p.id) || hiddenMarkers.get(p.id);
+      if (entry && hiddenMarkers.has(p.id)) {
+        hiddenMarkers.delete(p.id);
+        entry.marker.map = map;
+        markers.set(p.id, entry);
+      }
+      if (!entry) {
+        const content = document.createElement('div');
+        content.className = 'gpin';
+        content.innerHTML = pin;
+        const marker = new AdvancedMarkerElement({ map, position: { lat: p.lat, lng: p.lng }, content, title: p.name, zIndex });
+        marker.addListener('click', () => {
+          openPlacePopup(p.id);
+          onMarkerClick?.(p.id);
+        });
+        entry = { marker, pin };
+        markers.set(p.id, entry);
+      } else {
+        if (entry.pin !== pin) {
+          entry.marker.content.innerHTML = pin;
+          entry.pin = pin;
+        }
+        if (entry.place.lat !== p.lat || entry.place.lng !== p.lng) entry.marker.position = { lat: p.lat, lng: p.lng };
+        if (entry.marker.title !== p.name) entry.marker.title = p.name;
+        if (entry.marker.zIndex !== zIndex) entry.marker.zIndex = zIndex;
+      }
+      entry.cat = cat;
+      entry.place = p;
+      keep.add(p.id);
+    }
+    for (const [id, entry] of markers) {
+      if (keep.has(id)) continue;
+      entry.marker.map = null; // aufbewahren: kommt der Ort wieder (Filter aus), geht das schneller
+      markers.delete(id);
+      hiddenMarkers.set(id, entry);
+    }
+    // Offenes Detailfenster eines Orts: schliessen, wenn der Ort weggefiltert wurde, sonst Inhalt auffrischen
+    if (popupId && info.isOpen && info.getContent() === popupShown) {
+      const entry = markers.get(popupId);
+      if (!entry) {
+        info.close();
+        popupId = null;
+      } else {
+        const html = popupHtml(entry.place, entry.cat);
+        if (html !== popupShown) info.setContent((popupShown = html));
+      }
     }
   }
 
@@ -432,7 +470,8 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       const entry = markers.get(key);
       if (!entry) continue;
       const on = key === id;
-      entry.marker.content.querySelector('.pin')?.classList.toggle('is-active', on);
+      entry.pin = pinHtml(entry.cat, on, pinFlags(entry.place));
+      entry.marker.content.innerHTML = entry.pin;
       entry.marker.zIndex = on ? 1000 : entry.place.starred ? 500 : 1;
     }
     activeId = id;
@@ -454,7 +493,13 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     fitPoints(pts, 14);
   }
 
+  let airbnbNow = null; // aktuelle Daten fürs Detailfenster
+  let airbnbAt = '';
   function setAirbnb(airbnb) {
+    airbnbNow = airbnb;
+    const at = airbnb ? `${airbnb.lat},${airbnb.lng}` : '';
+    if (at === airbnbAt) return; // gleiche Stelle: Marker stehen lassen
+    airbnbAt = at;
     if (airbnbMarker) airbnbMarker.map = null;
     airbnbMarker = null;
     if (!airbnb) return;
@@ -462,19 +507,29 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     content.innerHTML = `<div class="home-pin" title="Unser Airbnb">${icon('home', { size: 15, stroke: 2.2 })}</div>`;
     airbnbMarker = new AdvancedMarkerElement({ map, position: toLatLng(airbnb), content, title: 'Unser Airbnb', zIndex: 2000 });
     airbnbMarker.addListener('click', () => {
-      info.setContent(airbnbPopupHtml(airbnb));
+      info.setContent(airbnbPopupHtml(airbnbNow));
       info.open({ shouldFocus: false, map, anchor: airbnbMarker });
     });
   }
 
   // --- Rennrad-Routen -----------------------------------------------------------------------------
+  // Linien nur neu zeichnen, wenn sich Auswahl, Farbe oder Strecke geändert haben. Die Daten fürs
+  // Detailfenster (gefahren, Links, Wetter) kommen beim Antippen immer frisch aus routeNow.
+  const routeNow = new Map();
+  let routeKey = [];
   function setRoutes(routes) {
+    routeNow.clear();
+    for (const r of routes) routeNow.set(r.id, r);
+    const key = routes.flatMap((r) => [r.id, r.color, r.points]);
+    if (key.length === routeKey.length && key.every((v, i) => v === routeKey[i])) return;
+    routeKey = key;
     for (const s of routeShapes) s.setMap(null);
     routeShapes = [];
-    for (const r of routes) {
-      if (!r.points?.length) continue;
-      const color = r.color || ROUTE_CATEGORY.ink;
-      const path = r.points.map(toLatLng);
+    for (const route of routes) {
+      if (!route.points?.length) continue;
+      const color = route.color || ROUTE_CATEGORY.ink;
+      const current = () => routeNow.get(route.id) || route;
+      const path = route.points.map(toLatLng);
       const casing = new google.maps.Polyline({ map, path, strokeColor: '#FFFFFF', strokeOpacity: 0.9, strokeWeight: 6, clickable: false, zIndex: ++zTop });
       const line = new google.maps.Polyline({ map, path, strokeColor: color, strokeOpacity: 0.95, strokeWeight: 3.5, clickable: false, zIndex: ++zTop });
       // Unsichtbare, breite Tippfläche – die schmale Linie trifft man auf dem Handy kaum
@@ -492,7 +547,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       hit.addListener('mouseout', lower);
       hit.addListener('click', (e) => {
         raise();
-        info.setContent(routePopup ? routePopup(r, color) : routePopupHtml(r, color));
+        info.setContent(routePopup ? routePopup(current(), color) : routePopupHtml(current(), color));
         info.setPosition(e.latLng);
         info.open({ shouldFocus: false, map });
       });
