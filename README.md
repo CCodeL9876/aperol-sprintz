@@ -52,6 +52,8 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
   automatisch, für bestehende Orte über Menü `•••` → „Öffnungszeiten laden“. Liste und Karten-Popup zeigen
   „Offen bis …“ bzw. „Geschlossen · öffnet …“.
 - **Ausgaben**: Rechnung direkt bei einem Ort erfassen („Rechnung“ in der Liste bzw. im Karten-Popup).
+- **Fotos**: Menü `•••` → „Fotos · Geteiltes Album“ öffnet auf iPhone/iPad die Fotos-App (dort „Geteilte Alben“).
+  Apple zeigt nur Alben, zu denen man eingeladen ist – die App selbst speichert keinen Album-Link.
 - **Fotos**: Menü `•••` → „Fotos · Geteiltes Album“ öffnet euer geteiltes Apple-Fotoalbum. Den Link (öffentliche
   Website des Albums) trägt man einmal ein; er liegt in der gemeinsamen Reise (Spalte `trip_settings.photo_album`),
   nicht im Quellcode. Ändern über „Fotoalbum-Link ändern“ im selben Menü.

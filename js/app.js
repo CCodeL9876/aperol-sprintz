@@ -3127,9 +3127,10 @@ $('#category-form').addEventListener('submit', (e) => {
 
 // --- Menü -------------------------------------------------------------------------------------
 
-// Wallet-Link nur auf iPhone/iPad zeigen (iPadOS meldet sich als „Macintosh“ mit Touch)
+// Wallet- und Fotos-Link nur auf iPhone/iPad zeigen (iPadOS meldet sich als „Macintosh“ mit Touch)
 const isAppleMobile = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 $('#menu-wallet').hidden = !isAppleMobile;
+$('#menu-photos').hidden = !isAppleMobile;
 
 // Geteiltes Fotoalbum: mit Link öffnet der Menüpunkt das Album, ohne Link das Fenster zum Eintragen
 function renderPhotoMenu() {

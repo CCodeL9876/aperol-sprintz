@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-06.13" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-06.13">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-06.14" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-06.14">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-06.13">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-06.13">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-06.13">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-06.14">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-06.14">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-06.14">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -65,6 +65,10 @@
           <!-- Airbnb unterstützt App-Links: airbnb.com/trips öffnet auf dem iPhone direkt die Airbnb-App bei „Reisen“
                (dort Buchung → Check-in-Anleitung mit Schlüsselbox-Code). Der Code selbst steht bewusst nicht in dieser App. -->
           <a class="menu-link" data-menu="airbnb-trips" href="https://www.airbnb.com/trips" target="_blank" rel="noopener"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>Check-in · Airbnb</a>
+          <!-- Geteiltes Fotoalbum: photos-redirect:// öffnet die Fotos-App (wie shoebox:// für Wallet nicht offiziell
+               dokumentiert). Einen Link direkt in ein Album gibt es nicht – dort „Geteilte Alben“ wählen. Apple zeigt
+               nur Alben, zu denen man eingeladen ist. Nur auf iPhone/iPad sichtbar (siehe app.js). -->
+          <a class="menu-link" id="menu-photos" data-menu="photos" href="photos-redirect://" hidden><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>Fotos · Geteiltes Album</a>
           <!-- Geteiltes Apple-Fotoalbum: öffnet den gespeicherten Link (öffentliche Website des Albums); ohne Link
                öffnet sich das Fenster zum Eintragen (siehe app.js) -->
           <a class="menu-link" id="menu-photos" data-menu="photos" href="#" target="_blank" rel="noopener"><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>Fotos · Geteiltes Album</a>
@@ -630,27 +634,27 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-06.13"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-06.14"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-06.13",
-      "./js/backend.js": "./js/backend.js?v=2026-10-06.13",
-      "./js/cash.js": "./js/cash.js?v=2026-10-06.13",
-      "./js/categories.js": "./js/categories.js?v=2026-10-06.13",
-      "./js/config.js": "./js/config.js?v=2026-10-06.13",
-      "./js/geo.js": "./js/geo.js?v=2026-10-06.13",
-      "./js/hours.js": "./js/hours.js?v=2026-10-06.13",
-      "./js/icons.js": "./js/icons.js?v=2026-10-06.13",
-      "./js/importers.js": "./js/importers.js?v=2026-10-06.13",
-      "./js/map.js": "./js/map.js?v=2026-10-06.13",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-06.13",
-      "./js/pois.js": "./js/pois.js?v=2026-10-06.13",
-      "./js/store.js": "./js/store.js?v=2026-10-06.13"
+      "./js/app.js": "./js/app.js?v=2026-10-06.14",
+      "./js/backend.js": "./js/backend.js?v=2026-10-06.14",
+      "./js/cash.js": "./js/cash.js?v=2026-10-06.14",
+      "./js/categories.js": "./js/categories.js?v=2026-10-06.14",
+      "./js/config.js": "./js/config.js?v=2026-10-06.14",
+      "./js/geo.js": "./js/geo.js?v=2026-10-06.14",
+      "./js/hours.js": "./js/hours.js?v=2026-10-06.14",
+      "./js/icons.js": "./js/icons.js?v=2026-10-06.14",
+      "./js/importers.js": "./js/importers.js?v=2026-10-06.14",
+      "./js/map.js": "./js/map.js?v=2026-10-06.14",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-06.14",
+      "./js/pois.js": "./js/pois.js?v=2026-10-06.14",
+      "./js/store.js": "./js/store.js?v=2026-10-06.14"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-06.13"></script>
+  <script type="module" src="js/app.js?v=2026-10-06.14"></script>
 </body>
 </html>
