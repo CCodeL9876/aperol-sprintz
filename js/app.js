@@ -2784,9 +2784,7 @@ function renderShareDialog() {
   } else {
     const remembered = rememberedTripKey();
     body.innerHTML = `
-      <p class="share-text"><strong>Demo-Ansicht:</strong> Du siehst Beispieldaten. Änderungen werden nicht gespeichert und sind nach dem Neuladen wieder weg.</p>
-      <p class="share-text">Für eure gemeinsame Reise brauchst du den Reise-Link und den Zugangscode von deinen Mitreisenden.</p>
-      ${remembered && demoForced ? `<a class="btn btn-primary" href="${escapeHtml(shareUrl(remembered))}">Zurück zu eurer Reise</a>` : ''}`;
+      <p class="share-text"><strong>Demo-Ansicht:</strong> Du siehst Beispieldaten. Änderungen werden nicht gespeichert und sind nach dem Neuladen wieder weg.</p>      ${remembered && demoForced ? `<a class="btn btn-primary" href="${escapeHtml(shareUrl(remembered))}">Zurück zu eurer Reise</a>` : ''}`;
   }
 }
 
