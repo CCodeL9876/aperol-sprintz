@@ -665,7 +665,7 @@ function renderAirbnb() {
 
 // Fahrzeit ohne Pausen: Strecke im gewählten Grundtempo plus Zuschlag fürs Klettern. Die Steigleistung
 // wächst mit dem Tempo (25 km/h → 750 Hm/h). Grobe Faustregel; Abfahrten werden nicht abgezogen.
-const BIKE_SPEEDS = [20, 22, 25, 28, 30, 32];
+const BIKE_SPEEDS = [18, 20, 22, 25, 28, 30, 32];
 const bikeSpeed = () => { const v = Number(readPref('bikeSpeed')); return BIKE_SPEEDS.includes(v) ? v : 25; };
 function rideHours(r, speed = bikeSpeed()) {
   if (!Number.isFinite(r.distanceKm) || r.distanceKm <= 0) return null;
