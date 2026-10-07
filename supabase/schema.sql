@@ -130,6 +130,8 @@ create table if not exists public.trip_access (
 alter table public.trip_access enable row level security;
 -- Keine Policies und keine Rechte: nur über die Funktionen unten erreichbar
 revoke all on public.trip_access from anon, authenticated;
+-- Admin-PIN (bcrypt-Prüfsumme), siehe „Admin“ weiter unten; leer = noch kein Admin festgelegt
+alter table public.trip_access add column if not exists admin_hash text;
 
 create or replace function public.request_trip_code()
 returns text
@@ -181,9 +183,12 @@ begin
 end
 $$;
 
--- Code einer eingetragenen Reise ändern (alter Code nötig). Neue Reisen anlegen oder Codes entfernen geht nicht –
--- eine neue Reise trägt man bei Bedarf hier im SQL Editor ein (siehe ANLEITUNG.md, Abschnitt 2c).
-create or replace function public.set_trip_code(new_code text)
+-- Code einer eingetragenen Reise ändern (alter Code nötig, und – sobald es einen Admin gibt – die Admin-PIN).
+-- Neue Reisen anlegen oder Codes entfernen geht nicht – eine neue Reise trägt man bei Bedarf hier im SQL Editor ein
+-- (siehe ANLEITUNG.md, Abschnitt 2c). Die frühere Fassung ohne Admin-PIN wird entfernt, damit sie nicht als
+-- Hintertür bestehen bleibt.
+drop function if exists public.set_trip_code(text);
+create or replace function public.set_trip_code(new_code text, admin_pin text default null)
 returns boolean
 language plpgsql
 volatile
@@ -202,6 +207,10 @@ begin
   if not public.trip_code_ok() then
     raise exception 'der bisherige Zugangscode stimmt nicht';
   end if;
+  if (select admin_hash from public.trip_access where trip_key = k) is not null
+     and not public.trip_admin_ok(admin_pin) then
+    raise exception 'nur der Admin kann den Zugangscode ändern';
+  end if;
   if coalesce(new_code, '') = '' then
     raise exception 'der Zugangscode kann nur geändert, nicht entfernt werden';
   end if;
@@ -219,7 +228,108 @@ begin
 end
 $$;
 
-grant execute on function public.trip_code_status(), public.set_trip_code(text) to anon, authenticated;
+-- --- Admin -----------------------------------------------------------------------------------------
+-- Wer die Admin-PIN kennt (zusätzlich zum Zugangscode), ist Admin: Nur er kann den Zugangscode ändern und alle
+-- Orte auf einmal löschen. Die PIN geht als Parameter mit; gespeichert wird nur eine bcrypt-Prüfsumme.
+-- Solange keine PIN festgelegt ist, gilt das bisherige Verhalten – wer sie zuerst festlegt, ist Admin.
+
+-- true nur mit gültigem Zugangscode, festgelegter Admin-PIN und passender PIN (falsche PIN verzögert die Antwort)
+-- Hinweis: Die Funktion wird oben in set_trip_code verwendet – plpgsql prüft das erst beim Aufruf.
+create or replace function public.trip_admin_ok(pin text)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  stored text;
+begin
+  if not public.trip_code_ok() then
+    return false;
+  end if;
+  select admin_hash into stored from public.trip_access where trip_key = public.request_trip_key();
+  if stored is null or coalesce(pin, '') = '' then
+    return false;
+  end if;
+  if extensions.crypt(pin, stored) = stored then
+    return true;
+  end if;
+  perform pg_sleep(0.5);
+  return false;
+end
+$$;
+
+-- Für die App: 'none' (noch kein Admin), 'ok' (PIN stimmt) oder 'locked' (PIN festgelegt, fehlt oder falsch)
+create or replace function public.trip_admin_status(pin text default null)
+returns text
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.trip_code_ok() then
+    raise exception 'kein Zugriff auf diese Reise';
+  end if;
+  if (select admin_hash from public.trip_access where trip_key = public.request_trip_key()) is null then
+    return 'none';
+  end if;
+  return case when public.trip_admin_ok(pin) then 'ok' else 'locked' end;
+end
+$$;
+
+-- Admin-PIN festlegen (gibt es noch keine) oder ändern (dann ist die bisherige PIN nötig)
+create or replace function public.set_admin_pin(new_pin text, old_pin text default null)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.trip_code_ok() then
+    raise exception 'kein Zugriff auf diese Reise';
+  end if;
+  if (select admin_hash from public.trip_access where trip_key = public.request_trip_key()) is not null
+     and not public.trip_admin_ok(old_pin) then
+    raise exception 'die bisherige Admin-PIN stimmt nicht';
+  end if;
+  if char_length(coalesce(new_pin, '')) < 4 or char_length(new_pin) > 64 then
+    raise exception 'die Admin-PIN muss 4 bis 64 Zeichen lang sein';
+  end if;
+  update public.trip_access
+     set admin_hash = extensions.crypt(new_pin, extensions.gen_salt('bf', 8)), updated_at = now()
+   where trip_key = public.request_trip_key();
+  return true;
+end
+$$;
+
+-- Alle Orte der Reise auf einmal löschen – nur mit Admin-PIN. Rückgabe: Anzahl gelöschter Orte.
+create or replace function public.delete_all_places(admin_pin text)
+returns integer
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  n integer;
+begin
+  if not public.trip_admin_ok(admin_pin) then
+    raise exception 'nur der Admin kann alle Orte löschen';
+  end if;
+  delete from public.places where trip_key = public.request_trip_key();
+  get diagnostics n = row_count;
+  return n;
+end
+$$;
+
+grant execute on function public.trip_code_status(), public.set_trip_code(text, text),
+  public.trip_admin_status(text), public.set_admin_pin(text, text), public.delete_all_places(text)
+  to anon, authenticated;
+-- trip_admin_ok nur intern (sonst ließen sich PINs direkt durchprobieren – mit Verzögerung, aber unnötig offen)
+revoke execute on function public.trip_admin_ok(text) from public, anon, authenticated;
 
 alter table public.places enable row level security;
 alter table public.routes enable row level security;

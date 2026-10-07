@@ -122,6 +122,20 @@ values ('REISE-SCHLÜSSEL', extensions.crypt('CODE', extensions.gen_salt('bf', 8
 Code vergessen: Mitreisende fragen – oder die Zeile in `trip_access` wie oben mit neuem Code ersetzen
 (`update public.trip_access set code_hash = extensions.crypt('NEUER-CODE', extensions.gen_salt('bf', 8)) where trip_key = '…';`).
 
+## 2d. Admin – nur eine Person ändert den Zugangscode und löscht alle Orte
+
+Wer die **Admin-PIN** kennt, ist Admin. Nur der Admin kann den Zugangscode ändern und über das Menü **•••** alle
+Orte auf einmal löschen – das prüft die Datenbank selbst, nicht nur die App.
+
+1. Einmal `supabase/schema.sql` im SQL Editor ausführen (wie in Abschnitt 2a).
+2. Sofort danach in der App **Teilen → „Admin-PIN festlegen“** (mindestens 4 Zeichen). Wer die PIN zuerst
+   festlegt, ist Admin – bis dahin kann niemand alle Orte löschen.
+3. Auf weiteren eigenen Geräten: **Teilen → „Als Admin anmelden“** und die PIN eingeben (jedes Gerät merkt sie sich).
+
+Der Admin erkennt sich am orangen Ring um seine Initialen oben rechts. Einzelne Orte löschen dürfen weiterhin
+alle. PIN vergessen? Im SQL Editor `update public.trip_access set admin_hash = null;` ausführen – danach lässt
+sich in der App eine neue PIN festlegen.
+
 ## 3. App auf GitHub Pages veröffentlichen
 
 ### Variante A: im Browser (ohne Terminal)

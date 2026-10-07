@@ -49,6 +49,9 @@ export function rememberedTripCode(key) {
 }
 export const rememberTripCode = (key, code) => writePref('tripCode', code ? { key, code } : null);
 export const forgetTripCode = () => writePref('tripCode', null);
+// Admin-PIN auf diesem Gerät (je Reise), siehe adminStatus
+export const rememberedAdminPin = (key) => { const v = readPref('adminPin'); return v && v.key === key ? String(v.pin || '') : ''; };
+export const rememberAdminPin = (key, pin) => writePref('adminPin', pin ? { key, pin } : null);
 
 // Der Code geht als HTTP-Header mit – dort sind nur einfache Zeichen sicher (Browser schicken z. B. „ä“
 // anders als UTF-8, Supabase antwortet dann mit einem Fehler; „€“ senden sie gar nicht).
@@ -142,6 +145,7 @@ export class DemoBackend {
   async saveSettings() {}
   async saveParticipants() {}
   async changeParticipants() { return null; }
+  async adminStatus() { return 'unsupported'; }
   async addExpenses() {}
   async updateExpense() {}
   async deleteExpense() {}
@@ -173,6 +177,7 @@ export class LocalBackend {
   async saveSettings() { this.#save(); }
   async saveParticipants() { this.#save(); }
   async changeParticipants() { this.#save(); return null; }
+  async adminStatus() { return 'unsupported'; }
   async addExpenses() { this.#save(); }
   async updateExpense() { this.#save(); }
   async deleteExpense() { this.#save(); }
@@ -316,11 +321,31 @@ export class SharedBackend {
   }
 
   // Zugangscode setzen/ändern; leerer Text entfernt ihn. Danach neu verbinden (der Code steckt im Header).
-  async setCode(newCode) {
-    const { error } = await this.db.rpc('set_trip_code', { new_code: newCode || '' });
+  // Gibt es einen Admin, verlangt die Datenbank zusätzlich die Admin-PIN.
+  async setCode(newCode, adminPin = '') {
+    const params = { new_code: newCode || '', ...(adminPin ? { admin_pin: adminPin } : {}) };
+    const { error } = await this.db.rpc('set_trip_code', params);
     if (error) throw new Error(/function|schema cache/i.test(error.message)
       ? 'Zugangscode in der Datenbank noch nicht eingerichtet (supabase/schema.sql ausführen)'
       : error.message);
+  }
+
+  // Admin (siehe supabase/schema.sql): 'none' (noch kein Admin), 'ok' (PIN stimmt), 'locked' (PIN fehlt/falsch)
+  // oder 'unsupported' (SQL noch nicht ausgeführt – dann gilt das bisherige Verhalten ohne Admin)
+  async adminStatus(pin = '') {
+    const { data, error } = await this.db.rpc('trip_admin_status', { pin: pin || null });
+    if (error) {
+      if (error.code === 'PGRST202') return 'unsupported';
+      throw new Error(error.message);
+    }
+    this.adminSupported = true;
+    return data;
+  }
+
+  // Admin-PIN festlegen (noch kein Admin) oder ändern (bisherige PIN nötig)
+  async setAdminPin(newPin, oldPin = '') {
+    const { error } = await this.db.rpc('set_admin_pin', { new_pin: newPin, old_pin: oldPin || null });
+    if (error) throw new Error(error.message);
   }
 
   constructor(db, key) {
@@ -405,7 +430,13 @@ export class SharedBackend {
     check(await this.db.from('places').delete().eq('id', id).eq('trip_key', this.key));
   }
 
-  async deleteAllPlaces() {
+  // Mit Admin (SQL ausgeführt) prüft die Datenbank die Admin-PIN; sonst wie bisher direkt löschen
+  async deleteAllPlaces(adminPin = '') {
+    if (this.adminSupported) {
+      const { error } = await this.db.rpc('delete_all_places', { admin_pin: adminPin || null });
+      if (error) throw new Error(error.message);
+      return;
+    }
     check(await this.db.from('places').delete().eq('trip_key', this.key));
   }
 
@@ -558,5 +589,7 @@ export class OfflineBackend {
   async updateExpense() { this.#offline(); }
   async deleteExpense() { this.#offline(); }
   async setCode() { this.#offline(); }
+  async adminStatus() { return 'unsupported'; }
+  async setAdminPin() { this.#offline(); }
   async routeGpx() { return null; }
 }

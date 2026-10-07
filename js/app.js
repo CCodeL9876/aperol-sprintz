@@ -6,6 +6,7 @@ import { loadUi, saveUi, readPref, writePref, downloadBackup, newId, newTripKey,
 import { expandMapsLinks, hasShortMapsLinks,
   DemoBackend, SharedBackend, OfflineBackend, sharingConfigured, tripKeyFromUrl,
   rememberedTripKey, rememberTripKey, forgetTripKey, shareUrl, rememberTripCode, forgetTripCode, validTripCodeChars,
+  rememberedAdminPin, rememberAdminPin,
 } from './backend.js';
 import { createMap } from './map.js';
 import { sanitizeHours, hoursStale, openAt, hoursStatus } from './hours.js';
@@ -2840,8 +2841,11 @@ function renderShareDialog() {
         <p class="share-text">${backend.codeProtected
           ? '<strong>Mit Zugangscode geschützt:</strong> Der Link allein reicht nicht. Sag den Code deinen Mitreisenden getrennt vom Link, z. B. mündlich.'
           : '<strong>Kein Zugangscode:</strong> Wer den Link hat, sieht alles. Mit einem Code braucht man zusätzlich den Code.'}</p>
-        <button id="btn-code-manage" class="btn-link" type="button">${backend.codeProtected ? 'Zugangscode ändern' : 'Zugangscode festlegen'}</button>
+        ${canAdmin() || adminState === 'none'
+          ? `<button id="btn-code-manage" class="btn-link" type="button">${backend.codeProtected ? 'Zugangscode ändern' : 'Zugangscode festlegen'}</button>`
+          : '<p class="hint">Den Zugangscode ändert der Admin.</p>'}
       </div>
+      ${adminHtml()}
       <p class="share-text share-me">${me() ? `Du bist <strong>${escapeHtml(me().name)}</strong>` : 'Noch nicht angemeldet'} · <button id="btn-who" class="btn-link" type="button">${me() ? 'wechseln' : 'Wer bist du?'}</button></p>
       <button id="btn-leave-trip" class="btn-link muted" type="button">Reise auf diesem Gerät verlassen</button>`;
   } else {
@@ -2942,6 +2946,7 @@ function switchTo(next) {
     history.replaceState(null, '', location.pathname);
   }
   renderShareState();
+  checkAdmin();
 }
 
 async function leaveTrip() {
@@ -2971,6 +2976,14 @@ $('#share-body').addEventListener('click', (e) => {
   if (id === 'btn-copy-link') copyLink();
   if (id === 'btn-leave-trip') leaveTrip();
   if (id === 'btn-code-manage') openCodeManage();
+  if (id === 'btn-admin-login') openAdmin('login');
+  if (id === 'btn-admin-set') openAdmin('set');
+  if (id === 'btn-admin-change') openAdmin('change');
+  if (id === 'btn-admin-logout') {
+    if (!confirm('Admin auf diesem Gerät abmelden? Mit der Admin-PIN kannst du dich jederzeit wieder anmelden.')) return;
+    rememberAdminPin(backend.key, '');
+    checkAdmin();
+  }
   if (id === 'btn-who') {
     shareDialog.close();
     askWho();
@@ -3084,7 +3097,7 @@ function openCodeManage() {
 
 // Code in der Datenbank setzen (leer = entfernen), auf diesem Gerät merken und neu verbinden
 async function applyTripCode(newCode) {
-  await backend.setCode(newCode);
+  await backend.setCode(newCode, rememberedAdminPin(backend.key));
   if (newCode) rememberTripCode(backend.key, newCode); else forgetTripCode();
   switchTo(await SharedBackend.connect(backend.key, newCode));
   lastSignature = '';
@@ -3396,6 +3409,7 @@ $('.menu-panel').addEventListener('click', async (e) => {
   if (what === 'fit') mapView.fitTo(lastVisible, state.airbnb);
   if (what === 'hours') loadOpeningHours();
   if (what === 'reset') {
+    if (!canAdmin()) return toast('Alle Orte löschen kann nur der Admin.');
     const where = backend.kind === 'shared' ? ' – für alle in dieser gemeinsamen Reise' : '';
     if (!confirm(`Wirklich alle Orte, das Airbnb und eigene Kategorien löschen${where}?`)) return;
     state.places = [];
@@ -3405,7 +3419,9 @@ $('.menu-panel').addEventListener('click', async (e) => {
     $('#search').value = '';
     state.ui.search = '';
     render({ fit: true });
-    await persist((b) => b.deleteAllPlaces());
+    // Klappt das Löschen nicht (z. B. Admin-PIN falsch), auch Airbnb und Kategorien stehen lassen –
+    // persist lädt dann den Serverstand neu
+    if (!await persist((b) => b.deleteAllPlaces(rememberedAdminPin(backend.key)), 'Orte konnten nicht gelöscht werden')) return;
     await persistSettings();
   }
 });
@@ -3529,6 +3545,90 @@ async function boot() {
 // Kurze Übersicht beim Öffnen der Seite; „Nicht mehr anzeigen“ merkt sich jedes Gerät selbst.
 const introDialog = $('#intro-dialog');
 
+// --- Admin -------------------------------------------------------------------------------------
+// Wer die Admin-PIN kennt, ist Admin: nur er kann den Zugangscode ändern und alle Orte löschen (geprüft von der
+// Datenbank, siehe supabase/schema.sql). Die PIN merkt sich jedes Gerät selbst. 'unsupported' = SQL noch nicht
+// ausgeführt bzw. Demo – dann gilt das bisherige Verhalten ohne Admin.
+let adminState = 'unsupported';
+const canAdmin = () => adminState === 'ok' || adminState === 'unsupported';
+
+async function checkAdmin() {
+  const b = backend;
+  let next = 'unsupported';
+  try {
+    next = await b.adminStatus(rememberedAdminPin(b.key));
+  } catch (err) {
+    console.warn('Admin-Status nicht ladbar:', err.message);
+  }
+  if (b !== backend) return; // inzwischen gewechselt
+  adminState = next;
+  renderAdmin();
+}
+
+function renderAdmin() {
+  $('[data-menu="reset"]').hidden = !canAdmin();
+  renderMe();
+  if (shareDialog.open) renderShareDialog();
+}
+
+function adminHtml() {
+  if (backend.offline) return '';
+  if (adminState === 'unsupported') return '<p class="hint share-admin">Admin-Zugriff: in Supabase einmal <code>supabase/schema.sql</code> ausführen.</p>';
+  if (adminState === 'none') return `<div class="share-admin"><p class="share-text"><strong>Noch kein Admin:</strong> Wer die Admin-PIN festlegt, kann als Einziger den Zugangscode ändern und alle Orte löschen.</p>
+      <button id="btn-admin-set" class="btn-link" type="button">Admin-PIN festlegen</button></div>`;
+  if (adminState === 'ok') return `<div class="share-admin"><p class="share-text"><strong>Du bist Admin</strong> auf diesem Gerät.</p>
+      <span class="share-admin-actions"><button id="btn-admin-change" class="btn-link" type="button">Admin-PIN ändern</button>
+      <button id="btn-admin-logout" class="btn-link muted" type="button">Als Admin abmelden</button></span></div>`;
+  return `<div class="share-admin"><p class="share-text">Zugangscode ändern und alle Orte löschen kann nur der Admin.</p>
+      <button id="btn-admin-login" class="btn-link" type="button">Als Admin anmelden</button></div>`;
+}
+
+// PIN-Fenster: 'login' (PIN eingeben), 'set' (erste PIN festlegen), 'change' (neue PIN; die alte kennt das Gerät)
+const adminDialog = $('#admin-dialog');
+let adminMode = 'login';
+function openAdmin(mode) {
+  adminMode = mode;
+  $('#admin-title').textContent = mode === 'login' ? 'Als Admin anmelden' : mode === 'set' ? 'Admin-PIN festlegen' : 'Admin-PIN ändern';
+  $('#admin-lead').textContent = mode === 'login'
+    ? 'Gib die Admin-PIN ein – dieses Gerät merkt sie sich.'
+    : 'Mindestens 4 Zeichen. Behalte die PIN für dich – wer sie kennt, ist Admin.';
+  $('#admin-repeat-field').hidden = mode === 'login';
+  $('#admin-pin').value = '';
+  $('#admin-repeat').value = '';
+  $('#admin-error').textContent = '';
+  $('#admin-save').textContent = mode === 'login' ? 'Anmelden' : 'Speichern';
+  if (shareDialog.open) shareDialog.close();
+  adminDialog.showModal();
+}
+
+$('#admin-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pin = $('#admin-pin').value.trim();
+  const error = $('#admin-error');
+  error.textContent = pin.length < 4 ? 'Die PIN hat mindestens 4 Zeichen.'
+    : adminMode !== 'login' && pin !== $('#admin-repeat').value.trim() ? 'Die beiden Eingaben stimmen nicht überein.'
+    : '';
+  if (error.textContent) return;
+  const btn = $('#admin-save');
+  btn.disabled = true;
+  try {
+    if (adminMode === 'login') {
+      if (await backend.adminStatus(pin) !== 'ok') throw new Error('Diese PIN stimmt nicht.');
+    } else {
+      await backend.setAdminPin(pin, rememberedAdminPin(backend.key));
+    }
+    rememberAdminPin(backend.key, pin);
+    adminDialog.close();
+    await checkAdmin();
+    toast(adminMode === 'login' ? 'Du bist jetzt Admin auf diesem Gerät.' : 'Admin-PIN gespeichert – du bist Admin auf diesem Gerät.');
+  } catch (err) {
+    error.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+toggleCodeVisible($('#admin-show'), ['#admin-pin', '#admin-repeat']);
+
 // --- Wer bist du? ------------------------------------------------------------------------------
 // Einmal pro Gerät in der gemeinsamen Reise: Person wählen oder neu eintragen. Danach ist „Bezahlt von“
 // vorausgewählt und neue Orte/Etappen tragen den Namen. Wechseln über den Initialen-Knopf oben rechts.
@@ -3602,7 +3702,8 @@ function renderMe() {
   const p = me();
   btn.textContent = p ? initials(p.name) : '?';
   btn.classList.toggle('is-unknown', !p);
-  btn.title = p ? `Angemeldet als ${p.name} – antippen zum Wechseln` : 'Wer bist du?';
+  btn.classList.toggle('is-admin', adminState === 'ok');
+  btn.title = p ? `Angemeldet als ${p.name}${adminState === 'ok' ? ' (Admin)' : ''} – antippen zum Wechseln` : 'Wer bist du?';
   btn.setAttribute('aria-label', btn.title);
 }
 $('#btn-me').addEventListener('click', () => askWho());
@@ -3691,6 +3792,7 @@ const INTRO = [
         'Einmal pro Gerät <strong>„Wer bist du?“</strong> – der Kreis mit deinen Initialen oben rechts zeigt es, antippen zum Wechseln.',
         'Änderungen sind nach spätestens 20 Sekunden bei allen.',
         'Mit einem <strong>Zugangscode</strong> (unter „Teilen“) braucht es zusätzlich den Code.',
+        'Zugangscode ändern und alle Orte löschen kann nur der <strong>Admin</strong> (Admin-PIN unter „Teilen“).',
         'Ohne Netz zeigt die App den zuletzt geladenen Stand.',
       ] },
     { icon: 'layers', color: 'var(--mint)', name: 'Eigene Kategorien', text: 'Menü <strong>•••</strong> → <strong>„Kategorien verwalten“</strong>.',
