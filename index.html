@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-07.2" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-07.2">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-07.3" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-07.3">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-07.2">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-07.2">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-07.2">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-07.3">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-07.3">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-07.3">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -48,6 +48,8 @@
     <button type="button" id="demo-badge" class="demo-badge" hidden>Demo</button>
     <button type="button" id="offline-badge" class="demo-badge offline-badge" hidden>Offline</button>
     <nav class="topbar-actions">
+      <!-- Wer nutzt dieses Gerät? Initialen der angemeldeten Person; Tipp = wechseln (nur gemeinsame Reise) -->
+      <button class="me-btn" id="btn-me" type="button" hidden></button>
       <button class="btn btn-ghost btn-share" id="btn-share" type="button" aria-label="Reise teilen">
         <svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="btn-label">Teilen</span>
       </button>
@@ -119,7 +121,6 @@
         <div class="list-head">
           <h2 class="list-title">Espresso-Etappen</h2>
           <span class="routes-head-right">
-            <span id="route-count" class="result-count"></span>
             <button id="btn-plan" class="btn btn-small" type="button">Etappe planen</button>
           </span>
         </div>
@@ -265,60 +266,58 @@
     <div class="dialog-inner">
       <header class="dialog-head">
         <div>
-          <span class="eyebrow">Google Maps</span>
-          <h2 id="import-title">Orte importieren</h2>
+          <span class="eyebrow">Orte &amp; Etappen</span>
+          <h2 id="import-title">Hinzufügen</h2>
         </div>
         <button class="icon-btn" type="button" data-close aria-label="Schließen"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </header>
 
       <div class="tabs" role="tablist">
+        <button class="tab is-active" type="button" role="tab" data-tab="links" aria-selected="true">Link einfügen</button>
         <button class="tab" type="button" role="tab" data-tab="file" aria-selected="false">Datei</button>
-        <button class="tab is-active" type="button" role="tab" data-tab="links" aria-selected="true">Links einfügen</button>
+      </div>
+
+      <div class="tab-panel" data-panel="links" role="tabpanel">
+        <textarea id="links-input" rows="4" placeholder="Google-Maps-Link einfügen&#10;Mehrere Orte: ein Link pro Zeile"></textarea>
+        <p class="hint">In Google Maps: Ort → <strong>Teilen → Kopieren</strong>, hier einfügen.</p>
+        <button id="btn-parse-links" class="btn btn-primary" type="button">Übernehmen</button>
       </div>
 
       <div class="tab-panel" data-panel="file" role="tabpanel" hidden>
         <label id="dropzone" class="dropzone">
           <input id="file-input" type="file" multiple accept=".json,.geojson,.csv,.tsv,.kml,.gpx,.txt">
           <span class="dropzone-arch" aria-hidden="true"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span>
-          <strong>Dateien hierher ziehen</strong>
-          <span>oder klicken zum Auswählen</span>
-          <small>Gespeicherte Orte.json · Listen-CSV · KML aus My Maps · GPX-Strecke · Backup dieser App</small>
+          <strong>Datei wählen</strong>
+          <span>oder hierher ziehen</span>
+          <small>GPX-Strecke · Google Takeout (JSON, CSV) · KML · Backup</small>
         </label>
-      </div>
-
-      <div class="tab-panel" data-panel="links" role="tabpanel">
-        <textarea id="links-input" rows="6" placeholder="Ein Eintrag pro Zeile, z. B.&#10;https://www.google.com/maps/place/…/@39.8506,2.8070,15z&#10;Coll dels Reis | 39.8283, 2.8303&#10;Ca'n Joan de s'Aigo, Palma"></textarea>
-        <p class="hint">Am einfachsten: in der Google-Maps-App bei einem Ort <strong>Teilen → Kopieren</strong> und hier einfügen – Kurzlinks (maps.app.goo.gl) werden automatisch aufgelöst. Mehrere Orte: ein Link pro Zeile. Einträge ohne Koordinaten werden per Name gesucht.</p>
-        <button id="btn-parse-links" class="btn btn-primary" type="button">Übernehmen</button>
-      </div>
-
-      <div class="import-options">
-        <label class="field" id="import-category-field">
-          <span>Kategorie für diesen Import</span>
-          <select id="import-category"></select>
-        </label>
-        <label class="check">
-          <input id="import-geocode" type="checkbox" checked>
-          <span>Fehlende Standorte über OpenStreetMap suchen</span>
-        </label>
-        <p class="hint" id="import-gpx-hint">GPX-Dateien werden automatisch als Espresso-Etappe erkannt (unabhängig von der Kategorie oben) und
-          erscheinen in der Liste unter „Espresso-Etappen“ – standardmäßig ausgeblendet, bis du sie dort einschaltest.</p>
-        <label class="check" id="import-home-field"><input id="import-home" type="checkbox" checked><span>Start und Ziel beim Airbnb – fehlende Anfahrt und Rückfahrt mit dem Rennrad-Routenplaner ergänzen</span></label>
+        <!-- Optionen nur für Dateien (Links werden automatisch zugeordnet) -->
+        <div class="import-options" id="import-options">
+          <label class="field" id="import-category-field">
+            <span>Kategorie der Orte</span>
+            <select id="import-category"></select>
+          </label>
+          <label class="check" id="import-home-field"><input id="import-home" type="checkbox" checked><span>GPX: Start und Ziel ans Airbnb anschließen</span></label>
+          <label class="check">
+            <input id="import-geocode" type="checkbox" checked>
+            <span>Fehlende Standorte suchen</span>
+          </label>
+        </div>
+        <details class="howto">
+          <summary>Orte aus Google Maps exportieren</summary>
+          <ol>
+            <li>Öffne <a href="https://takeout.google.com" target="_blank" rel="noopener">takeout.google.com</a> und klicke auf „Alle abwählen“.</li>
+            <li>Wähle <strong>„Maps (Meine Orte)“</strong> und <strong>„Gespeichert“</strong> (deine Listen).</li>
+            <li>Export erstellen, ZIP herunterladen und entpacken.</li>
+            <li>Die JSON- und CSV-Dateien hier wählen. Der Listenname (z. B. <em>Rennrad.csv</em>) hilft bei der Kategorie.</li>
+          </ol>
+        </details>
       </div>
 
       <div id="import-log" class="import-log" aria-live="polite"></div>
 
-      <details class="howto">
-        <summary>So exportierst du deine Orte aus Google Maps</summary>
-        <ol>
-          <li>Öffne <a href="https://takeout.google.com" target="_blank" rel="noopener">takeout.google.com</a> und klicke auf „Alle abwählen“.</li>
-          <li>Wähle <strong>„Maps (Meine Orte)“</strong> (markierte Orte als <em>Gespeicherte Orte.json</em>) und <strong>„Gespeichert“</strong> (deine Listen als CSV).</li>
-          <li>Export erstellen, ZIP herunterladen und entpacken.</li>
-          <li>Die JSON- und CSV-Dateien hier hineinziehen. Der Listenname (z. B. <em>Rennrad.csv</em>) hilft bei der Kategorie.</li>
-        </ol>
-      </details>
-
       <footer class="dialog-foot">
+        <!-- nur bei leerer Reise (openImport) – sonst kämen Beispielorte für alle dazu -->
         <button id="btn-sample" class="btn-link" type="button">Beispielorte laden</button>
         <button class="btn btn-ghost" type="button" data-close>Fertig</button>
       </footer>
@@ -492,10 +491,6 @@
         <button class="icon-btn" type="button" data-close aria-label="Schließen"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </header>
       <div id="share-body" class="share-body"></div>
-      <label class="field" for="member-name">
-        <span>Dein Name – erscheint bei Orten, die du hinzufügst</span>
-        <input id="member-name" type="text" maxlength="40" placeholder="z. B. Lisa" autocomplete="given-name">
-      </label>
     </div>
   </dialog>
 
@@ -574,31 +569,54 @@
     </form>
   </dialog>
 
+  <!-- „Wer bist du?“: einmal pro Gerät nach dem Login (gemeinsame Reise), wechseln über den Initialen-Knopf -->
+  <dialog id="who-dialog" class="dialog" aria-labelledby="who-title">
+    <div class="dialog-inner">
+      <header class="dialog-head">
+        <div>
+          <span class="eyebrow">Einmal pro Gerät</span>
+          <h2 id="who-title">Wer bist du?</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="Später"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </header>
+      <p class="code-lead">Damit Rechnungen und neue Orte automatisch dir zugeordnet werden – auf jedem Gerät einmal antippen.</p>
+      <div id="who-list" class="who-list"></div>
+      <form id="who-form" class="who-form" autocomplete="off" novalidate>
+        <label class="field">
+          <span id="who-new-label">Neu dabei? Dein Name</span>
+          <input id="who-input" type="text" maxlength="30" placeholder="z. B. Anna" autocomplete="given-name" autocapitalize="words">
+        </label>
+        <button class="btn btn-primary" type="submit" id="who-save">Das bin ich</button>
+      </form>
+      <p id="who-error" class="code-error" role="alert"></p>
+    </div>
+  </dialog>
+
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-07.2"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-07.3"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-07.2",
-      "./js/backend.js": "./js/backend.js?v=2026-10-07.2",
-      "./js/cash.js": "./js/cash.js?v=2026-10-07.2",
-      "./js/categories.js": "./js/categories.js?v=2026-10-07.2",
-      "./js/config.js": "./js/config.js?v=2026-10-07.2",
-      "./js/geo.js": "./js/geo.js?v=2026-10-07.2",
-      "./js/hours.js": "./js/hours.js?v=2026-10-07.2",
-      "./js/icons.js": "./js/icons.js?v=2026-10-07.2",
-      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-07.2",
-      "./js/importers.js": "./js/importers.js?v=2026-10-07.2",
-      "./js/map.js": "./js/map.js?v=2026-10-07.2",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-07.2",
-      "./js/profile.js": "./js/profile.js?v=2026-10-07.2",
-      "./js/pois.js": "./js/pois.js?v=2026-10-07.2",
-      "./js/store.js": "./js/store.js?v=2026-10-07.2"
+      "./js/app.js": "./js/app.js?v=2026-10-07.3",
+      "./js/backend.js": "./js/backend.js?v=2026-10-07.3",
+      "./js/cash.js": "./js/cash.js?v=2026-10-07.3",
+      "./js/categories.js": "./js/categories.js?v=2026-10-07.3",
+      "./js/config.js": "./js/config.js?v=2026-10-07.3",
+      "./js/geo.js": "./js/geo.js?v=2026-10-07.3",
+      "./js/hours.js": "./js/hours.js?v=2026-10-07.3",
+      "./js/icons.js": "./js/icons.js?v=2026-10-07.3",
+      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-07.3",
+      "./js/importers.js": "./js/importers.js?v=2026-10-07.3",
+      "./js/map.js": "./js/map.js?v=2026-10-07.3",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-07.3",
+      "./js/profile.js": "./js/profile.js?v=2026-10-07.3",
+      "./js/pois.js": "./js/pois.js?v=2026-10-07.3",
+      "./js/store.js": "./js/store.js?v=2026-10-07.3"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-07.2"></script>
+  <script type="module" src="js/app.js?v=2026-10-07.3"></script>
 </body>
 </html>

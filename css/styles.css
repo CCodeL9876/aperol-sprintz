@@ -1040,6 +1040,30 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .plan-tool[aria-pressed="true"] { background: var(--green); color: #FFFFFF; }
 .route-detail.route-detail-elev { grid-template-columns: 1fr; gap: 0; }
 
+/* Wer nutzt dieses Gerät: Initialen oben rechts, „Wer bist du?“-Auswahl */
+.me-btn {
+  flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0;
+  border: 2px solid var(--green); border-radius: 999px; cursor: pointer;
+  background: var(--green); color: #FFFFFF; font: 800 15px var(--font-body); letter-spacing: 0.02em;
+}
+.me-btn.is-unknown { background: var(--card); color: var(--green); }
+.who-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.who-btn {
+  display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 12px; text-align: left;
+  border: 2px solid var(--line); border-radius: var(--radius); background: var(--card); color: var(--text);
+  font: 700 15px var(--font-body); cursor: pointer;
+}
+.who-btn:hover { border-color: var(--green); }
+.who-btn[aria-pressed="true"] { border-color: var(--green); background: var(--green-tint); }
+.who-initials {
+  flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 999px;
+  background: var(--green); color: #FFFFFF; font-size: 13px; font-weight: 800;
+}
+.who-name { min-width: 0; overflow-wrap: anywhere; line-height: 1.2; } /* lange Namen umbrechen statt abschneiden */
+.who-form { display: flex; align-items: flex-end; gap: 8px; }
+.who-form .field { flex: 1; min-width: 0; }
+.share-me .btn-link { font-size: inherit; }
+
 /* --- Dialoge --------------------------------------------------------------------- */
 
 .dialog {
@@ -1109,6 +1133,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .log-line.error::before { content: '!'; color: var(--orange-ink); font-weight: 700; }
 
 .howto { font-size: 13.5px; }
+#import-dialog .dialog-foot [data-close] { margin-left: auto; } /* rechts, auch wenn „Beispielorte laden“ fehlt */
 .howto summary { cursor: pointer; font-weight: 700; color: var(--green); }
 .howto ol { margin: 10px 0 0; padding-left: 20px; color: var(--text-soft); display: grid; gap: 6px; }
 

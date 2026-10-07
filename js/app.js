@@ -57,7 +57,11 @@ const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const escapeHtml = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-const memberName = () => String(readPref('name') || '').trim();
+// Wer nutzt dieses Gerät? Teilnehmenden-ID je Reise, einmal pro Gerät gewählt („Wer bist du?“).
+// Eine Person kann auf mehreren Geräten angemeldet sein – alle zeigen auf dieselbe ID.
+const meKey = () => `me.${backend.key || backend.kind}`;
+const me = () => state.participants.find((p) => p.id === readPref(meKey())) || null;
+const memberName = () => me()?.name || '';
 
 // --- Kategorien ------------------------------------------------------------------
 
@@ -570,6 +574,7 @@ let lastVisible = [];
 let listItems = new Map(); // Ortsliste: id → { html, el } (siehe patchList)
 
 function render({ fit = false } = {}) {
+  renderMe();
   const all = placesWithDistance();
   const base = filterBase(all);
   const selected = new Set(state.ui.categories);
@@ -1065,13 +1070,7 @@ function renderRoutes() {
   const list = $('#route-list');
   if (!list) return; // Null-sicher: altes index.html im Cache
   const empty = $('#route-empty');
-  const count = $('#route-count');
   const visible = new Set(state.ui.visibleRoutes);
-  if (count) {
-    count.textContent = state.routes.length
-      ? `${visible.size} von ${state.routes.length} ${state.routes.length === 1 ? 'Etappe' : 'Etappen'} eingeblendet`
-      : '';
-  }
   if (empty) empty.hidden = state.routes.length > 0;
   const speedBox = $('#route-speed');
   if (speedBox) {
@@ -1722,7 +1721,7 @@ function renderCash() {
 
 function resetCashForm() {
   cashForm.editingId = null;
-  cashForm.payer = null; // muss bei jeder Rechnung bewusst gewählt werden – keine Vorauswahl
+  cashForm.payer = me()?.id || null; // vorausgewählt: wer dieses Gerät nutzt („Wer bist du?“) – änderbar
   cashForm.shared = new Set(state.participants.map((p) => p.id));
   cashForm.currency = 'EUR';
   cashForm.splitMode = 'equal';
@@ -1975,6 +1974,28 @@ function openCashFor(place) {
   $('#cash-what').value = String(place.name || '').slice(0, 120);
 }
 
+// Person zur Reise hinzufügen (Ausgaben und „Wer bist du?“). Rückgabe: die Person oder null bei Fehler.
+async function addParticipant(name) {
+  const person = { id: newId(), name };
+  state.participants.push(person);
+  // Neue Person beim gerade offenen Formular gleich mit auswählen
+  if (!cashForm.editingId) cashForm.shared.add(person.id);
+  render();
+  let merged = null;
+  const ok = await persist(async (b) => { merged = await b.changeParticipants({ add: person }); }, 'Person konnte nicht gespeichert werden');
+  if (!ok) {
+    state.participants = state.participants.filter((p) => p.id !== person.id);
+    render();
+    return null;
+  }
+  // Gemeinsame Reise: Liste vom Server übernehmen (enthält auch gleichzeitig hinzugefügte Personen)
+  if (merged) {
+    state.participants = sanitizeParticipants(merged);
+    render();
+  }
+  return person;
+}
+
 $('#cash-person-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const input = $('#cash-person-input');
@@ -1982,24 +2003,8 @@ $('#cash-person-form').addEventListener('submit', async (e) => {
   if (!name) return;
   if (cashBlocked()) return toast('Die Ausgaben sind in der Datenbank noch nicht eingerichtet (siehe Hinweis oben).');
   if (state.participants.some((p) => norm(p.name) === norm(name))) return toast(`„${name}“ ist schon eingetragen`);
-  const person = { id: newId(), name };
-  state.participants.push(person);
-  // Neue Person beim gerade offenen Formular gleich mit auswählen
-  if (!cashForm.editingId) cashForm.shared.add(person.id);
   input.value = '';
-  render();
-  let merged = null;
-  const ok = await persist(async (b) => { merged = await b.changeParticipants({ add: person }); }, 'Person konnte nicht gespeichert werden');
-  if (!ok) {
-    state.participants = state.participants.filter((p) => p.id !== person.id);
-    render();
-    return;
-  }
-  // Gemeinsame Reise: Liste vom Server übernehmen (enthält auch gleichzeitig hinzugefügte Personen)
-  if (merged) {
-    state.participants = sanitizeParticipants(merged);
-    render();
-  }
+  await addParticipant(name);
 });
 
 // Klappzustand „Ausgleich“ merken („toggle“ steigt nicht auf, daher in der Capture-Phase)
@@ -2482,7 +2487,8 @@ function openImport() {
     '<option value="auto">Automatisch erkennen</option>' +
     displayCategories().map((c) => `<option value="${c.id}">${optionLabel(c)}</option>`).join('');
   $('#import-log').innerHTML = '';
-  selectImportTab('links'); // Start immer auf „Links einfügen“ – der häufigste Weg, Orte hinzuzufügen
+  selectImportTab('links'); // Start immer auf „Link einfügen“ – der häufigste Weg, Orte hinzuzufügen
+  $('#btn-sample').hidden = state.places.length > 0;
   importDialog.showModal();
 }
 
@@ -2554,7 +2560,7 @@ async function restoreRoutes(routes) {
 }
 
 async function importRaw(raws, sourceLabel) {
-  const override = $('#import-category-field').hidden ? 'auto' : $('#import-category').value || 'auto';
+  const override = $('[data-panel="file"]').hidden ? 'auto' : $('#import-category').value || 'auto';
   const { added, dupes } = await addPlaces(raws, override);
   const missing = added.filter((p) => !hasCoords(p));
   log(
@@ -2765,12 +2771,9 @@ function selectImportTab(name) {
     t.classList.toggle('is-active', t.dataset.tab === name);
     t.setAttribute('aria-selected', String(t.dataset.tab === name));
   });
-  $$('.tab-panel', importDialog).forEach((p) => (p.hidden = p.dataset.panel !== name));
-  // Kategorie-Auswahl und GPX-Hinweis nur bei Dateien: Links werden automatisch zugeordnet,
+  // Optionen (Kategorie, GPX, Standortsuche) stehen im Datei-Reiter: Links werden automatisch zugeordnet,
   // die Kategorie lässt sich danach in der Liste pro Ort ändern.
-  $('#import-category-field').hidden = name !== 'file';
-  $('#import-gpx-hint').hidden = name !== 'file';
-  $('#import-home-field').hidden = name !== 'file';
+  $$('.tab-panel', importDialog).forEach((p) => (p.hidden = p.dataset.panel !== name));
 }
 
 // „Start und Ziel beim Airbnb“ pro Gerät merken
@@ -2819,7 +2822,6 @@ function renderShareState() {
 function renderShareDialog() {
   const body = $('#share-body');
   // In der Demo wird nichts gespeichert – das Namensfeld wäre dort sinnlos
-  $('#member-name').closest('.field').hidden = backend.kind === 'demo';
   if (backend.kind === 'shared') {
     const time = lastSync ? lastSync.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '–';
     body.innerHTML = `
@@ -2838,6 +2840,7 @@ function renderShareDialog() {
           : '<strong>Kein Zugangscode:</strong> Wer den Link hat, sieht alles. Mit einem Code braucht man zusätzlich den Code.'}</p>
         <button id="btn-code-manage" class="btn-link" type="button">${backend.codeProtected ? 'Zugangscode ändern' : 'Zugangscode festlegen'}</button>
       </div>
+      <p class="share-text share-me">${me() ? `Du bist <strong>${escapeHtml(me().name)}</strong>` : 'Noch nicht angemeldet'} · <button id="btn-who" class="btn-link" type="button">${me() ? 'wechseln' : 'Wer bist du?'}</button></p>
       <button id="btn-leave-trip" class="btn-link muted" type="button">Reise auf diesem Gerät verlassen</button>`;
   } else {
     const remembered = rememberedTripKey();
@@ -2847,7 +2850,6 @@ function renderShareDialog() {
 }
 
 function openShare() {
-  $('#member-name').value = memberName();
   renderShareDialog();
   shareDialog.showModal();
 }
@@ -2967,6 +2969,10 @@ $('#share-body').addEventListener('click', (e) => {
   if (id === 'btn-copy-link') copyLink();
   if (id === 'btn-leave-trip') leaveTrip();
   if (id === 'btn-code-manage') openCodeManage();
+  if (id === 'btn-who') {
+    shareDialog.close();
+    askWho();
+  }
 });
 
 // --- Zugangscode ------------------------------------------------------------------------------
@@ -3031,9 +3037,9 @@ $('#code-form').addEventListener('submit', async (e) => {
     switchTo(shared);
     codeUnlocked = true;
     codeDialog.close();
-    if (!readPref('introHidden')) openIntro();
     lastSignature = '';
     await refresh({ fit: true });
+    welcome();
   } catch (err) {
     if (err.code === 'CODE_REQUIRED') {
       codeAttempts++;
@@ -3123,7 +3129,6 @@ $('#code-logout').addEventListener('click', () => {
   forgetTripCode();
   clearOfflineSnapshots().finally(() => location.reload());
 });
-$('#member-name').addEventListener('input', (e) => writePref('name', e.target.value.trim().slice(0, 40)));
 
 // --- Kategorien verwalten -------------------------------------------------------------------
 
@@ -3494,9 +3499,9 @@ async function boot() {
     }
   }
   if (!codeDialog.open) {
-    if (!readPref('introHidden')) openIntro();
     if (backend.kind === 'shared') await refresh({ fit: true });
     else await startDemo();
+    welcome();
   }
 
   // Gemeinsame Reise: regelmäßig und beim Zurückkehren in die App abgleichen.
@@ -3521,6 +3526,83 @@ async function boot() {
 // --- Willkommen -----------------------------------------------------------------------------
 // Kurze Übersicht beim Öffnen der Seite; „Nicht mehr anzeigen“ merkt sich jedes Gerät selbst.
 const introDialog = $('#intro-dialog');
+
+// --- Wer bist du? ------------------------------------------------------------------------------
+// Einmal pro Gerät in der gemeinsamen Reise: Person wählen oder neu eintragen. Danach ist „Bezahlt von“
+// vorausgewählt und neue Orte/Etappen tragen den Namen. Wechseln über den Initialen-Knopf oben rechts.
+const whoDialog = $('#who-dialog');
+let whoDone = null;
+const needsWho = () => backend.kind === 'shared' && !backend.offline && !state.cashMissing && !me();
+function initials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return (parts.length > 1 ? parts[0][0] + parts.at(-1)[0] : (parts[0] || '?')[0]).toUpperCase();
+}
+
+// Nach dem Laden: erst „Wer bist du?“ (falls nötig), danach die Willkommensseite
+async function welcome() {
+  if (needsWho()) await askWho();
+  if (!readPref('introHidden')) openIntro();
+}
+
+function askWho() {
+  const current = me()?.id;
+  $('#who-list').innerHTML = state.participants.map((p) => `<button type="button" class="who-btn" data-who="${escapeHtml(p.id)}" aria-pressed="${p.id === current}">
+      <span class="who-initials" aria-hidden="true">${escapeHtml(initials(p.name))}</span><span class="who-name">${escapeHtml(p.name)}</span></button>`).join('');
+  $('#who-list').hidden = !state.participants.length;
+  $('#who-new-label').textContent = state.participants.length ? 'Neu dabei? Dein Name' : 'Dein Name';
+  $('#who-input').value = '';
+  $('#who-error').textContent = '';
+  whoDialog.showModal();
+  return new Promise((resolve) => { whoDone = resolve; });
+}
+whoDialog.addEventListener('close', () => {
+  whoDone?.();
+  whoDone = null;
+});
+
+function setMe(person) {
+  writePref(meKey(), person.id);
+  renderMe();
+  if (shareDialog.open) renderShareDialog();
+  whoDialog.close();
+  toast(`Hallo ${person.name}! Dieses Gerät ist jetzt dir zugeordnet.`);
+}
+
+$('#who-list').addEventListener('click', (e) => {
+  const id = e.target.closest('[data-who]')?.dataset.who;
+  const person = state.participants.find((p) => p.id === id);
+  if (person) setMe(person);
+});
+
+$('#who-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = $('#who-input').value.trim().slice(0, 30);
+  if (!name) {
+    $('#who-error').textContent = 'Bitte deinen Namen eintragen – oder oben antippen, falls er schon da ist.';
+    return;
+  }
+  // Gibt es den Namen schon (z. B. auf einem anderen Gerät angelegt), diese Person nehmen – kein Duplikat
+  const existing = state.participants.find((p) => norm(p.name) === norm(name));
+  if (existing) return setMe(existing);
+  const btn = $('#who-save');
+  btn.disabled = true;
+  const person = await addParticipant(name);
+  btn.disabled = false;
+  if (person) setMe(person);
+});
+
+// Initialen-Knopf in der Kopfzeile (nur gemeinsame Reise)
+function renderMe() {
+  const btn = $('#btn-me');
+  btn.hidden = backend.kind !== 'shared' || Boolean(state.cashMissing);
+  if (btn.hidden) return;
+  const p = me();
+  btn.textContent = p ? initials(p.name) : '?';
+  btn.classList.toggle('is-unknown', !p);
+  btn.title = p ? `Angemeldet als ${p.name} – antippen zum Wechseln` : 'Wer bist du?';
+  btn.setAttribute('aria-label', btn.title);
+}
+$('#btn-me').addEventListener('click', () => askWho());
 
 // Inhalt: oben das Wichtigste (Orte speichern, Routen planen), darunter alles Weitere als Einzeiler.
 // Details stehen in einer Info-Box hinter dem ⓘ – kurze Stichpunkte statt langer Texte.
@@ -3589,6 +3671,7 @@ const INTRO = [
       ] },
     { icon: 'wallet', color: 'var(--orange)', name: 'Ausgaben', text: 'Wer hat was für wen bezahlt?',
       info: [
+        '<strong>„Bezahlt von“</strong> ist mit dir vorausgewählt – änderbar, wenn jemand anderes bezahlt hat.',
         'In € oder CHF, gleich oder nach Anteilen aufgeteilt.',
         'Bei einem Ort direkt über <strong>„Rechnung“</strong>.',
         'Der Ausgleich zeigt, wer wem wie viel schuldet – nach der Überweisung <strong>„bezahlt“</strong> antippen.',
@@ -3602,6 +3685,7 @@ const INTRO = [
     { icon: 'users', color: 'var(--pink)', name: 'Zusammen planen', text: 'Alle mit dem Reise-Link sehen dasselbe.',
       info: [
         'Den Link gibt es unter <strong>„Teilen“</strong> – nur an Mitreisende weitergeben.',
+        'Einmal pro Gerät <strong>„Wer bist du?“</strong> – der Kreis mit deinen Initialen oben rechts zeigt es, antippen zum Wechseln.',
         'Änderungen sind nach spätestens 20 Sekunden bei allen.',
         'Mit einem <strong>Zugangscode</strong> (unter „Teilen“) braucht es zusätzlich den Code.',
         'Ohne Netz zeigt die App den zuletzt geladenen Stand.',
