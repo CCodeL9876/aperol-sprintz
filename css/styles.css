@@ -1048,8 +1048,6 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   background: var(--green); color: #FFFFFF; font: 800 15px var(--font-body); letter-spacing: 0.02em;
 }
 .me-btn.is-unknown { background: var(--card); color: var(--green); }
-/* Links in der Kopfzeile direkt neben dem Logo; alles danach (Kennzeichen, Knöpfe) rückt nach rechts */
-.topbar .me-btn { margin-right: auto; }
 /* Admin: oranger Ring um die Initialen */
 .me-btn.is-admin { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--orange); }
 .share-admin { display: grid; gap: 4px; padding-top: 12px; border-top: 1.5px dashed var(--line); }
