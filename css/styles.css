@@ -1463,7 +1463,9 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
      schwebt darüber – Reise/Unterkunft als zwei kleine Boxen oben, Suche/Orte/Routen als Blatt
      von unten, das sich in drei Höhen ziehen lässt (Umschalten in app.js, data-sheet auf .layout). */
   .layout {
-    display: block; position: relative; overflow: hidden;
+    /* clip statt nur hidden: hidden lässt sich per Skript trotzdem scrollen – scrollIntoView (Liste zum angetippten
+       Ort) schob sonst Karte, Boxen und Planer-/Routen-Feld über den oberen Rand */
+    display: block; position: relative; overflow: hidden; overflow: clip;
     height: calc(100dvh - var(--topbar-h) - env(safe-area-inset-top, 0px));
     --sheet-h: 50%;
   }

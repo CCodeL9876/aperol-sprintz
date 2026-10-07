@@ -487,6 +487,11 @@ function sheetState() {
   return $('.layout').dataset.sheet || 'half';
 }
 
+// Absicherung für Browser ohne „overflow: clip“: der Bereich unter der Kopfzeile darf nie verrutschen
+$('.layout').addEventListener('scroll', (e) => {
+  if (e.target.scrollTop || e.target.scrollLeft) e.target.scrollTo(0, 0);
+}, { passive: true });
+
 function setSheet(next) {
   if (!SHEET_STATES.includes(next)) return;
   $('.layout').dataset.sheet = next;
