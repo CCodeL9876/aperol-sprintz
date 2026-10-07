@@ -982,17 +982,17 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .plan-save .btn-primary:hover::before { background: var(--orange-hover); }
 /* Beim Planen mehr Platz für die Karte: Boxen über der Karte (Unterkunft, Ausgaben …) und der Knopf
    „Orte & Filter“ weg */
-.is-planning .panel-row { visibility: hidden; }
-.is-planning .sheet-open { display: none !important; }
+.is-planning .panel-row, .is-routing .panel-row { visibility: hidden; }
+.is-planning .sheet-open, .is-routing .sheet-open { display: none !important; }
 /* Desktop: Seitenleiste ausblenden – die Karte liegt ohnehin über die ganze Breite darunter */
 @media (min-width: 900px) {
-  .is-planning .sidebar { display: none; }
+  .is-planning .sidebar, .is-routing .sidebar { display: none; }
 }
 /* Handy: auch die Kopfzeile – die Karte reicht dann bis ganz oben (Feld unter der Statusleiste) */
 @media (max-width: 899px) {
-  body.is-planning { --topbar-h: 0px; }
-  .is-planning .topbar { display: none; }
-  .is-planning .layout { height: 100dvh; }
+  body.is-planning, body.is-routing { --topbar-h: 0px; }
+  .is-planning .topbar, .is-routing .topbar { display: none; }
+  .is-planning .layout, .is-routing .layout { height: 100dvh; }
   .plan-panel { top: calc(10px + env(safe-area-inset-top, 0px)); }
 }
 .plan-pin {
@@ -1002,6 +1002,19 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 }
 .plan-pin.is-start { background: var(--green); }
 .routes-head-right { display: inline-flex; align-items: center; gap: 10px; }
+/* Route zu einem Ort: gleiches Feld wie der Planer, mit Ziel, Verkehrsmittel und Start */
+.dir-head { display: grid; gap: 2px; min-width: 0; }
+.dir-title { font-weight: 800; font-size: 15px; color: var(--green); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dir-mode { display: flex; }
+.dir-mode button { flex: 1 1 0; }
+.dir-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.dir-from[hidden] { display: none; }
+.dir-from button { min-height: 30px; font-size: 12.5px; }
+.dir-row .btn { min-height: 36px; padding: 0 14px; margin-left: auto; }
+/* .btn-small färbt sonst den Hauptknopf grau */
+.dir-row .btn-primary { color: var(--on-orange); }
+.dir-row .btn-primary::before { background: var(--orange); }
+.dir-row .btn-primary:hover::before { background: var(--orange-hover); }
 .routes-head-right .btn { min-height: 34px; padding: 0 12px; }
 
 /* Höhenprofil (profile.js): grüne Linie 2px mit zarter Fläche, Hilfslinien als Haarlinien, Beschriftung in
@@ -1570,7 +1583,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   .map-plan-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--edge); }
   /* OpenStreetMap (Ersatzkarte): Standort- und Zoom-Knöpfe stapeln sich höher */
   body[data-map="osm"] .map-plan-btn { bottom: calc(var(--sheet-h) + 146px); }
-  .is-planning .map-plan-btn, .layout[data-sheet="full"] .map-plan-btn { display: none; }
+  .is-planning .map-plan-btn, .is-routing .map-plan-btn, .layout[data-sheet="full"] .map-plan-btn { display: none; }
   /* Filter-Chips: Verlauf am rechten Rand, solange die Reihe weitergeht (updateChipFade in app.js) */
   .chips.has-more {
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 56px), transparent);

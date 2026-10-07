@@ -7,19 +7,19 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-07.11" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-07.11">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-07.12" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-07.12">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-07.11">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-07.12">
   <!-- Pinselschrift (Logo, Überschriften) gleich zu Beginn laden – sonst entdeckt der Browser sie erst in fonts.css
        und zeigt so lange eine Ersatzschrift. Gleiche Adresse wie in fonts.css; crossorigin ist bei Schriften Pflicht. -->
   <link rel="preload" href="fonts/permanent-marker-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-07.11">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-07.11">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-07.12">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-07.12">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -238,6 +238,29 @@
       <div id="pick-banner" class="pick-banner" hidden>
         <span>Tippe auf die Karte, um unser Airbnb zu setzen</span>
         <button id="btn-pick-cancel" class="btn btn-small btn-ghost" type="button">Abbrechen</button>
+      </div>
+      <!-- Route zu einem Ort: Vorschau in der App (Linie, Dauer, Distanz), Navigation dann in Google Maps (app.js) -->
+      <div id="dir-panel" class="plan-panel dir-panel" hidden>
+        <div class="plan-top">
+          <span class="dir-head">
+            <span id="dir-title" class="dir-title"></span>
+            <span id="dir-stats" class="plan-stats" aria-live="polite"></span>
+          </span>
+          <span class="plan-tools"><button id="dir-close" class="plan-tool" type="button" aria-label="Route schließen" title="Schließen"></button></span>
+        </div>
+        <span class="plan-mode dir-mode" role="group" aria-label="Verkehrsmittel">
+          <button type="button" data-dir-mode="drive">Auto</button>
+          <button type="button" data-dir-mode="bike">Velo</button>
+          <button type="button" data-dir-mode="walk">Zu Fuß</button>
+          <button type="button" data-dir-mode="transit">ÖV</button>
+        </span>
+        <div class="dir-row">
+          <span class="plan-mode dir-from" id="dir-from" role="group" aria-label="Start">
+            <button type="button" data-dir-from="me">Mein Standort</button>
+            <button type="button" data-dir-from="home">Airbnb</button>
+          </span>
+          <a id="dir-nav" class="btn btn-primary btn-small" href="#" target="_blank" rel="noopener">Navigieren ↗</a>
+        </div>
       </div>
       <!-- Handy: „Etappe planen“ direkt auf der Karte (Symbol setzt app.js) -->
       <button id="map-plan" class="map-plan-btn" type="button" aria-label="Etappe planen" title="Etappe planen"></button>
@@ -630,29 +653,30 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-07.11"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-07.12"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-07.11",
-      "./js/backend.js": "./js/backend.js?v=2026-10-07.11",
-      "./js/cash.js": "./js/cash.js?v=2026-10-07.11",
-      "./js/categories.js": "./js/categories.js?v=2026-10-07.11",
-      "./js/config.js": "./js/config.js?v=2026-10-07.11",
-      "./js/geo.js": "./js/geo.js?v=2026-10-07.11",
-      "./js/hours.js": "./js/hours.js?v=2026-10-07.11",
-      "./js/icons.js": "./js/icons.js?v=2026-10-07.11",
-      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-07.11",
-      "./js/importers.js": "./js/importers.js?v=2026-10-07.11",
-      "./js/map.js": "./js/map.js?v=2026-10-07.11",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-07.11",
-      "./js/profile.js": "./js/profile.js?v=2026-10-07.11",
-      "./js/pois.js": "./js/pois.js?v=2026-10-07.11",
-      "./js/store.js": "./js/store.js?v=2026-10-07.11"
+      "./js/app.js": "./js/app.js?v=2026-10-07.12",
+      "./js/backend.js": "./js/backend.js?v=2026-10-07.12",
+      "./js/cash.js": "./js/cash.js?v=2026-10-07.12",
+      "./js/categories.js": "./js/categories.js?v=2026-10-07.12",
+      "./js/config.js": "./js/config.js?v=2026-10-07.12",
+      "./js/geo.js": "./js/geo.js?v=2026-10-07.12",
+      "./js/hours.js": "./js/hours.js?v=2026-10-07.12",
+      "./js/icons.js": "./js/icons.js?v=2026-10-07.12",
+      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-07.12",
+      "./js/importers.js": "./js/importers.js?v=2026-10-07.12",
+      "./js/map.js": "./js/map.js?v=2026-10-07.12",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-07.12",
+      "./js/directions.js": "./js/directions.js?v=2026-10-07.12",
+      "./js/profile.js": "./js/profile.js?v=2026-10-07.12",
+      "./js/pois.js": "./js/pois.js?v=2026-10-07.12",
+      "./js/store.js": "./js/store.js?v=2026-10-07.12"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-07.11"></script>
+  <script type="module" src="js/app.js?v=2026-10-07.12"></script>
 </body>
 </html>

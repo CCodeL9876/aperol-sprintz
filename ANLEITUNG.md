@@ -284,15 +284,21 @@ Gratis-Kontingent (nach aktuellem Stand 1 000 Abfragen), für eure Liste reicht 
 1. <https://console.cloud.google.com> öffnen, oben **Projekt auswählen → Neues Projekt**, z. B. „Aperol Sprintz“.
 2. **Abrechnung** mit dem Projekt verknüpfen (Kreditkarte nötig). Google gewährt monatliche Gratis-Kontingente –
    für eine kleine Reisegruppe fallen nach aktuellem Stand keine Kosten an; aktuelle Bedingungen bei Google prüfen.
-3. **APIs & Dienste → Bibliothek**: **„Maps JavaScript API“** und **„Places API (New)“** aktivieren.
+3. **APIs & Dienste → Bibliothek**: **„Maps JavaScript API“**, **„Places API (New)“** und **„Routes API“**
+   (für „Route“ in der App) aktivieren.
 4. **APIs & Dienste → Anmeldedaten → Anmeldedaten erstellen → API-Schlüssel**. Danach den Schlüssel **einschränken**:
    - *Anwendungseinschränkungen*: **Websites**, dann diese Adressen eintragen:
      `https://ccodel9876.github.io/aperol-sprintz/*`, `https://ccodel9876.github.io/*` und `http://localhost:5173/*`
      (Die mittlere ist nötig für die Ortsdetails: Der Browser schickt bei Anfragen an die Places API nur
      `https://ccodel9876.github.io/` als Herkunft mit, ohne `/aperol-sprintz/`.)
-   - *API-Einschränkungen*: **Schlüssel einschränken** → nur „Maps JavaScript API“ und „Places API (New)“.
+   - *API-Einschränkungen*: **Schlüssel einschränken** → nur „Maps JavaScript API“, „Places API (New)“ und „Routes API“.
 5. Empfohlen: **Abrechnung → Budgets & Benachrichtigungen** → Budget z. B. 5 € mit E-Mail-Warnung anlegen.
 6. Den Schlüssel in `js/config.js` bei `GOOGLE_MAPS_API_KEY = '…'` eintragen und `./deploy.sh` ausführen.
+
+**Route in der App** (Linie, Dauer, Distanz bei „Route“): braucht die **Routes API**. Bei einem bestehenden
+Schlüssel nachrüsten: Bibliothek → „Routes API“ → Aktivieren, dann beim Schlüssel unter *API-Einschränkungen*
+„Routes API“ dazunehmen. Bis dahin zeigt die App einen Hinweis, und „Navigieren“ öffnet wie gewohnt Google Maps.
+Velo-Routen kommen ohne Google aus (BRouter).
 
 Der Schlüssel steht danach öffentlich im Quellcode – das ist bei Google Maps so vorgesehen. Durch die
 Einschränkung in Schritt 4 funktioniert er nur auf deiner Seite und nur für diese beiden Dienste.

@@ -7,7 +7,7 @@
 import { hasCoords, haversineKm } from './geo.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
 import { ROUTE_CATEGORY } from './categories.js';
-import { MALLORCA, popupHtml, routePopupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl, pinHtml, pinFlags, poiPinHtml, poiPopupHtml, poiTitle, PLAN_COLOR, planPinHtml } from './map.js';
+import { MALLORCA, popupHtml, routePopupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl, pinHtml, pinFlags, poiPinHtml, poiPopupHtml, poiTitle, PLAN_COLOR, planPinHtml, ROUTE_LINE_COLOR } from './map.js';
 import { hoursFromGoogle } from './hours.js';
 
 const LOAD_TIMEOUT_MS = 12000;
@@ -722,6 +722,19 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     });
   }
 
+  // Routen-Vorschau (directions.js): Linie zum Ziel oder null; passt den Ausschnitt an
+  let routeLine = [];
+  function setRouteLine(points) {
+    for (const l of routeLine) l.setMap(null);
+    routeLine = [];
+    if (!points?.length) return;
+    info.close();
+    const path = points.map(toLatLng);
+    routeLine.push(new google.maps.Polyline({ map, path, strokeColor: '#FFFFFF', strokeOpacity: 0.9, strokeWeight: 8, clickable: false, zIndex: 8000 }));
+    routeLine.push(new google.maps.Polyline({ map, path, strokeColor: ROUTE_LINE_COLOR, strokeOpacity: 0.95, strokeWeight: 5, clickable: false, zIndex: 8001 }));
+    fitPoints(points, 16);
+  }
+
   // Punkt zum Fadenkreuz im Höhenprofil (profile.js): [lat, lng] oder null
   let cursor = null;
   function setCursor(p) {
@@ -761,5 +774,5 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     });
   }
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, searchPlaces, openSearchResult, clearSearchMarker, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
+  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, setRouteLine, searchPlaces, openSearchResult, clearSearchMarker, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
 }

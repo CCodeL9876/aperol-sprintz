@@ -38,7 +38,7 @@ export function airbnbPopupHtml(airbnb) {
       <span class="popup-cat" style="--c:#3F6B34;--ci:#3F6B34">Unser Airbnb</span>
       <strong class="popup-name">${escapeHtml(airbnb.name || airbnb.label)}</strong>
       ${airbnb.name && airbnb.address ? `<span class="popup-addr">${escapeHtml(airbnb.address)}</span>` : ''}
-      <a class="popup-link" href="${escapeHtml(homeRouteUrl(airbnb))}" target="_blank" rel="noopener">${icon('navigation', { size: 13, stroke: 2.2 })} Route zur Unterkunft ↗</a>
+      <a class="popup-link" href="${escapeHtml(homeRouteUrl(airbnb))}" target="_blank" rel="noopener"${routeAttrs({ name: 'Unterkunft', lat: airbnb.lat, lng: airbnb.lng, home: true })}>${icon('navigation', { size: 13, stroke: 2.2 })} Route zur Unterkunft</a>
     </div>`;
 }
 
@@ -57,7 +57,7 @@ export function popupHtml(p, cat) {
       ${p.glutenFree ? `<span class="popup-gf">${icon('wheat-off', { size: 13, stroke: 2 })} Glutenfrei</span>` : ''}
       ${status ? `<span class="popup-hours ${status.open ? 'is-open' : 'is-closed'}">${icon('clock', { size: 13, stroke: 2.2 })} ${escapeHtml(status.text)}${today ? ` <small>· heute ${escapeHtml(today)}</small>` : ''}</span>` : ''}
       ${dist}
-      <a class="popup-link" href="${escapeHtml(routeUrl(p))}" target="_blank" rel="noopener">${icon('navigation', { size: 13, stroke: 2.2 })} Route in Google Maps ↗</a>
+      <a class="popup-link" href="${escapeHtml(routeUrl(p))}" target="_blank" rel="noopener"${routeAttrs(p)}>${icon('navigation', { size: 13, stroke: 2.2 })} Route</a>
       <button type="button" class="popup-link popup-cash" data-popup-cash="${escapeHtml(p.id)}">${icon('receipt', { size: 13, stroke: 2 })} Rechnung erfassen</button>
     </div>`;
 }
@@ -72,7 +72,7 @@ export function poiPopupHtml(x) {
       <span class="popup-cat">${escapeHtml(POI_TYPES[x.type]?.label || 'Punkt')}</span>
       ${x.name ? `<strong class="popup-name">${escapeHtml(x.name)}</strong>` : ''}
       ${Number.isFinite(x.km) ? `<span class="popup-dist">bei km ${Math.round(x.km)} von „${escapeHtml(x.routeName || 'Etappe')}“</span>` : ''}
-      <a class="popup-link" href="${escapeHtml(routeUrl({ name: x.name || POI_TYPES[x.type]?.label || '', lat: x.lat, lng: x.lng }))}" target="_blank" rel="noopener">${icon('navigation', { size: 13, stroke: 2.2 })} Route in Google Maps ↗</a>
+      <a class="popup-link" href="${escapeHtml(routeUrl({ name: x.name || POI_TYPES[x.type]?.label || '', lat: x.lat, lng: x.lng }))}" target="_blank" rel="noopener"${routeAttrs({ name: x.name || POI_TYPES[x.type]?.label || '', lat: x.lat, lng: x.lng })}>${icon('navigation', { size: 13, stroke: 2.2 })} Route</a>
     </div>`;
 }
 
@@ -87,7 +87,16 @@ export function routePopupHtml(r, color) {
 }
 
 // Etappe planen: Farbe der Entwurfslinie (Aperol-Orange) und Wegpunkt – S = Start, dann nummeriert
+// Ziel für die Routen-Vorschau in der App (app.js fängt Klicks auf [data-route-lat] ab); der href bleibt als
+// Ersatz (Google Maps), z. B. auf der OpenStreetMap-Ersatzkarte. home = Route zur Unterkunft.
+export function routeAttrs({ name, lat, lng, home = false }) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '';
+  return ` data-route-lat="${lat}" data-route-lng="${lng}" data-route-name="${escapeHtml(name || '')}"${home ? ' data-route-home="1"' : ''}`;
+}
+
 export const PLAN_COLOR = '#E8733A';
+// Routen-Vorschau zu einem Ort: Blau wie bei Navigations-Apps, klar unterscheidbar von Etappen und Planer
+export const ROUTE_LINE_COLOR = '#2F6E8C';
 export const planPinHtml = (i) => `<span class="plan-pin${i === 0 ? ' is-start' : ''}">${i === 0 ? 'S' : i}</span>`;
 
 // Ersatz, falls Leaflet nicht geladen werden konnte: Die App läuft ohne Karte weiter,
@@ -96,7 +105,7 @@ function createFallbackMap(el) {
   el.innerHTML = '<div class="map-error"><strong>Karte nicht verfügbar</strong><span>Die Kartenbibliothek konnte nicht geladen werden. Liste und Filter funktionieren trotzdem – Seite neu laden versuchen.</span></div>';
   const noop = () => {};
   const fakeMap = { flyTo: noop, getZoom: () => 9, setView: noop, fitBounds: noop };
-  return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, centerOn: noop, setPois: noop, setDraft: noop, setCursor: noop, invalidate: noop };
+  return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, centerOn: noop, setPois: noop, setDraft: noop, setCursor: noop, setRouteLine: noop, invalidate: noop };
 }
 
 export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMessage, routePopup }) {
@@ -553,6 +562,16 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     });
   }
 
+  // Routen-Vorschau (directions.js): Linie zum Ziel oder null; passt den Ausschnitt an
+  const routeLineLayer = L.layerGroup().addTo(map);
+  function setRouteLine(points) {
+    routeLineLayer.clearLayers();
+    if (!points?.length) return;
+    L.polyline(points, { color: '#FFFFFF', weight: 8, opacity: 0.9, lineJoin: 'round', interactive: false }).addTo(routeLineLayer);
+    L.polyline(points, { color: ROUTE_LINE_COLOR, weight: 5, opacity: 0.95, lineJoin: 'round', interactive: false }).addTo(routeLineLayer);
+    fitPoints(points, 16);
+  }
+
   // Punkt zum Fadenkreuz im Höhenprofil (profile.js): [lat, lng] oder null
   let cursor = null;
   function setCursor(p) {
@@ -582,5 +601,5 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     }
   }
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => map.invalidateSize() };
+  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, setRouteLine, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => map.invalidateSize() };
 }

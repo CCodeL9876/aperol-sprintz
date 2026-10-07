@@ -8,7 +8,8 @@ import { expandMapsLinks, hasShortMapsLinks,
   rememberedTripKey, rememberTripKey, forgetTripKey, shareUrl, rememberTripCode, forgetTripCode, validTripCodeChars,
   rememberedAdminPin, rememberAdminPin,
 } from './backend.js';
-import { createMap } from './map.js';
+import { createMap, routeAttrs } from './map.js';
+import { TRAVEL_MODES, computeRoute, navUrl } from './directions.js';
 import { sanitizeHours, hoursStale, openAt, hoursStatus } from './hours.js';
 import { cachedPois, loadPois, sanitizePois, POI_TYPES } from './pois.js';
 import { connectToHome, bikeRoute } from './home-loop.js';
@@ -46,6 +47,8 @@ let activeId = null;
 let pickMode = false;
 // Etappe planen: Wegpunkte [lat, lng] und die Abschnitte dazwischen (siehe „Etappe planen“ weiter unten)
 const plan = { on: false, waypoints: [], segments: [] };
+// Route zu einem Ort (Vorschau in der App, siehe „Route zu einem Ort“ weiter unten)
+const dir = { on: false, to: null, name: '', home: false, destination: '', mode: 'drive', from: 'me', fromPos: null, seq: 0, cache: new Map() };
 let airbnbFormAuto = false; // Unterkunft-Formular nur geöffnet, weil noch keine Unterkunft eingetragen war
 let geocodeRunning = false;
 let pendingWrites = 0;
@@ -223,7 +226,7 @@ document.body.dataset.map = mapVariant; // Knöpfe auf der Karte sitzen je nach 
 function createGoogleMapView(el) {
   let impl = null;
   const view = { map: { getZoom: () => impl?.map.getZoom() ?? 9 } };
-  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'setPois', 'setDraft', 'setCursor', 'searchPlaces', 'openSearchResult', 'clearSearchMarker', 'locate', 'invalidate']) {
+  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'setPois', 'setDraft', 'setCursor', 'setRouteLine', 'searchPlaces', 'openSearchResult', 'clearSearchMarker', 'locate', 'invalidate']) {
     view[k] = (...args) => impl?.[k](...args);
   }
   const ready = (m, shown) => {
@@ -643,7 +646,10 @@ function renderAirbnb() {
   $('#airbnb-label').classList.toggle('is-set', !!a);
   const route = $('#airbnb-route');
   route.hidden = !a;
-  if (a) route.href = homeRouteUrl(a);
+  if (a) {
+    route.href = homeRouteUrl(a);
+    Object.assign(route.dataset, { routeLat: a.lat, routeLng: a.lng, routeName: 'Unterkunft', routeHome: '1' });
+  }
   // Link zum Inserat: nur noch anzeigen, falls früher einer eingetragen wurde (oder fest in config.js)
   const url = safeHttpUrl((fixedAirbnb || a)?.url);
   $('#airbnb-link').hidden = !url;
@@ -1397,7 +1403,7 @@ function placeItemHtml(p, i, cats) {
           </select>
         </label>
         ${!hasCoords(p) ? '<button type="button" class="chip-btn" data-action="geocode">Standort suchen</button>' : ''}
-        <a class="chip-btn route-btn" href="${escapeHtml(routeUrl(p))}" target="_blank" rel="noopener" title="Route von deinem Standort in Google Maps">${icon('navigation', { size: 14, stroke: 2.2 })}Route</a>
+        <a class="chip-btn route-btn" href="${escapeHtml(routeUrl(p))}" target="_blank" rel="noopener" title="Route anzeigen"${routeAttrs(p)}>${icon('navigation', { size: 14, stroke: 2.2 })}Route</a>
         <button type="button" class="chip-btn" data-action="cash" title="Rechnung für diesen Ort in den Ausgaben erfassen">${icon('receipt', { size: 14, stroke: 2 })}Rechnung</button>
         <button type="button" class="chip-btn chip-btn-icon danger" data-action="delete" aria-label="Entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
       </div>
@@ -3205,6 +3211,142 @@ $('#category-form').addEventListener('submit', (e) => {
   toast(`Kategorie „${label}“ angelegt`);
 });
 
+// --- Route zu einem Ort ----------------------------------------------------------------------
+// „Route“ bei einem Ort (Liste, Kartenfenster, Unterkunft) zeigt die Strecke auf der Google-Karte – mit Dauer und
+// Distanz, für Auto, Velo, zu Fuß oder ÖV, ab eigenem Standort oder dem Airbnb (siehe directions.js).
+// „Navigieren“ öffnet dann Google Maps. Ohne Google-Karte (OSM-Ersatz) bleibt es beim Link zu Google Maps.
+const inAppRouting = () => document.body.dataset.map === 'google' && Boolean(GOOGLE_MAPS_API_KEY);
+const savedTravelMode = () => (TRAVEL_MODES[readPref('travelMode')] ? readPref('travelMode') : 'drive');
+
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-route-lat]');
+  if (!a || !inAppRouting() || plan.on) return;
+  e.preventDefault();
+  let destination = '';
+  try { destination = new URL(a.getAttribute('href'), location.href).searchParams.get('destination') || ''; } catch { /* nur Koordinaten */ }
+  openDir({ to: [Number(a.dataset.routeLat), Number(a.dataset.routeLng)], name: a.dataset.routeName || 'Ziel', home: a.dataset.routeHome === '1', destination });
+});
+
+function openDir({ to, name, home, destination }) {
+  Object.assign(dir, { on: true, to, name, home, destination, mode: savedTravelMode() });
+  // Start: zur Unterkunft immer ab dem eigenen Standort, sonst wie zuletzt gewählt (ohne Airbnb: Standort)
+  dir.from = home || !state.airbnb ? 'me' : readPref('routeFrom') === 'home' ? 'home' : 'me';
+  $('.menu').open = false;
+  $('#dir-panel').hidden = false;
+  document.body.classList.add('is-routing');
+  if (isMobile()) setSheet('hidden');
+  requestAnimationFrame(() => mapView.invalidate());
+  computeDir();
+}
+
+function closeDir() {
+  dir.on = false;
+  dir.seq++;
+  $('#dir-panel').hidden = true;
+  document.body.classList.remove('is-routing');
+  mapView.setRouteLine(null);
+  requestAnimationFrame(() => mapView.invalidate());
+  if (isMobile() && sheetState() === 'hidden') setSheet('half');
+}
+
+// Eigener Standort (einmal pro Berechnung; bis 1 Minute alt ist in Ordnung)
+function myPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('dieses Gerät kennt keinen Standort'));
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve([pos.coords.latitude, pos.coords.longitude]),
+      (err) => reject(new Error(err.code === 1 ? 'keine Erlaubnis für den Standort' : 'Standort nicht ermittelbar')),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+    );
+  });
+}
+
+function formatTravelTime(seconds) {
+  const min = Math.max(1, Math.round(seconds / 60));
+  return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min`;
+}
+
+async function computeDir() {
+  const seq = ++dir.seq;
+  renderDir('Berechne …');
+  let from;
+  if (dir.from === 'home' && state.airbnb) {
+    from = [state.airbnb.lat, state.airbnb.lng];
+  } else {
+    try {
+      from = await myPosition();
+    } catch (err) {
+      if (seq !== dir.seq) return;
+      // Ohne Standort ab dem Airbnb (außer die Route führt zum Airbnb)
+      if (state.airbnb && !dir.home) {
+        dir.from = 'home';
+        toast(`${err.message[0].toUpperCase()}${err.message.slice(1)} – Route ab dem Airbnb.`);
+        return computeDir();
+      }
+      mapView.setRouteLine(null);
+      return renderDir(`Kein Start: ${err.message}`, true);
+    }
+  }
+  if (seq !== dir.seq) return;
+  dir.fromPos = from;
+  // Bereits berechnete Strecken merken (jede Google-Abfrage zählt zum Kontingent)
+  const key = [from.map((v) => v.toFixed(3)), dir.to.map((v) => v.toFixed(5)), dir.mode].join('|');
+  try {
+    const r = dir.cache.get(key) || await computeRoute(GOOGLE_MAPS_API_KEY, from, dir.to, dir.mode);
+    dir.cache.set(key, r);
+    if (seq !== dir.seq || !dir.on) return;
+    mapView.setRouteLine(r.points);
+    let { durationS, distanceM } = r;
+    let extra = '';
+    if (dir.mode === 'bike') {
+      // Velo: Distanz, Höhenmeter und Fahrzeit wie bei den Etappen (eigenes Tempo, Steigungen eingerechnet)
+      const sum = summarizeTrack('', r.track);
+      distanceM = sum.distanceKm * 1000;
+      const hours = rideHours(sum);
+      durationS = hours ? hours * 3600 : null;
+      extra = formatHm(sum.elevationGainM);
+    }
+    renderDir([durationS ? formatTravelTime(durationS) : '', distanceM != null ? formatKm(distanceM / 1000) : '', extra].filter(Boolean).join(' · '));
+  } catch (err) {
+    if (seq !== dir.seq) return;
+    mapView.setRouteLine(null);
+    if (err.setup) console.warn('Routes API:', err.detail);
+    renderDir(err.setup
+      ? 'Routen in der App sind noch nicht eingerichtet – „Navigieren“ öffnet Google Maps.'
+      : `Keine Route: ${err.name === 'TimeoutError' ? 'keine Antwort' : err.message}`, true);
+  }
+}
+
+function renderDir(text, isError = false) {
+  $('#dir-title').textContent = dir.home ? 'Route zur Unterkunft' : `Route zu ${dir.name}`;
+  const stats = $('#dir-stats');
+  stats.textContent = text;
+  stats.classList.toggle('is-hint', isError || text === 'Berechne …');
+  for (const b of $$('[data-dir-mode]')) b.setAttribute('aria-pressed', String(b.dataset.dirMode === dir.mode));
+  for (const b of $$('[data-dir-from]')) b.setAttribute('aria-pressed', String(b.dataset.dirFrom === dir.from));
+  // Start wählbar nur, wenn es ein Airbnb gibt und die Route nicht ohnehin dorthin führt
+  $('#dir-from').hidden = dir.home || !state.airbnb;
+  const from = dir.from === 'home' && state.airbnb ? [state.airbnb.lat, state.airbnb.lng] : null;
+  $('#dir-nav').href = navUrl({ from, to: dir.to, mode: dir.mode, destination: dir.destination });
+}
+
+$('#dir-close').innerHTML = icon('close', { size: 18, stroke: 2.2 });
+$('#dir-close').addEventListener('click', closeDir);
+$('#dir-panel').addEventListener('click', (e) => {
+  const mode = e.target.closest('[data-dir-mode]')?.dataset.dirMode;
+  const from = e.target.closest('[data-dir-from]')?.dataset.dirFrom;
+  if (mode && mode !== dir.mode) {
+    dir.mode = mode;
+    writePref('travelMode', mode);
+    computeDir();
+  }
+  if (from && from !== dir.from) {
+    dir.from = from;
+    writePref('routeFrom', from);
+    computeDir();
+  }
+});
+
 // --- Etappe planen ----------------------------------------------------------------------------
 // Wegpunkte auf der Karte antippen (auch eigene Orte oder eine eingeblendete Etappe); der Rennrad-Routenplaner
 // (BRouter, siehe home-loop.js) verbindet je zwei Punkte. Start ist das Airbnb, falls gesetzt.
@@ -3214,6 +3356,7 @@ $('#category-form').addEventListener('submit', (e) => {
 
 function startPlan() {
   if (pickMode) setPickMode(false);
+  if (dir.on) closeDir();
   plan.on = true;
   plan.waypoints = state.airbnb ? [[state.airbnb.lat, state.airbnb.lng]] : [];
   plan.segments = [];
@@ -3441,6 +3584,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && pickMode) setPickMode(false);
   if (e.key === 'Escape' && plan.on && !document.querySelector('dialog[open]')) cancelPlan();
+  if (e.key === 'Escape' && dir.on && !document.querySelector('dialog[open]')) closeDir();
 });
 
 // --- Toast ------------------------------------------------------------------------------------
@@ -3816,7 +3960,8 @@ const INTRO = [
     { icon: 'navigation', color: 'var(--sky)', name: 'Unterwegs', text: 'Standort-Knopf und <strong>„Route“</strong> zu jedem Ort.',
       info: [
         'Der Standort zeigt auch, wohin du schaust.',
-        '„Route“ startet die Navigation in Google Maps.',
+        '„Route“ zeigt die Strecke in der App – Auto, Velo, zu Fuß oder ÖV, ab deinem Standort oder dem Airbnb.',
+        '<strong>„Navigieren“</strong> übergibt an Google Maps (mit Sprachführung).',
         'Unter <strong>„Unser Airbnb“</strong> geht’s mit „Route zur Unterkunft“ zurück.',
       ] },
     { icon: 'camera', color: 'var(--lilac)', name: 'Fotos & Reise', text: 'Menü <strong>•••</strong>: Fotos, Bordkarten, Flüge, Check-in.',
