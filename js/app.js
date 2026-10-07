@@ -579,6 +579,7 @@ let listItems = new Map(); // Ortsliste: id → { html, el } (siehe patchList)
 
 function render({ fit = false } = {}) {
   renderMe();
+  ensureMe();
   const all = placesWithDistance();
   const base = filterBase(all);
   const selected = new Set(state.ui.categories);
@@ -2044,7 +2045,10 @@ cashDialog.addEventListener('click', async (e) => {
     if (state.expenses.some((x) => x.paidBy === person.id || x.sharedWith.includes(person.id))) {
       return toast(`„${person.name}“ kommt in Rechnungen vor – zuerst diese Rechnungen ändern oder löschen.`);
     }
-    if (!confirm(`„${person.name}“ aus den Ausgaben entfernen?`)) return;
+    const self = person.id === me()?.id;
+    if (!confirm(self
+      ? `Du entfernst dich selbst („${person.name}“) – danach wählst du eine Person neu oder trägst dich neu ein. Fortfahren?`
+      : `„${person.name}“ aus den Ausgaben entfernen?`)) return;
     const index = state.participants.findIndex((p) => p.id === person.id);
     state.participants = state.participants.filter((p) => p.id !== person.id);
     render();
@@ -2059,6 +2063,7 @@ cashDialog.addEventListener('click', async (e) => {
       state.participants = sanitizeParticipants(merged);
       render();
     }
+    ensureMe(); // sich selbst entfernt → gleich neu wählen
     return;
   }
   if (btn.dataset.payer) {
@@ -3654,8 +3659,9 @@ async function welcome() {
 }
 
 // required: kein Schließen ohne Auswahl (nach dem Login); sonst (Wechseln) jederzeit schließbar
+let whoPromise = null;
 function askWho({ required = false } = {}) {
-  if (whoDialog.open) return Promise.resolve();
+  if (whoDialog.open) return whoPromise || Promise.resolve(); // schon offen: auf dasselbe Fenster warten
   whoDialog.toggleAttribute('data-locked', required); // Tipp daneben schließt nicht (siehe Dialoge)
   $('#who-close').hidden = required;
   const current = me()?.id;
@@ -3666,7 +3672,15 @@ function askWho({ required = false } = {}) {
   $('#who-input').value = '';
   $('#who-error').textContent = '';
   whoDialog.showModal();
-  return new Promise((resolve) => { whoDone = resolve; });
+  whoPromise = new Promise((resolve) => { whoDone = resolve; });
+  return whoPromise;
+}
+
+// Immer als jemand angemeldet: fehlt die Person (z. B. in den Ausgaben gelöscht – auch auf einem anderen Gerät),
+// gleich „Wer bist du?“ als Pflicht. Läuft bei jedem Zeichnen; nicht während gespeichert wird oder der Code fehlt.
+function ensureMe() {
+  if (!dataLoaded || pendingWrites > 0 || codeDialog.open || whoDialog.open || !needsWho()) return;
+  askWho({ required: true });
 }
 whoDialog.addEventListener('cancel', (e) => { if (whoDialog.hasAttribute('data-locked')) e.preventDefault(); }); // Esc
 whoDialog.addEventListener('close', () => {
@@ -3678,6 +3692,7 @@ whoDialog.addEventListener('close', () => {
   }
   whoDone?.();
   whoDone = null;
+  whoPromise = null;
 });
 
 function setMe(person) {
