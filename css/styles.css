@@ -1008,7 +1008,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .plan-save .btn-primary::before { background: var(--orange); }
 .plan-save .btn-primary:hover::before { background: var(--orange-hover); }
 /* Beim Planen mehr Platz für die Karte: Boxen über der Karte (Unterkunft, Ausgaben …) und der Knopf
-   „Orte & Filter“ weg */
+   „Unsere Orte & Filter“ weg */
 .is-planning .panel-row, .is-routing .panel-row { visibility: hidden; }
 .is-planning .sheet-open, .is-routing .sheet-open { display: none !important; }
 /* Desktop: Seitenleiste ausblenden – die Karte liegt ohnehin über die ganze Breite darunter */
@@ -1497,7 +1497,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
     --sheet-h: 50%;
   }
   .layout[data-sheet="full"] { --sheet-h: calc(100% - 10px); }
-  /* Ganz eingeklappt: Blatt nach unten weg, nur der Knopf „Orte & Filter“ bleibt (66px: SHEET_HIDDEN_PX in app.js) */
+  /* Ganz eingeklappt: Blatt nach unten weg, nur der Knopf „Unsere Orte & Filter“ bleibt (66px: SHEET_HIDDEN_PX in app.js) */
   .layout[data-sheet="hidden"] { --sheet-h: calc(66px + env(safe-area-inset-bottom, 0px)); }
   .layout[data-sheet="hidden"] .sidebar { transform: translateY(calc(100% + 12px)); box-shadow: none; }
   .sheet-open {

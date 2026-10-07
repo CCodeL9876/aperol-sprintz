@@ -298,7 +298,7 @@ function initMapSearch() {
     const goo = items.filter((it) => it.kind === 'google');
     let html = '';
     if (own.length) {
-      html += '<li class="msr-head" role="presentation">Eure Orte</li>';
+      html += '<li class="msr-head" role="presentation">Unsere Orte</li>';
       html += own.map((it) => {
         const c = catOf(it.place.category);
         return row(it, items.indexOf(it), it.place.name, [c.label, it.place.address].filter(Boolean).join(' · '),
@@ -476,13 +476,13 @@ async function addGooglePlace(g, categoryId) {
 
 // --- Handy: Liste als Blatt über der Karte ------------------------------------------------
 // Unter 900px liegt die Seitenleiste als Blatt unten über der randlosen Karte (wie auf dem Desktop
-// schwebend, nur von unten). Höhen: „hidden“ (ganz eingeklappt, nur Knopf „Orte & Filter“),
+// schwebend, nur von unten). Höhen: „hidden“ (ganz eingeklappt, nur Knopf „Unsere Orte & Filter“),
 // „half“ (Standard), „full“ (ganze Liste).
 // Die Höhen selbst stehen in styles.css (--sheet-h); hier wird nur umgeschaltet.
 
 const isMobile = () => window.matchMedia('(max-width: 899px)').matches;
 const SHEET_STATES = ['hidden', 'half', 'full'];
-const SHEET_HIDDEN_PX = 66; // Platz für den Knopf „Orte & Filter“, siehe [data-sheet="hidden"] in styles.css
+const SHEET_HIDDEN_PX = 66; // Platz für den Knopf „Unsere Orte & Filter“, siehe [data-sheet="hidden"] in styles.css
 
 function sheetState() {
   return $('.layout').dataset.sheet || 'half';
@@ -539,7 +539,7 @@ function mapInsets() {
     const i = SHEET_STATES.indexOf(sheetState());
     setSheet(SHEET_STATES[Math.max(0, Math.min(SHEET_STATES.length - 1, i + step))]);
   });
-  // Eingeklappt: ein Tipp auf „Orte & Filter“ holt das Blatt auf halbe Höhe zurück
+  // Eingeklappt: ein Tipp auf „Unsere Orte & Filter“ holt das Blatt auf halbe Höhe zurück
   $('#sheet-open').addEventListener('click', () => setSheet('half'));
   // Suchen braucht Platz für Tastatur und Treffer
   $('#search').addEventListener('focus', () => { if (isMobile()) setSheet('full'); });
@@ -1333,7 +1333,7 @@ function renderList(visible, total) {
   const empty = $('#empty-state');
   renderPlaceMore(visible.length);
   $('#result-count').innerHTML = total
-    ? `<strong>${visible.length} ${visible.length === 1 ? 'Ort' : 'Orte'}</strong> von ${total}${state.ui.reserved ? ' · nach Termin' : ''}`
+    ? `<strong>Unsere Orte</strong> ${visible.length === total ? total : `${visible.length} von ${total}`}${state.ui.reserved ? ' · nach Termin' : ''}`
     : '';
   // Beim Filter „Reserviert“ gilt die Termin-Reihenfolge – die Sortier-Auswahl würde nur verwirren
   $('.sort').hidden = !!state.ui.reserved;
