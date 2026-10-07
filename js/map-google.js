@@ -59,6 +59,16 @@ export function categoryFromGoogleTypes(types = []) {
 
 const SEARCH_AREA = { south: 39.1, west: 2.25, north: 40.0, east: 3.55 }; // Mallorca und Cabrera
 
+// Google-Orte nach Art als eigene Ebene (Schalter unten auf der Karte); types = Places-Typen („Table A“).
+// primary: nur Orte mit diesem Haupttyp (sonst kämen z. B. Restaurants mit Nebentyp „Café“ dazu); Essen breit,
+// weil Restaurants meist einen Untertyp als Haupttyp haben (italian_restaurant …)
+const GPLACE_TYPES = {
+  cafe: { label: 'Cafés', icon: 'coffee', types: ['cafe', 'coffee_shop'], primary: true },
+  bar: { label: 'Bars', icon: 'wine', types: ['bar', 'pub', 'wine_bar'], primary: true },
+  food: { label: 'Essen', icon: 'utensils', types: ['restaurant'] },
+};
+const GPLACE_MAX_RADIUS_M = 8000; // weiter herausgezoomt: nicht suchen (höchstens 20 Treffer je Suche)
+
 const PLACE_FIELDS = [
   'displayName', 'formattedAddress', 'location', 'rating', 'userRatingCount', 'regularOpeningHours',
   'websiteURI', 'googleMapsURI', 'types', 'primaryType', 'primaryTypeDisplayName', 'nationalPhoneNumber',
@@ -161,9 +171,14 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
   // --- Kartenart: eigener Knopf, damit er nicht unter Leiste/Blatt verschwindet ------------------------
   const tools = document.createElement('div');
   tools.className = 'gmap-tools';
-  tools.innerHTML = '<button type="button" data-tool="satellite" aria-pressed="false">Satellit</button>';
+  // Google-Orte nach Art (siehe „Google-Orte nach Art“ weiter unten) und Satellit
+  tools.innerHTML = `<span class="gplace-pills" role="group" aria-label="Google-Orte anzeigen">${Object.entries(GPLACE_TYPES)
+    .map(([k, t]) => `<button type="button" data-gplace="${k}" aria-pressed="false" title="${t.label} von Google im Kartenausschnitt zeigen">${icon(t.icon, { size: 14, stroke: 2.2 })}${t.label}</button>`).join('')}</span>
+    <button type="button" data-tool="satellite" aria-pressed="false">Satellit</button>`;
   el.parentElement.append(tools);
   tools.addEventListener('click', (e) => {
+    const g = e.target.closest('[data-gplace]');
+    if (g) return toggleGPlace(g.dataset.gplace, g);
     const btn = e.target.closest('[data-tool]');
     if (!btn) return;
     const on = btn.getAttribute('aria-pressed') !== 'true';
@@ -478,6 +493,9 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
   // und nur angepasst, wo sich etwas geändert hat – alle neu zu erzeugen ist bei vielen Orten spürbar träge.
   function setPlaces(places, catOf, currentId) {
     activeId = currentId;
+    // Google-Orte an Stellen eigener Orte weglassen (auch direkt nach „Zu unseren Orten hinzufügen“)
+    ownCoords = places.filter(hasCoords).map((p) => [p.lat, p.lng]);
+    for (const key of gActive) drawGPlaces(key);
     const keep = new Set();
     for (const p of places) {
       if (!hasCoords(p)) continue;
@@ -752,6 +770,116 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       cursor.position = toLatLng(p);
     }
   }
+
+  // --- Google-Orte nach Art (Cafés, Bars, Essen) -----------------------------------------------------
+  // Googles eigene Symbole lassen sich mit der Standard-Karten-ID nicht filtern – daher eine eigene Ebene:
+  // Places „searchNearby“ im sichtbaren Ausschnitt (höchstens 20 Treffer je Art, beliebte zuerst). Gesucht wird
+  // beim Einschalten und auf „In diesem Bereich suchen“ (jede Suche zählt zum Google-Kontingent).
+  const gActive = new Set();
+  const gFound = new Map(); // Art → [Place]
+  const gMarkers = new Map(); // Art → [Marker]
+  const gCache = new Map();
+  let gSearchedAt = null;
+  let ownCoords = [];
+  const gSearchBtn = document.createElement('button');
+  gSearchBtn.type = 'button';
+  gSearchBtn.className = 'gplace-search';
+  gSearchBtn.hidden = true;
+  el.parentElement.append(gSearchBtn);
+  gSearchBtn.addEventListener('click', () => searchGPlaces());
+
+  function toggleGPlace(key, btn) {
+    const on = !gActive.has(key);
+    if (on) gActive.add(key); else gActive.delete(key);
+    btn.setAttribute('aria-pressed', String(on));
+    if (on) searchGPlaces([key]);
+    else {
+      drawGPlaces(key);
+      if (!gActive.size) gSearchBtn.hidden = true;
+    }
+  }
+
+  function viewArea() {
+    const c = map.getCenter();
+    const ne = map.getBounds()?.getNorthEast();
+    const radius = ne ? haversineKm(c.lat(), c.lng(), ne.lat(), ne.lng()) * 1000 : GPLACE_MAX_RADIUS_M;
+    return { center: c, radius };
+  }
+
+  async function searchGPlaces(keys = [...gActive]) {
+    const { center, radius } = viewArea();
+    if (radius > GPLACE_MAX_RADIUS_M) {
+      gSearchBtn.textContent = 'Für Google-Orte näher heranzoomen';
+      gSearchBtn.disabled = true;
+      gSearchBtn.hidden = false;
+      return;
+    }
+    gSearchBtn.hidden = true;
+    gSearchedAt = { lat: center.lat(), lng: center.lng(), zoom: map.getZoom(), radius };
+    try {
+      const { Place, SearchNearbyRankPreference } = await google.maps.importLibrary('places');
+      for (const key of keys) {
+        const ck = `${key}|${center.lat().toFixed(3)}|${center.lng().toFixed(3)}|${Math.round(radius / 250)}`;
+        let places = gCache.get(ck);
+        if (!places) {
+          ({ places } = await Place.searchNearby({
+            fields: ['id', 'displayName', 'location', 'rating'],
+            locationRestriction: { center, radius: Math.max(150, radius) },
+            [GPLACE_TYPES[key].primary ? 'includedPrimaryTypes' : 'includedTypes']: GPLACE_TYPES[key].types,
+            maxResultCount: 20,
+            rankPreference: SearchNearbyRankPreference.POPULARITY,
+            language: 'de',
+          }));
+          gCache.set(ck, places);
+        }
+        gFound.set(key, places || []);
+        if (gActive.has(key)) drawGPlaces(key);
+      }
+    } catch (err) {
+      console.warn('Places (Umgebung):', err);
+      onError?.(`Google-Orte nicht ladbar – ${placesErrorHint(err)}`);
+    }
+  }
+
+  function drawGPlaces(key) {
+    for (const m of gMarkers.get(key) || []) m.map = null;
+    gMarkers.set(key, []);
+    if (!gActive.has(key)) return;
+    const near = (lat, lng) => ownCoords.some(([a, b]) => haversineKm(a, b, lat, lng) < 0.04);
+    const markers = (gFound.get(key) || []).filter((p) => p.location && !near(p.location.lat(), p.location.lng())).map((p) => {
+      const content = document.createElement('div');
+      content.className = `gplace-pin gplace-${key}`;
+      content.innerHTML = icon(GPLACE_TYPES[key].icon, { size: 13, stroke: 2.3 });
+      content.style.transform = 'translateY(50%)'; // mittig auf den Punkt
+      const name = p.displayName || GPLACE_TYPES[key].label;
+      const m = new AdvancedMarkerElement({ map, position: p.location, content, title: p.rating ? `${name} · ★ ${p.rating}` : name, zIndex: 5 });
+      m.addListener('click', () => {
+        // Beim Planen wird der Ort zum Wegpunkt, sonst Google-Details mit „Zu unseren Orten hinzufügen“
+        if (drafting) return onMapClick?.({ lat: p.location.lat(), lng: p.location.lng() });
+        showGooglePlace(p.id, p.location);
+      });
+      return m;
+    });
+    gMarkers.set(key, markers);
+  }
+
+  // Nach Verschieben/Zoomen: „In diesem Bereich suchen“ anbieten (nicht automatisch – spart Abfragen)
+  map.addListener('idle', () => {
+    if (!gActive.size) return;
+    const { center, radius } = viewArea();
+    if (radius > GPLACE_MAX_RADIUS_M) {
+      gSearchBtn.textContent = 'Für Google-Orte näher heranzoomen';
+      gSearchBtn.disabled = true;
+      gSearchBtn.hidden = false;
+      return;
+    }
+    const moved = !gSearchedAt
+      || haversineKm(gSearchedAt.lat, gSearchedAt.lng, center.lat(), center.lng()) * 1000 > gSearchedAt.radius * 0.4
+      || Math.abs(map.getZoom() - gSearchedAt.zoom) >= 1;
+    gSearchBtn.textContent = 'In diesem Bereich suchen';
+    gSearchBtn.disabled = false;
+    gSearchBtn.hidden = !moved;
+  });
 
   // Trinkbrunnen und Velo-Werkstätten entlang der eingeblendeten Etappen: [{ id, type, name, lat, lng, km, routeName }]
   let poiMarkers = [];

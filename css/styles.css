@@ -580,6 +580,27 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   box-shadow: var(--shadow);
 }
 .gmap-tools button[aria-pressed="true"] { background: var(--green); color: #FFFFFF; }
+/* Google-Orte nach Art: drei Schalter in einer Pille; Punkte als weiße Kreise mit farbigem Rand – klar
+   anders als die gefüllten Pins der eigenen Orte */
+.gplace-pills { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); }
+.gmap-tools .gplace-pills button { min-height: 30px; padding: 0 10px; box-shadow: none; background: transparent; }
+.gmap-tools .gplace-pills button[aria-pressed="true"] { background: var(--green); color: #FFFFFF; }
+.is-demo .gplace-pills, .is-demo .gplace-search { display: none !important; } /* jede Suche kostet Google-Kontingent */
+.gplace-pin {
+  width: 24px; height: 24px; display: grid; place-items: center; border-radius: 999px;
+  background: #FFFFFF; border: 2.5px solid var(--gp, var(--green)); color: var(--gp, var(--green));
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); cursor: pointer;
+}
+.gplace-cafe { --gp: #8A5A34; }
+.gplace-bar { --gp: #B5501F; }
+.gplace-food { --gp: #A8352D; }
+.gplace-search {
+  position: absolute; z-index: 900; left: 50%; bottom: 80px; transform: translateX(-50%);
+  min-height: 38px; padding: 0 16px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--card); color: var(--green); font: 700 13.5px var(--font-body); box-shadow: var(--shadow-lg);
+  white-space: nowrap;
+}
+.gplace-search:disabled { color: var(--text-soft); cursor: default; }
 /* Google-Karte: Standort-Knopf über den Zoom-Knöpfen; Standort-Punkt mittig verankert (Google setzt
    Marker sonst mit der Unterkante auf die Position) */
 .locate-btn.gmap-locate { position: absolute; z-index: 900; right: 10px; bottom: 120px; margin: 0 !important; }
@@ -1498,6 +1519,8 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   .locate-btn { margin: 0 10px 10px 0 !important; }
   .pick-banner { top: auto; bottom: calc(var(--sheet-h) + 12px); font-size: 13px; }
   .gmap-tools { right: 10px; bottom: calc(var(--sheet-h) + 12px); transition: bottom 0.25s ease; }
+  .gplace-search { bottom: calc(var(--sheet-h) + 62px); transition: bottom 0.25s ease; }
+  .gmap-tools .gplace-pills button { padding: 0 8px; }
   /* OpenStreetMap: rechts liegen Zoom- und Standort-Knopf, der Schalter daher links */
   .locate-btn.gmap-locate { right: 10px; bottom: calc(var(--sheet-h) + 60px); transition: bottom 0.25s ease; }
 

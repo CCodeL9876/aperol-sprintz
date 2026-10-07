@@ -2838,6 +2838,8 @@ function renderShareState() {
   if (mapSearch.dataset.ready) mapSearch.hidden = backend.kind === 'demo';
   // Öffnungszeiten laden kostet Google-Kontingent – in der Demo ausgegraut
   $('[data-menu="hours"]').disabled = backend.kind === 'demo';
+  // Google-Orte nach Art (Schalter auf der Karte) ebenso – in der Demo ausgeblendet
+  document.body.classList.toggle('is-demo', backend.kind === 'demo');
   if (shareDialog.open) renderShareDialog();
 }
 
@@ -3898,6 +3900,7 @@ const INTRO = [
       text: 'Auf der Karte ein Café, Restaurant … antippen → <strong>„Zu unseren Orten hinzufügen“</strong>.',
       info: [
         { demo: false, html: 'Suchen: <strong>Lupe</strong> oben auf der Karte.' },
+        '<strong>Cafés · Bars · Essen</strong> unten auf der Karte zeigen passende Google-Orte im Ausschnitt (weiße Kreise).',
         'Aus Google Maps: Ort → <strong>Teilen → Kopieren</strong>, hier <strong>„+ Importieren“</strong> und einfügen.',
         'Ganze Listen (Takeout, CSV, KML) ebenfalls über <strong>„+ Importieren“</strong>.',
         'Die Art (Kaffee, Restaurant …) wird erkannt und lässt sich in der Liste ändern.',
