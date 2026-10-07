@@ -50,6 +50,7 @@ export function popupHtml(p, cat) {
     <div class="popup">
       <span class="popup-cat" style="${categoryStyle(cat)}">${escapeHtml(cat.label)}</span>
       <strong class="popup-name">${escapeHtml(p.name)}</strong>
+      <span class="popup-src is-own">✓ Unser Ort</span>
       ${p.address ? `<span class="popup-addr">${escapeHtml(p.address)}</span>` : ''}
       ${p.starred ? `<span class="popup-star">${icon('star', { size: 13, stroke: 2.2 })} Favorit</span>` : ''}
       ${p.visited ? `<span class="popup-visited">${icon('check', { size: 13, stroke: 2.6 })} Besucht</span>` : ''}

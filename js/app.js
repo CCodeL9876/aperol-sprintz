@@ -245,6 +245,7 @@ function createGoogleMapView(el) {
       mapId: GOOGLE_MAPS_MAP_ID,
       onAddPlace: (g) => addGooglePlace(g, categoryFromGoogleTypes(g.types)),
       onError: (msg) => toast(msg, { sticky: true }),
+      onNotice: (msg) => toast(msg),
     }))
     .then((m) => ready(m, 'google'))
     .catch((err) => {

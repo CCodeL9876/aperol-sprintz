@@ -9,6 +9,7 @@ import { icon, categoryIcon, categoryStyle } from './icons.js';
 import { ROUTE_CATEGORY } from './categories.js';
 import { MALLORCA, popupHtml, routePopupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl, pinHtml, pinFlags, poiPinHtml, poiPopupHtml, poiTitle, PLAN_COLOR, planPinHtml, ROUTE_LINE_COLOR } from './map.js';
 import { hoursFromGoogle } from './hours.js';
+import { readPref, writePref } from './store.js';
 
 const LOAD_TIMEOUT_MS = 12000;
 
@@ -113,7 +114,7 @@ export async function lookupHours(apiKey, places, onResult) {
   }
 }
 
-export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerClick, getInsets, onAddPlace, onError, routePopup, onLocateMessage }) {
+export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerClick, getInsets, onAddPlace, onError, onNotice, routePopup, onLocateMessage }) {
   // Ungültiger Schlüssel oder nicht freigegebene Adresse: Google ruft diese globale Funktion auf
   window.gm_authFailure = () => onError?.('Google Maps lehnt den API-Schlüssel ab – Einschränkungen (Website-Adressen) in der Google Cloud Console prüfen.');
   await loadGoogleMaps(apiKey);
@@ -419,6 +420,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     div.innerHTML = `
       ${place.primaryTypeDisplayName ? `<span class="popup-cat">${escapeHtml(place.primaryTypeDisplayName)}</span>` : ''}
       <strong class="popup-name">${escapeHtml(name)}</strong>
+      <span class="popup-src">Von Google · nicht gespeichert</span>
       ${rating ? `<span class="popup-rating">${rating}</span>` : ''}
       ${place.formattedAddress ? `<span class="popup-addr">${escapeHtml(place.formattedAddress)}</span>` : ''}
       ${today ? `<span class="popup-hours">${escapeHtml(today)}</span>` : ''}
@@ -792,6 +794,11 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     const on = !gActive.has(key);
     if (on) gActive.add(key); else gActive.delete(key);
     btn.setAttribute('aria-pressed', String(on));
+    // Einmal pro Gerät erklären, was die weißen Kreise sind
+    if (on && !readPref('gplaceHint')) {
+      writePref('gplaceHint', true);
+      onNotice?.('Weiße Kreise = Orte von Google (nicht gespeichert). Gefüllte Pins = eure gespeicherten Orte.');
+    }
     if (on) searchGPlaces([key]);
     else {
       drawGPlaces(key);
