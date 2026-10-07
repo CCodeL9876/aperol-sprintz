@@ -211,6 +211,7 @@ const offlineSession = (() => { try { return sessionStorage.getItem(OFFLINE_MAP_
 const mapVariant = GOOGLE_MAPS_API_KEY && navigator.onLine && !offlineSession ? 'google' : 'osm';
 
 const mapView = mapVariant === 'google' ? createGoogleMapView($('#map')) : createMap($('#map'), mapOptions);
+document.body.dataset.map = mapVariant; // Knöpfe auf der Karte sitzen je nach Karte anders (styles.css)
 
 // Google lädt asynchron: bis dahin nimmt ein Platzhalter alle Aufrufe an, danach wird neu gezeichnet.
 // Scheitert Google (Schlüssel, Netz, Zeitüberschreitung), übernimmt automatisch OpenStreetMap.
@@ -225,6 +226,7 @@ function createGoogleMapView(el) {
     view.map = m.map;
     // Knopfreihe (Satellit) einer gescheiterten Google-Karte entfernen
     if (shown === 'osm') $('#map').parentElement.querySelector('.gmap-tools')?.remove();
+    document.body.dataset.map = shown;
     if (shown === 'google') initMapSearch();
     render({ fit: true });
   };
@@ -1268,7 +1270,20 @@ function renderChips(base, pool) {
     box.innerHTML = html;
     box.dataset.html = html;
   }
+  updateChipFade();
 }
+
+// Handy: Chip-Reihe scrollt seitlich – ein Verlauf am rechten Rand zeigt, dass noch mehr kommt
+function updateChipFade() {
+  const box = $('#category-chips');
+  box.classList.toggle('has-more', box.scrollLeft + box.clientWidth < box.scrollWidth - 4);
+}
+$('#category-chips').addEventListener('scroll', updateChipFade, { passive: true });
+addEventListener('resize', updateChipFade);
+
+// Glutenfrei-Schalter nur dort, wo es ums Essen geht (bereits markierte Orte zeigen ihn immer);
+// sonst hält ein leerer Platz Stern und Entfernung bündig mit den anderen Zeilen
+const GF_CATEGORIES = new Set(['kaffee', 'restaurant', 'bar']);
 
 // Startansicht: nur die ersten PLACES_PREVIEW Orte, der Rest ist über „Alle … anzeigen“ aufklappbar.
 // Die Karte zeigt trotzdem alle Orte; zugeklappt wird nur die Liste.
@@ -1362,7 +1377,9 @@ function placeItemHtml(p, i, cats) {
       ${dist}
     </button>
     <button type="button" class="star-toggle" data-action="starred" aria-pressed="${!!p.starred}" aria-label="${escapeHtml(p.name)} als Favorit" title="${p.starred ? 'Favorit – antippen zum Entfernen' : 'Als Favorit markieren'}">${icon('star', { size: 18, stroke: 2 })}</button>
-    <button type="button" class="gf-toggle" data-action="gluten-free" aria-pressed="${gf}" aria-label="Glutenfrei" title="${gf ? 'Glutenfrei – antippen zum Entfernen' : 'Als glutenfrei markieren'}">${icon('wheat-off', { size: 17, stroke: 1.9 })}<span class="gf-label">GF</span></button>
+    ${gf || GF_CATEGORIES.has(p.category)
+      ? `<button type="button" class="gf-toggle" data-action="gluten-free" aria-pressed="${gf}" aria-label="Glutenfrei" title="${gf ? 'Glutenfrei – antippen zum Entfernen' : 'Als glutenfrei markieren'}">${icon('wheat-off', { size: 17, stroke: 1.9 })}<span class="gf-label">GF</span></button>`
+      : '<span class="gf-spacer" aria-hidden="true"></span>'}
     </div>
     <div class="place-details">
       ${p.note ? `<p class="place-note">${escapeHtml(p.note)}</p>` : ''}
@@ -3335,6 +3352,9 @@ $('#plan-undo').innerHTML = icon('undo', { size: 18, stroke: 2 });
 $('#plan-loop').innerHTML = icon('home', { size: 18, stroke: 2 });
 $('#plan-cancel').innerHTML = icon('close', { size: 18, stroke: 2.2 });
 $('#btn-plan').addEventListener('click', () => (plan.on ? cancelPlan() : startPlan()));
+// Handy: derselbe Start als Knopf auf der Karte (in der Liste liegt „Etappe planen“ weit unten)
+$('#map-plan').innerHTML = icon('route', { size: 20, stroke: 2.2 });
+$('#map-plan').addEventListener('click', () => { if (!plan.on) startPlan(); });
 $('#plan-undo').addEventListener('click', undoPlanPoint);
 $('#plan-loop').addEventListener('click', () => {
   if (plan.waypoints.length) addPlanPoint(plan.waypoints[0]);
@@ -3516,7 +3536,7 @@ const INTRO = [
         'Die Art (Kaffee, Restaurant …) wird erkannt und lässt sich in der Liste ändern.',
       ] },
     { icon: 'route', color: 'var(--mint)', name: 'Routen planen',
-      text: '<strong>„Etappe planen“</strong> bei den Espresso-Etappen: Punkte auf die Karte tippen – die Strecke folgt Straßen fürs Rennrad.',
+      text: '<strong>„Etappe planen“</strong> (Handy: grüner Knopf auf der Karte): Punkte tippen – die Strecke folgt Straßen fürs Rennrad.',
       info: [
         `Start ist euer Airbnb. ${icon('home', { size: 14, stroke: 2.2, cls: 'intro-inline' })} führt zurück, ${icon('undo', { size: 14, stroke: 2.2, cls: 'intro-inline' })} nimmt den letzten Punkt weg.`,
         '<strong>Schnell</strong>: direkte Wege. <strong>Ruhig</strong>: meidet Verkehr, dafür mit Umwegen.',
