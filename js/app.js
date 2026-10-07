@@ -1992,6 +1992,8 @@ async function addParticipant(name) {
   if (merged) {
     state.participants = sanitizeParticipants(merged);
     render();
+    // Hat der Server eine gleichnamige Person behalten (gleichzeitig auf einem anderen Gerät angelegt), diese nehmen
+    return state.participants.find((p) => p.id === person.id) || state.participants.find((p) => norm(p.name) === norm(name)) || null;
   }
   return person;
 }
@@ -3545,6 +3547,7 @@ async function welcome() {
 }
 
 function askWho() {
+  if (whoDialog.open) return Promise.resolve();
   const current = me()?.id;
   $('#who-list').innerHTML = state.participants.map((p) => `<button type="button" class="who-btn" data-who="${escapeHtml(p.id)}" aria-pressed="${p.id === current}">
       <span class="who-initials" aria-hidden="true">${escapeHtml(initials(p.name))}</span><span class="who-name">${escapeHtml(p.name)}</span></button>`).join('');

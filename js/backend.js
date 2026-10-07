@@ -476,7 +476,9 @@ export class SharedBackend {
     const current = await this.db.from('trip_settings').select('participants').eq('trip_key', this.key).maybeSingle();
     check(current);
     let list = Array.isArray(current.data?.participants) ? current.data.participants : [];
-    if (add && !list.some((p) => p.id === add.id)) list = [...list, add];
+    // Gleicher Name schon da (z. B. gleichzeitig auf einem anderen Gerät eingetragen): keine zweite Person
+    const sameName = (p) => String(p.name || '').trim().toLowerCase() === String(add.name || '').trim().toLowerCase();
+    if (add && !list.some((p) => p.id === add.id || sameName(p))) list = [...list, add];
     if (removeId) list = list.filter((p) => p.id !== removeId);
     await this.saveParticipants(list);
     return list;
