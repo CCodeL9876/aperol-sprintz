@@ -408,6 +408,9 @@ const HOURS_SKIP = new Set(['strand', 'aussicht']);
 let hoursLoading = false;
 async function loadOpeningHours() {
   if (hoursLoading || backend.kind === 'demo') return;
+  // Kostet Google-Kontingent für viele Orte auf einmal – nur der Admin (neue Orte aus der Google-Karte bringen
+  // ihre Öffnungszeiten ohnehin mit). Nur in der App gesperrt: der Google-Schlüssel ist im Browser öffentlich.
+  if (!canAdmin()) return toast('Öffnungszeiten laden kann nur der Admin.');
   if (!GOOGLE_MAPS_API_KEY) return toast('Für Öffnungszeiten fehlt der Google-API-Schlüssel in js/config.js.', { sticky: true });
   if (backend.kind === 'shared' && state.hoursMissing) {
     return toast('Öffnungszeiten sind in der Datenbank noch nicht eingerichtet – bitte supabase/schema.sql im Supabase SQL Editor ausführen.', { sticky: true });
@@ -3547,7 +3550,7 @@ const introDialog = $('#intro-dialog');
 
 // --- Admin -------------------------------------------------------------------------------------
 // Wer die Admin-PIN kennt, ist Admin: nur er kann den Zugangscode ändern und alle Orte löschen (geprüft von der
-// Datenbank, siehe supabase/schema.sql). Die PIN merkt sich jedes Gerät selbst. 'unsupported' = SQL noch nicht
+// Datenbank, siehe supabase/schema.sql) sowie Öffnungszeiten für alle Orte laden (nur in der App gesperrt). Die PIN merkt sich jedes Gerät selbst. 'unsupported' = SQL noch nicht
 // ausgeführt bzw. Demo – dann gilt das bisherige Verhalten ohne Admin.
 let adminState = 'unsupported';
 const canAdmin = () => adminState === 'ok' || adminState === 'unsupported';
@@ -3567,6 +3570,7 @@ async function checkAdmin() {
 
 function renderAdmin() {
   $('[data-menu="reset"]').hidden = !canAdmin();
+  $('[data-menu="hours"]').hidden = !canAdmin();
   renderMe();
   if (shareDialog.open) renderShareDialog();
 }
@@ -3574,12 +3578,12 @@ function renderAdmin() {
 function adminHtml() {
   if (backend.offline) return '';
   if (adminState === 'unsupported') return '<p class="hint share-admin">Admin-Zugriff: in Supabase einmal <code>supabase/schema.sql</code> ausführen.</p>';
-  if (adminState === 'none') return `<div class="share-admin"><p class="share-text"><strong>Noch kein Admin:</strong> Wer die Admin-PIN festlegt, kann als Einziger den Zugangscode ändern und alle Orte löschen.</p>
+  if (adminState === 'none') return `<div class="share-admin"><p class="share-text"><strong>Noch kein Admin:</strong> Wer die Admin-PIN festlegt, kann als Einziger den Zugangscode ändern, alle Orte löschen und Öffnungszeiten laden.</p>
       <button id="btn-admin-set" class="btn-link" type="button">Admin-PIN festlegen</button></div>`;
   if (adminState === 'ok') return `<div class="share-admin"><p class="share-text"><strong>Du bist Admin</strong> auf diesem Gerät.</p>
       <span class="share-admin-actions"><button id="btn-admin-change" class="btn-link" type="button">Admin-PIN ändern</button>
       <button id="btn-admin-logout" class="btn-link muted" type="button">Als Admin abmelden</button></span></div>`;
-  return `<div class="share-admin"><p class="share-text">Zugangscode ändern und alle Orte löschen kann nur der Admin.</p>
+  return `<div class="share-admin"><p class="share-text">Zugangscode ändern, alle Orte löschen und Öffnungszeiten laden kann nur der Admin.</p>
       <button id="btn-admin-login" class="btn-link" type="button">Als Admin anmelden</button></div>`;
 }
 
@@ -3757,7 +3761,7 @@ const INTRO = [
     { icon: 'search', color: 'var(--sky)', name: 'Karte & Liste', text: 'Nach Art filtern, suchen, <strong>„Jetzt offen“</strong>.',
       info: [
         'Handy: Liste nach unten wischen – dann ist die ganze Karte frei.',
-        '„Jetzt offen“ braucht Öffnungszeiten: Menü <strong>•••</strong> → <strong>„Öffnungszeiten laden“</strong>.',
+        '„Jetzt offen“ braucht Öffnungszeiten: Orte aus der Google-Karte bringen sie mit, für ältere lädt sie der Admin (Menü <strong>•••</strong>).',
         'Sortiert wird nach Entfernung zum Airbnb, Name, Art oder Datum.',
         '<strong>„Satellit“</strong> unten rechts zeigt Luftbilder.',
       ] },
@@ -3792,7 +3796,7 @@ const INTRO = [
         'Einmal pro Gerät <strong>„Wer bist du?“</strong> – der Kreis mit deinen Initialen oben rechts zeigt es, antippen zum Wechseln.',
         'Änderungen sind nach spätestens 20 Sekunden bei allen.',
         'Mit einem <strong>Zugangscode</strong> (unter „Teilen“) braucht es zusätzlich den Code.',
-        'Zugangscode ändern und alle Orte löschen kann nur der <strong>Admin</strong> (Admin-PIN unter „Teilen“).',
+        'Zugangscode ändern, alle Orte löschen und Öffnungszeiten laden kann nur der <strong>Admin</strong> (Admin-PIN unter „Teilen“).',
         'Ohne Netz zeigt die App den zuletzt geladenen Stand.',
       ] },
     { icon: 'layers', color: 'var(--mint)', name: 'Eigene Kategorien', text: 'Menü <strong>•••</strong> → <strong>„Kategorien verwalten“</strong>.',
