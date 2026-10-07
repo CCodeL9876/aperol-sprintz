@@ -3545,12 +3545,35 @@ const INTRO = [
         'Oder eine GPX aus Strava/Komoot über <strong>„+ Importieren“</strong> – Start und Ziel werden ans Airbnb angeschlossen.',
       ] },
   ] },
+  { title: 'Rennrad', items: [
+    { icon: 'trending-up', color: 'var(--mint)', name: 'Etappen-Details', text: 'Wetter, Kaffee-Stopps, Wasser & Velo, Höhenprofil.',
+      info: [
+        'Etappe in der Liste antippen – die Details klappen auf.',
+        'Der Schalter rechts blendet die Etappe auf der Karte ein.',
+        'Kaffee-Stopps mit Ankunftszeit – und ob dann offen ist.',
+        'Finger übers Höhenprofil: die Stelle erscheint als Punkt auf der Karte.',
+      ] },
+    { icon: 'clock', color: 'var(--sky)', name: 'Tempo & Start', text: 'Bestimmen Fahrzeit und Ankunft bei den Stopps.',
+      info: [
+        'Bei den Espresso-Etappen <strong>„Fahrzeit bei … km/h“</strong> und <strong>„Start“</strong> einstellen.',
+        'Steigungen werden in der Fahrzeit mitgerechnet.',
+        'Das Wetter gilt für heute bzw. morgen, 9–16 Uhr am Start.',
+        'Jedes Gerät merkt sich seine Werte.',
+      ] },
+    { icon: 'check', color: 'var(--yellow)', name: 'Nach der Fahrt', text: 'Haken = gefahren, Strava-Aktivität verlinken.',
+      info: [
+        'Der Kreis links neben der Etappe markiert sie als gefahren.',
+        'In den Details: Tour-Link (Strava, Komoot) – nach dem Haken auch die gefahrene Aktivität.',
+        `${icon('download', { size: 14, stroke: 2.2, cls: 'intro-inline' })} lädt die Etappe als GPX – z. B. für Garmin oder Wahoo.`,
+      ] },
+  ] },
   { title: 'Außerdem', items: [
     { icon: 'search', color: 'var(--sky)', name: 'Karte & Liste', text: 'Nach Art filtern, suchen, <strong>„Jetzt offen“</strong>.',
       info: [
         'Handy: Liste nach unten wischen – dann ist die ganze Karte frei.',
         '„Jetzt offen“ braucht Öffnungszeiten: Menü <strong>•••</strong> → <strong>„Öffnungszeiten laden“</strong>.',
         'Sortiert wird nach Entfernung zum Airbnb, Name, Art oder Datum.',
+        '<strong>„Satellit“</strong> unten rechts zeigt Luftbilder.',
       ] },
     { icon: 'star', color: 'var(--yellow)', name: 'Merken', text: 'Stern = Favorit, Häkchen = schon besucht, Reservierungen.',
       info: [
@@ -3580,7 +3603,18 @@ const INTRO = [
       info: [
         'Den Link gibt es unter <strong>„Teilen“</strong> – nur an Mitreisende weitergeben.',
         'Änderungen sind nach spätestens 20 Sekunden bei allen.',
+        'Mit einem <strong>Zugangscode</strong> (unter „Teilen“) braucht es zusätzlich den Code.',
         'Ohne Netz zeigt die App den zuletzt geladenen Stand.',
+      ] },
+    { icon: 'layers', color: 'var(--mint)', name: 'Eigene Kategorien', text: 'Menü <strong>•••</strong> → <strong>„Kategorien verwalten“</strong>.',
+      info: [
+        'Mit eigenem Emoji, Farbe und Stichwörtern.',
+        'Neue Orte mit einem Stichwort im Namen landen automatisch dort.',
+      ] },
+    { icon: 'download', color: 'var(--lilac)', name: 'Sicherung', text: 'Menü <strong>•••</strong> → <strong>„Backup herunterladen“</strong>.',
+      info: [
+        'Orte, Etappen, Kategorien und Ausgaben in einer Datei.',
+        'Über <strong>„+ Importieren“</strong> lässt sie sich wieder einlesen.',
       ] },
   ] },
 ];
