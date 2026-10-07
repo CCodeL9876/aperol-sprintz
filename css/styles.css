@@ -251,6 +251,7 @@ select {
 .menu-panel .danger { color: var(--orange-ink); font-weight: 600; }
 .menu-panel hr { border: 0; border-top: 1px solid var(--line); margin: 6px 4px; }
 .menu-version { margin: 4px 10px 2px; font-size: 11px; color: var(--muted); }
+.menu-group { margin: 2px 12px 2px; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 
 /* --- Layout ------------------------------------------------------------------ */
 

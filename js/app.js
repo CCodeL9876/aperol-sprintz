@@ -3404,6 +3404,7 @@ $('.menu-panel').addEventListener('click', async (e) => {
   if (!what) return;
   $('.menu').open = false;
   if (what === 'intro') openIntro();
+  if (['categories', 'backup', 'hours', 'reset'].includes(what) && !canAdmin()) return toast('Das kann nur der Admin.');
   if (what === 'categories') {
     renderCategoryManager();
     categoryDialog.showModal();
@@ -3550,7 +3551,8 @@ const introDialog = $('#intro-dialog');
 
 // --- Admin -------------------------------------------------------------------------------------
 // Wer die Admin-PIN kennt, ist Admin: nur er kann den Zugangscode ändern und alle Orte löschen (geprüft von der
-// Datenbank, siehe supabase/schema.sql) sowie Öffnungszeiten für alle Orte laden (nur in der App gesperrt). Die PIN merkt sich jedes Gerät selbst. 'unsupported' = SQL noch nicht
+// Datenbank, siehe supabase/schema.sql) sowie – nur in der App gesperrt – Öffnungszeiten laden, Kategorien
+// verwalten und das Backup herunterladen. Die PIN merkt sich jedes Gerät selbst. 'unsupported' = SQL noch nicht
 // ausgeführt bzw. Demo – dann gilt das bisherige Verhalten ohne Admin.
 let adminState = 'unsupported';
 const canAdmin = () => adminState === 'ok' || adminState === 'unsupported';
@@ -3569,8 +3571,9 @@ async function checkAdmin() {
 }
 
 function renderAdmin() {
-  $('[data-menu="reset"]').hidden = !canAdmin();
-  $('[data-menu="hours"]').hidden = !canAdmin();
+  // Kategorien verwalten, Backup, Öffnungszeiten laden, Alle Orte löschen – als Gruppe im Menü
+  $('#menu-admin').hidden = !canAdmin();
+  $('#menu-admin .menu-group').hidden = adminState !== 'ok'; // Überschrift nur, wenn es wirklich einen Admin gibt
   renderMe();
   if (shareDialog.open) renderShareDialog();
 }
@@ -3578,12 +3581,12 @@ function renderAdmin() {
 function adminHtml() {
   if (backend.offline) return '';
   if (adminState === 'unsupported') return '<p class="hint share-admin">Admin-Zugriff: in Supabase einmal <code>supabase/schema.sql</code> ausführen.</p>';
-  if (adminState === 'none') return `<div class="share-admin"><p class="share-text"><strong>Noch kein Admin:</strong> Wer die Admin-PIN festlegt, kann als Einziger den Zugangscode ändern, alle Orte löschen und Öffnungszeiten laden.</p>
+  if (adminState === 'none') return `<div class="share-admin"><p class="share-text"><strong>Noch kein Admin:</strong> Wer die Admin-PIN festlegt, kann als Einziger den Zugangscode ändern, alle Orte löschen, Öffnungszeiten laden, Kategorien verwalten und das Backup herunterladen.</p>
       <button id="btn-admin-set" class="btn-link" type="button">Admin-PIN festlegen</button></div>`;
   if (adminState === 'ok') return `<div class="share-admin"><p class="share-text"><strong>Du bist Admin</strong> auf diesem Gerät.</p>
       <span class="share-admin-actions"><button id="btn-admin-change" class="btn-link" type="button">Admin-PIN ändern</button>
       <button id="btn-admin-logout" class="btn-link muted" type="button">Als Admin abmelden</button></span></div>`;
-  return `<div class="share-admin"><p class="share-text">Zugangscode ändern, alle Orte löschen und Öffnungszeiten laden kann nur der Admin.</p>
+  return `<div class="share-admin"><p class="share-text">Zugangscode, Alle Orte löschen, Öffnungszeiten laden, Kategorien und Backup: nur für den Admin.</p>
       <button id="btn-admin-login" class="btn-link" type="button">Als Admin anmelden</button></div>`;
 }
 
@@ -3796,15 +3799,15 @@ const INTRO = [
         'Einmal pro Gerät <strong>„Wer bist du?“</strong> – der Kreis mit deinen Initialen oben rechts zeigt es, antippen zum Wechseln.',
         'Änderungen sind nach spätestens 20 Sekunden bei allen.',
         'Mit einem <strong>Zugangscode</strong> (unter „Teilen“) braucht es zusätzlich den Code.',
-        'Zugangscode ändern, alle Orte löschen und Öffnungszeiten laden kann nur der <strong>Admin</strong> (Admin-PIN unter „Teilen“).',
+        'Zugangscode, Alle Orte löschen, Öffnungszeiten, Kategorien und Backup: nur der <strong>Admin</strong> (Admin-PIN unter „Teilen“).',
         'Ohne Netz zeigt die App den zuletzt geladenen Stand.',
       ] },
-    { icon: 'layers', color: 'var(--mint)', name: 'Eigene Kategorien', text: 'Menü <strong>•••</strong> → <strong>„Kategorien verwalten“</strong>.',
+    { icon: 'layers', color: 'var(--mint)', name: 'Eigene Kategorien', text: 'Admin: Menü <strong>•••</strong> → <strong>„Kategorien verwalten“</strong>.',
       info: [
         'Mit eigenem Emoji, Farbe und Stichwörtern.',
         'Neue Orte mit einem Stichwort im Namen landen automatisch dort.',
       ] },
-    { icon: 'download', color: 'var(--lilac)', name: 'Sicherung', text: 'Menü <strong>•••</strong> → <strong>„Backup herunterladen“</strong>.',
+    { icon: 'download', color: 'var(--lilac)', name: 'Sicherung', text: 'Admin: Menü <strong>•••</strong> → <strong>„Backup herunterladen“</strong>.',
       info: [
         'Orte, Etappen, Kategorien und Ausgaben in einer Datei.',
         'Über <strong>„+ Importieren“</strong> lässt sie sich wieder einlesen.',

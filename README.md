@@ -71,7 +71,7 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
 - **Ohne Netz**: `sw.js` hält App-Dateien und gesehene OpenStreetMap-Kacheln vor; der zuletzt geladene Stand
   der gemeinsamen Reise liegt im Cache Storage. Ohne Verbindung zeigt die App diesen Stand (nur lesen) und
   verbindet sich neu, sobald Netz da ist.
-- **Eigene Kategorien** mit Emoji, Farbe und Stichwörtern (Standard-Kategorien nutzen Linien-Symbole) (Menü `•••` → „Kategorien verwalten“).
+- **Eigene Kategorien** mit Emoji, Farbe und Stichwörtern (Standard-Kategorien nutzen Linien-Symbole) (Admin: Menü `•••` → „Kategorien verwalten“).
 - **Gemeinsame Reise**: Über „Teilen“ werden die Orte in eine Supabase-Datenbank hochgeladen; alle mit dem
   geheimen Reise-Link sehen dieselbe Liste und können mitplanen (Abgleich alle 20 s). Einrichtung: [ANLEITUNG.md](ANLEITUNG.md).
 - Ohne gemeinsame Reise bleiben die Daten lokal im Browser (`localStorage`); Backup als JSON über das Menü.

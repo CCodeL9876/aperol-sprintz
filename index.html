@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-07.6" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-07.6">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-07.7" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-07.7">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-07.6">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-07.6">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-07.6">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-07.7">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-07.7">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-07.7">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -73,12 +73,16 @@
           <a class="menu-link" id="menu-photos" data-menu="photos" href="photos-redirect://" hidden><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>Fotos · Geteiltes Album</a>
           <hr>
           <button type="button" data-menu="intro">So funktioniert's</button>
-          <button type="button" data-menu="categories">Kategorien verwalten</button>
-          <button type="button" data-menu="backup">Backup herunterladen</button>
           <button type="button" data-menu="fit">Alle Orte zeigen</button>
-          <button type="button" data-menu="hours">Öffnungszeiten laden</button>
-          <hr>
-          <button type="button" data-menu="reset" class="danger">Alle Orte löschen</button>
+          <!-- Nur für den Admin (ausgeblendet über renderAdmin in app.js) -->
+          <div id="menu-admin">
+            <hr>
+            <p class="menu-group">Admin</p>
+            <button type="button" data-menu="categories">Kategorien verwalten</button>
+            <button type="button" data-menu="backup">Backup herunterladen</button>
+            <button type="button" data-menu="hours">Öffnungszeiten laden</button>
+            <button type="button" data-menu="reset" class="danger">Alle Orte löschen</button>
+          </div>
           <p id="app-version" class="menu-version"></p>
         </div>
       </details>
@@ -621,29 +625,29 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-07.6"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-07.7"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-07.6",
-      "./js/backend.js": "./js/backend.js?v=2026-10-07.6",
-      "./js/cash.js": "./js/cash.js?v=2026-10-07.6",
-      "./js/categories.js": "./js/categories.js?v=2026-10-07.6",
-      "./js/config.js": "./js/config.js?v=2026-10-07.6",
-      "./js/geo.js": "./js/geo.js?v=2026-10-07.6",
-      "./js/hours.js": "./js/hours.js?v=2026-10-07.6",
-      "./js/icons.js": "./js/icons.js?v=2026-10-07.6",
-      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-07.6",
-      "./js/importers.js": "./js/importers.js?v=2026-10-07.6",
-      "./js/map.js": "./js/map.js?v=2026-10-07.6",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-07.6",
-      "./js/profile.js": "./js/profile.js?v=2026-10-07.6",
-      "./js/pois.js": "./js/pois.js?v=2026-10-07.6",
-      "./js/store.js": "./js/store.js?v=2026-10-07.6"
+      "./js/app.js": "./js/app.js?v=2026-10-07.7",
+      "./js/backend.js": "./js/backend.js?v=2026-10-07.7",
+      "./js/cash.js": "./js/cash.js?v=2026-10-07.7",
+      "./js/categories.js": "./js/categories.js?v=2026-10-07.7",
+      "./js/config.js": "./js/config.js?v=2026-10-07.7",
+      "./js/geo.js": "./js/geo.js?v=2026-10-07.7",
+      "./js/hours.js": "./js/hours.js?v=2026-10-07.7",
+      "./js/icons.js": "./js/icons.js?v=2026-10-07.7",
+      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-07.7",
+      "./js/importers.js": "./js/importers.js?v=2026-10-07.7",
+      "./js/map.js": "./js/map.js?v=2026-10-07.7",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-07.7",
+      "./js/profile.js": "./js/profile.js?v=2026-10-07.7",
+      "./js/pois.js": "./js/pois.js?v=2026-10-07.7",
+      "./js/store.js": "./js/store.js?v=2026-10-07.7"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-07.6"></script>
+  <script type="module" src="js/app.js?v=2026-10-07.7"></script>
 </body>
 </html>

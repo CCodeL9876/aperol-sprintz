@@ -125,8 +125,9 @@ Code vergessen: Mitreisende fragen – oder die Zeile in `trip_access` wie oben 
 ## 2d. Admin – nur eine Person ändert den Zugangscode und löscht alle Orte
 
 Wer die **Admin-PIN** kennt, ist Admin. Nur der Admin kann den Zugangscode ändern und über das Menü **•••** alle
-Orte auf einmal löschen – das prüft die Datenbank selbst, nicht nur die App. Außerdem lädt nur der Admin
-**„Öffnungszeiten laden“** (kostet Google-Kontingent; diese Sperre gilt nur in der App).
+Orte auf einmal löschen – das prüft die Datenbank selbst, nicht nur die App. Außerdem stehen nur dem Admin im
+Menü **•••** zur Verfügung: **„Öffnungszeiten laden“** (kostet Google-Kontingent), **„Kategorien verwalten“** und
+**„Backup herunterladen“** – diese Sperre gilt nur in der App.
 
 1. Einmal `supabase/schema.sql` im SQL Editor ausführen (wie in Abschnitt 2a).
 2. Sofort danach in der App **Teilen → „Admin-PIN festlegen“** (mindestens 4 Zeichen). Wer die PIN zuerst
