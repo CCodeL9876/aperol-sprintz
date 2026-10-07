@@ -3649,12 +3649,15 @@ function initials(name) {
 
 // Nach dem Laden: erst „Wer bist du?“ (falls nötig), danach die Willkommensseite
 async function welcome() {
-  if (needsWho()) await askWho();
+  if (needsWho()) await askWho({ required: true }); // nach dem Login Pflicht: ohne Person geht es nicht weiter
   if (!readPref('introHidden')) openIntro();
 }
 
-function askWho() {
+// required: kein Schließen ohne Auswahl (nach dem Login); sonst (Wechseln) jederzeit schließbar
+function askWho({ required = false } = {}) {
   if (whoDialog.open) return Promise.resolve();
+  whoDialog.toggleAttribute('data-locked', required); // Tipp daneben schließt nicht (siehe Dialoge)
+  $('#who-close').hidden = required;
   const current = me()?.id;
   $('#who-list').innerHTML = state.participants.map((p) => `<button type="button" class="who-btn" data-who="${escapeHtml(p.id)}" aria-pressed="${p.id === current}">
       <span class="who-initials" aria-hidden="true">${escapeHtml(initials(p.name))}</span><span class="who-name">${escapeHtml(p.name)}</span></button>`).join('');
@@ -3665,7 +3668,14 @@ function askWho() {
   whoDialog.showModal();
   return new Promise((resolve) => { whoDone = resolve; });
 }
+whoDialog.addEventListener('cancel', (e) => { if (whoDialog.hasAttribute('data-locked')) e.preventDefault(); }); // Esc
 whoDialog.addEventListener('close', () => {
+  // Pflicht nach dem Login: Browser lassen Esc nicht immer abfangen – dann gleich wieder öffnen (wie beim
+  // Zugangscode). Nicht über der Code-Abfrage, die hat Vorrang.
+  if (whoDialog.hasAttribute('data-locked') && !me() && !codeDialog.open) {
+    setTimeout(() => { if (!whoDialog.open && !codeDialog.open) whoDialog.showModal(); }, 0);
+    return;
+  }
   whoDone?.();
   whoDone = null;
 });
@@ -3737,6 +3747,13 @@ const INTRO = [
         'Gespeichert zeigt jede Etappe Wetter, Kaffee-Stopps, Wasser & Velo – und lässt sich als GPX laden.',
         'Oder eine GPX aus Strava/Komoot über <strong>„+ Importieren“</strong> – Start und Ziel werden ans Airbnb angeschlossen.',
       ] },
+    { icon: 'wallet', color: 'var(--orange)', name: 'Ausgaben', text: 'Rechnungen erfassen und teilen – <strong>„Ausgaben“</strong> oben auf der Karte.',
+      info: [
+        '<strong>„Bezahlt von“</strong> ist mit dir vorausgewählt – änderbar, wenn jemand anderes bezahlt hat.',
+        'In € oder CHF, gleich oder nach Anteilen aufgeteilt.',
+        'Bei einem Ort direkt über <strong>„Rechnung“</strong>.',
+        'Der Ausgleich zeigt, wer wem wie viel schuldet – nach der Überweisung <strong>„bezahlt“</strong> antippen.',
+      ] },
   ] },
   { title: 'Rennrad', items: [
     { icon: 'trending-up', color: 'var(--mint)', name: 'Etappen-Details', text: 'Wetter, Kaffee-Stopps, Wasser & Velo, Höhenprofil.',
@@ -3761,6 +3778,13 @@ const INTRO = [
       ] },
   ] },
   { title: 'Außerdem', items: [
+    { icon: 'plus', color: 'var(--yellow)', name: 'Als App aufs iPhone', text: 'Safari: Teilen-Symbol → <strong>„Zum Home-Bildschirm“</strong> – startet wie eine App.',
+      info: [
+        'Den Reise-Link in <strong>Safari</strong> öffnen, dann Teilen-Symbol (Quadrat mit Pfeil) → <strong>„Zum Home-Bildschirm“</strong>.',
+        'Die App startet im Vollbild direkt in eurer Reise.',
+        'Beim ersten Öffnen einmal Zugangscode und Namen eingeben – die App auf dem Home-Bildschirm merkt sich beides getrennt von Safari.',
+        'Android (Chrome): Menü ⋮ → „Zum Startbildschirm hinzufügen“.',
+      ] },
     { icon: 'search', color: 'var(--sky)', name: 'Karte & Liste', text: 'Nach Art filtern, suchen, <strong>„Jetzt offen“</strong>.',
       info: [
         'Handy: Liste nach unten wischen – dann ist die ganze Karte frei.',
@@ -3780,13 +3804,6 @@ const INTRO = [
         '„Route“ startet die Navigation in Google Maps.',
         'Unter <strong>„Unser Airbnb“</strong> geht’s mit „Route zur Unterkunft“ zurück.',
       ] },
-    { icon: 'wallet', color: 'var(--orange)', name: 'Ausgaben', text: 'Wer hat was für wen bezahlt?',
-      info: [
-        '<strong>„Bezahlt von“</strong> ist mit dir vorausgewählt – änderbar, wenn jemand anderes bezahlt hat.',
-        'In € oder CHF, gleich oder nach Anteilen aufgeteilt.',
-        'Bei einem Ort direkt über <strong>„Rechnung“</strong>.',
-        'Der Ausgleich zeigt, wer wem wie viel schuldet – nach der Überweisung <strong>„bezahlt“</strong> antippen.',
-      ] },
     { icon: 'camera', color: 'var(--lilac)', name: 'Fotos & Reise', text: 'Menü <strong>•••</strong>: Fotos, Bordkarten, Flüge, Check-in.',
       info: [
         '<strong>„Fotos“</strong> öffnet die Fotos-App mit euren geteilten Alben (iPhone/iPad).',
@@ -3801,16 +3818,6 @@ const INTRO = [
         'Mit einem <strong>Zugangscode</strong> (unter „Teilen“) braucht es zusätzlich den Code.',
         'Zugangscode, Alle Orte löschen, Öffnungszeiten, Kategorien und Backup: nur der <strong>Admin</strong> (Admin-PIN unter „Teilen“).',
         'Ohne Netz zeigt die App den zuletzt geladenen Stand.',
-      ] },
-    { icon: 'layers', color: 'var(--mint)', name: 'Eigene Kategorien', text: 'Admin: Menü <strong>•••</strong> → <strong>„Kategorien verwalten“</strong>.',
-      info: [
-        'Mit eigenem Emoji, Farbe und Stichwörtern.',
-        'Neue Orte mit einem Stichwort im Namen landen automatisch dort.',
-      ] },
-    { icon: 'download', color: 'var(--lilac)', name: 'Sicherung', text: 'Admin: Menü <strong>•••</strong> → <strong>„Backup herunterladen“</strong>.',
-      info: [
-        'Orte, Etappen, Kategorien und Ausgaben in einer Datei.',
-        'Über <strong>„+ Importieren“</strong> lässt sie sich wieder einlesen.',
       ] },
   ] },
 ];

@@ -1138,6 +1138,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .log-line.error::before { content: '!'; color: var(--orange-ink); font-weight: 700; }
 
 .howto { font-size: 13.5px; }
+.import-tip { margin: 0; padding: 10px 12px; border-radius: 12px; border-left: 3px solid var(--green); background: var(--green-tint); font-size: 13.5px; line-height: 1.45; color: var(--text); }
 #import-dialog .dialog-foot [data-close] { margin-left: auto; } /* rechts, auch wenn „Beispielorte laden“ fehlt */
 .howto summary { cursor: pointer; font-weight: 700; color: var(--green); }
 .howto ol { margin: 10px 0 0; padding-left: 20px; color: var(--text-soft); display: grid; gap: 6px; }
