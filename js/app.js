@@ -4210,8 +4210,9 @@ const INTRO = [
     { icon: 'route', color: 'var(--mint)', name: 'Routen planen',
       text: '<strong>„Etappe planen“</strong> (Handy: grüner Knopf auf der Karte): Punkte tippen – die Strecke folgt Straßen fürs Rennrad.',
       info: [
-        `Start ist euer Airbnb. ${icon('home', { size: 14, stroke: 2.2, cls: 'intro-inline' })} führt zurück, ${icon('undo', { size: 14, stroke: 2.2, cls: 'intro-inline' })} nimmt den letzten Punkt weg.`,
-        '<strong>Schnell</strong>: direkte Wege. <strong>Ruhig</strong>: meidet Verkehr, dafür mit Umwegen.',
+        `Start ist euer Airbnb. ${icon('home', { size: 14, stroke: 2.2, cls: 'intro-inline' })} führt zurück, ${icon('undo', { size: 14, stroke: 2.2, cls: 'intro-inline' })} macht den letzten Schritt rückgängig.`,
+        `Punkte <strong>ziehen</strong>, auf die Linie tippen = Zwischenpunkt, Punkt antippen und ${icon('trash', { size: 14, stroke: 2.2, cls: 'intro-inline' })} = entfernen, ${icon('swap', { size: 14, stroke: 2.2, cls: 'intro-inline' })} dreht die Richtung um.`,
+        '<strong>Schnell</strong>: direkte Wege. <strong>Ruhig</strong>: meidet Verkehr, dafür mit Umwegen – das <strong>ⓘ</strong> daneben erklärt den Unterschied.',
         'Kilometer, Höhenmeter, Fahrzeit und Höhenprofil laufend.',
         'Gespeichert zeigt jede Etappe Wetter, Kaffee-Stopps, Wasser & Velo – und lässt sich als GPX laden.',
         'Oder eine GPX aus Strava/Komoot über <strong>„+ Importieren“</strong> – Start und Ziel werden ans Airbnb angeschlossen.',
@@ -4228,9 +4229,10 @@ const INTRO = [
     { icon: 'trending-up', color: 'var(--mint)', name: 'Etappen-Details', text: 'Wetter, Kaffee-Stopps, Wasser & Velo, Höhenprofil.',
       info: [
         'Etappe in der Liste antippen – die Details klappen auf.',
-        'Der Schalter rechts blendet die Etappe auf der Karte ein.',
+        'Der Schalter rechts blendet die Etappe auf der Karte ein (Handy: die Boxen oben machen dann Platz).',
         'Kaffee-Stopps mit Ankunftszeit – und ob dann offen ist.',
         'Finger übers Höhenprofil: die Stelle erscheint als Punkt auf der Karte.',
+        `${icon('pencil', { size: 14, stroke: 2.2, cls: 'intro-inline' })} bearbeitet die Etappe (auch GPX aus Strava/Komoot): Punkte alle 5 km ziehen, gespeichert wird eine Kopie.`,
       ] },
     { icon: 'clock', color: 'var(--sky)', name: 'Tempo & Start', text: 'Bestimmen Fahrzeit und Ankunft bei den Stopps.',
       info: [
@@ -4256,9 +4258,11 @@ const INTRO = [
       ] },
     { icon: 'search', color: 'var(--sky)', name: 'Karte & Liste', text: 'Nach Art filtern, suchen, <strong>„Jetzt offen“</strong>.',
       info: [
-        'Handy: Liste nach unten wischen – dann ist die ganze Karte frei.',
+        'Handy: Liste nach unten wischen – dann ist die ganze Karte frei. Der runde Knopf unten links holt sie zurück.',
+        'Ein Tipp auf <strong>„Unsere Orte“</strong> bzw. <strong>„Espresso-Etappen“</strong> klappt den Abschnitt zu oder auf.',
+        'Die km bei den Orten sind die Strecke mit dem Auto ab dem Airbnb (mit ≈: Luftlinie). Sortiert wird danach, nach Name, Art oder Datum.',
         '„Jetzt offen“ braucht Öffnungszeiten: Orte aus der Google-Karte bringen sie mit, für ältere lädt sie der Admin (Menü <strong>•••</strong>).',
-        'Sortiert wird nach Entfernung zum Airbnb, Name, Art oder Datum.',
+        'Bei <strong>„Kultur & Orte“</strong> erscheint beim Öffnen ein kurzer Wikipedia-Text mit Bild.',
         '<strong>„Satellit“</strong> unten rechts zeigt Luftbilder.',
       ] },
     { icon: 'star', color: 'var(--yellow)', name: 'Merken', text: 'Stern = Favorit, Häkchen = schon besucht, Reservierungen.',
