@@ -11,6 +11,7 @@ import { expandMapsLinks, hasShortMapsLinks,
 import { createMap, routeAttrs } from './map.js';
 import { TRAVEL_MODES, computeRoute, navUrl } from './directions.js';
 import { roadKm, loadRoadDistances } from './road-distance.js';
+import { buildTcx } from './tcx.js';
 import { WIKI_CATEGORIES, cachedWiki, loadWiki } from './wiki.js';
 import { GRADE_CLASSES, steepRuns, findClimbs, climbName } from './climbs.js';
 import { sanitizeHours, hoursStale, openAt, hoursStatus } from './hours.js';
@@ -615,7 +616,7 @@ function placesWithDistance() {
     // null = nichts gefunden; noch nicht gefragt: Zwischenstand der Suche ('loading' / 'error')
     const wiki = cached !== undefined || !WIKI_CATEGORIES.has(p.category) ? cached : wikiStatus.get(p.id);
     if (!a || !hasCoords(p)) return { ...p, wiki, distance: null };
-    const road = roadKm(a, p);
+    const road = backend.kind === 'demo' ? undefined : roadKm(a, p); // Demo: immer Luftlinie
     return Number.isFinite(road)
       ? { ...p, wiki, distance: road, distanceAir: false }
       : { ...p, wiki, distance: haversineKm(a.lat, a.lng, p.lat, p.lng), distanceAir: true };
@@ -649,7 +650,8 @@ async function ensureWiki({ retry = false } = {}) {
 let roadLoading = false;
 let roadFailed = false;
 async function ensureRoadDistances() {
-  if (roadLoading || roadFailed || !GOOGLE_MAPS_API_KEY || !navigator.onLine || !state.airbnb) return;
+  // Demo: Luftlinie – jede Abfrage kostet Google-Kontingent, und die Demo ist öffentlich
+  if (roadLoading || roadFailed || backend.kind === 'demo' || !GOOGLE_MAPS_API_KEY || !navigator.onLine || !state.airbnb) return;
   roadLoading = true;
   try {
     if (await loadRoadDistances(GOOGLE_MAPS_API_KEY, state.airbnb, state.places)) render();
@@ -1339,34 +1341,57 @@ const gpxCache = new Map();
 const gpxFileName = (route) => `${route.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'route'}.gpx`;
 const REDUCED_GPX_HINT = 'GPX aus den Kartenpunkten erstellt (ohne Höhen) – für volle Genauigkeit Etappe neu importieren.';
 
-// GPX-Text einer Etappe: gespeicherte Originaldatei (volle Auflösung, Höhen) oder aus den Kartenpunkten erzeugt
-async function routeGpxText(route) {
+// Strecke einer Etappe in voller Auflösung: aus der gespeicherten Originaldatei (mit Höhen) oder – bei älteren
+// Etappen ohne Datei – aus den Kartenpunkten (reduced: ausgedünnt, ohne Höhen)
+async function routeTrack(route) {
   let gpx = gpxCache.get(route.id);
   if (!gpx && backend.routeGpx) {
     try { gpx = await backend.routeGpx(route.id); } catch { gpx = null; }
   }
   if (gpx) {
     gpxCache.set(route.id, gpx);
-    // Gespeicherte Dateien älterer Etappen im aktuellen, Garmin-tauglichen Format neu schreiben (mit aktuellem Namen)
     try {
-      return { gpx: buildGpx(route.name, parseGpx(gpx).track), reduced: false };
-    } catch {
-      return { gpx, reduced: false };
-    }
+      return { track: parseGpx(gpx).track, reduced: false };
+    } catch { /* unlesbar: aus den Kartenpunkten */ }
   }
-  return { gpx: buildGpx(route.name, route.points), reduced: true };
+  return { track: route.points.map(([lat, lng]) => [lat, lng, null]), reduced: true };
 }
 
-async function downloadRouteGpx(route) {
-  const { gpx, reduced } = await routeGpxText(route);
-  const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+// Punkte für Navigationsgeräte: Kaffee-Stopps (eigene Kaffees und Rennrad-Hotspots neben der Strecke),
+// Trinkbrunnen (je Kilometer einer) und Velo-Werkstätten – wie in den Etappen-Details
+function exportStops(route) {
+  const out = [];
+  for (const s of stopsAlong(route)) {
+    out.push({ name: s.place.name, lat: s.place.lat, lng: s.place.lng, type: s.place.category === 'kaffee' ? 'Food' : 'Generic' });
+  }
+  const seen = new Set();
+  for (const x of poisAlong(route) || []) {
+    if (x.type === 'water') {
+      const k = Math.round(x.km);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push({ name: x.name || 'Trinkwasser', lat: x.lat, lng: x.lng, type: 'Water' });
+    } else {
+      out.push({ name: x.name || 'Velo-Werkstatt', lat: x.lat, lng: x.lng, type: 'Generic', kind: 'bike' });
+    }
+  }
+  return out;
+}
+
+function downloadText(text, fileName, type) {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = gpxFileName(route);
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = fileName;
   document.body.append(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// GPX mit Kaffee-Stopps, Trinkwasser und Velo-Werkstätten als Wegpunkten (Komoot, Wahoo, andere Apps)
+async function downloadRouteGpx(route) {
+  const { track, reduced } = await routeTrack(route);
+  downloadText(buildGpx(route.name, track, exportStops(route)), gpxFileName(route), 'application/gpx+xml');
   if (reduced) toast(REDUCED_GPX_HINT);
 }
 
@@ -1379,9 +1404,12 @@ const GARMIN_COURSES_URL = 'https://connect.garmin.com/modern/courses';
 const touchDevice = matchMedia('(hover: none) and (pointer: coarse)').matches;
 let garminReadyId = null; // Handy: Etappe, deren Datei schon geladen ist (Knopf zeigt „Garmin öffnen“)
 
+// Für Garmin als TCX: Kaffee-Stopps, Trinkwasser und Velo-Werkstätten kommen als Streckenpunkte mit (siehe tcx.js)
 async function garminExport(route) {
   if (!touchDevice) window.open(GARMIN_COURSES_URL, '_blank', 'noopener'); // gleich im Klick, sonst blockiert
-  await downloadRouteGpx(route);
+  const { track, reduced } = await routeTrack(route);
+  downloadText(buildTcx(route.name, track, exportStops(route), bikeSpeed()), gpxFileName(route).replace(/\.gpx$/, '.tcx'), 'application/vnd.garmin.tcx+xml');
+  if (reduced) toast(REDUCED_GPX_HINT);
   if (touchDevice) {
     garminReadyId = route.id;
     renderRoutes();
@@ -4596,7 +4624,7 @@ const INTRO = [
         'Der Kreis links neben der Etappe markiert sie als gefahren.',
         'In den Details: Tour-Link (Strava, Komoot) – nach dem Haken auch die gefahrene Aktivität.',
         `${icon('download', { size: 14, stroke: 2.2, cls: 'intro-inline' })} lädt die Etappe als GPX – z. B. für Garmin oder Wahoo.`,
-        '<strong>„Für Garmin“</strong> lädt die GPX und öffnet Garmin Connect – dort <strong>Importieren</strong> und die Datei wählen.',
+        '<strong>„Für Garmin“</strong> lädt die Strecke mit Kaffee-Stopps und Trinkwasser als Hinweisen (TCX) und öffnet Garmin Connect – dort <strong>Importieren</strong>.',
       ] },
   ] },
   { title: 'Außerdem', items: [

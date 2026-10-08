@@ -261,12 +261,27 @@ const escapeXml = (s) =>
 // points: [lat, lon] oder [lat, lon, ele]. Hat die Strecke Höhen, bekommt jeder Punkt eine (Lücken, z. B. am Ende
 // einer BRouter-Strecke, vom Nachbarpunkt). Bewusst ohne Zeitstempel: sonst könnte Garmin die Datei als gefahrene
 // Aktivität übernehmen und die Statistik verfälschen.
-export function buildGpx(name, points) {
+// waypoints (optional): [{ name, lat, lng, type: 'Food'|'Water'|'Generic' }] – Kaffee-Stopps, Trinkwasser …
+// als <wpt> mit Höhe, Name, Symbol und Typ (Garmin verlangt diese Angaben; für Garmin selbst ist TCX zuverlässiger,
+// siehe tcx.js – Komoot, Wahoo & Co. lesen die Wegpunkte aus der GPX).
+const WPT_SYMBOL = { Food: 'Restaurant', Water: 'Drinking Water', Generic: 'Bike Trail' };
+export function buildGpx(name, points, waypoints = []) {
   const eles = points.map((p) => (Number.isFinite(p[2]) ? p[2] : null));
   if (eles.some((e) => e !== null)) {
     for (let i = 1; i < eles.length; i++) if (eles[i] === null) eles[i] = eles[i - 1];
     for (let i = eles.length - 2; i >= 0; i--) if (eles[i] === null) eles[i] = eles[i + 1];
   }
+  // Höhe eines Wegpunkts: vom nächsten Streckenpunkt
+  const eleNear = (lat, lng) => {
+    let best = -1;
+    let bestD = Infinity;
+    points.forEach(([a, b], i) => { const d = (a - lat) ** 2 + (b - lng) ** 2; if (d < bestD) { bestD = d; best = i; } });
+    return best >= 0 ? eles[best] : null;
+  };
+  const wpts = waypoints.map((w) => {
+    const ele = eleNear(w.lat, w.lng);
+    return `  <wpt lat="${round6(w.lat)}" lon="${round6(w.lng)}">${ele !== null ? `<ele>${ele}</ele>` : '<ele>0</ele>'}<name>${escapeXml(w.name)}</name><sym>${WPT_SYMBOL[w.type] || 'Flag, Blue'}</sym><type>${w.type || 'Generic'}</type></wpt>\n`;
+  }).join('');
   const pts = points.map(([lat, lon], i) =>
     `      <trkpt lat="${lat}" lon="${lon}">${eles[i] !== null ? `<ele>${eles[i]}</ele>` : ''}</trkpt>`).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -275,7 +290,7 @@ export function buildGpx(name, points) {
     <name>${escapeXml(name)}</name>
     <time>${new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')}</time>
   </metadata>
-  <trk>
+${wpts}  <trk>
     <name>${escapeXml(name)}</name>
     <type>cycling</type>
     <trkseg>
