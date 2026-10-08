@@ -7,19 +7,19 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-08.22" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-08.22">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-08.23" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-08.23">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-08.22">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-08.23">
   <!-- Pinselschrift (Logo, Überschriften) gleich zu Beginn laden – sonst entdeckt der Browser sie erst in fonts.css
        und zeigt so lange eine Ersatzschrift. Gleiche Adresse wie in fonts.css; crossorigin ist bei Schriften Pflicht. -->
   <link rel="preload" href="fonts/permanent-marker-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-08.22">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-08.22">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-08.23">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-08.23">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -280,8 +280,17 @@
           </span>
         </div>
         <div id="plan-profile" class="plan-profile" hidden></div>
-        <!-- Zusatz-Knöpfe im Planer (Kaffee-Stopp, Vergleich, Rundtour) und ihre Sprechblase – siehe app.js -->
-        <div id="plan-extras" class="plan-extras" hidden></div>
+        <!-- Eine Zeile (Handy: seitlich wischbar): Streckenwahl, ⓘ, Zusatz-Knöpfe (Rundtour, Kaffee-Stopp, Vergleich)
+             und die Anstiege – siehe renderPlanExtras in app.js -->
+        <div class="plan-options" id="plan-options">
+          <!-- Streckenwahl: BRouter-Profil (siehe ROUTE_MODES in home-loop.js); ein Wechsel berechnet die Strecke neu -->
+          <span class="plan-mode" id="plan-route-mode" role="group" aria-label="Streckenwahl">
+            <button type="button" data-mode="fast" aria-pressed="true" title="Direkte, asphaltierte Wege – auch über Hauptstraßen">Schnell</button>
+            <button type="button" data-mode="quiet" aria-pressed="false" title="Meidet befahrene Straßen, nimmt dafür Umwege">Ruhig</button>
+          </span>
+          <button type="button" class="intro-info plan-mode-info-btn" id="plan-mode-info-btn" aria-expanded="false" aria-controls="plan-mode-info" aria-label="Unterschied Schnell und Ruhig">i</button>
+          <span id="plan-extras" class="plan-extras" hidden></span>
+        </div>
         <div id="plan-pop" class="plan-mode-pop plan-pop" role="dialog" aria-modal="false" hidden></div>
         <!-- Erklärung zu „Schnell | Ruhig“: Sprechblase unter dem Planer, Spitze zum ⓘ (siehe app.js) -->
         <div id="plan-mode-info" class="plan-mode-pop" role="note" hidden>
@@ -297,14 +306,8 @@
           </table>
           <p>Wo es nur eine Strasse gibt (z. B. Coll de Sóller, Sa Calobra), sind beide gleich.</p>
         </div>
-        <!-- Name und Speichern erscheinen erst, sobald es eine Strecke gibt -->
+        <!-- Name und Speichern erscheinen erst, sobald es eine Strecke gibt (eigene Zeile) -->
         <div class="plan-save" id="plan-save-row">
-          <!-- Streckenwahl: BRouter-Profil (siehe ROUTE_MODES in home-loop.js); ein Wechsel berechnet die Strecke neu -->
-          <span class="plan-mode" id="plan-route-mode" role="group" aria-label="Streckenwahl">
-            <button type="button" data-mode="fast" aria-pressed="true" title="Direkte, asphaltierte Wege – auch über Hauptstraßen">Schnell</button>
-            <button type="button" data-mode="quiet" aria-pressed="false" title="Meidet befahrene Straßen, nimmt dafür Umwege">Ruhig</button>
-          </span>
-          <button type="button" class="intro-info plan-mode-info-btn" id="plan-mode-info-btn" aria-expanded="false" aria-controls="plan-mode-info" aria-label="Unterschied Schnell und Ruhig">i</button>
           <input id="plan-name" type="text" maxlength="120" placeholder="Name der Etappe" aria-label="Name der Etappe" hidden>
           <button id="plan-save" class="btn btn-primary btn-small" type="submit" hidden>Speichern</button>
         </div>
@@ -674,34 +677,34 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-08.22"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-08.23"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-08.22",
-      "./js/backend.js": "./js/backend.js?v=2026-10-08.22",
-      "./js/cash.js": "./js/cash.js?v=2026-10-08.22",
-      "./js/categories.js": "./js/categories.js?v=2026-10-08.22",
-      "./js/config.js": "./js/config.js?v=2026-10-08.22",
-      "./js/geo.js": "./js/geo.js?v=2026-10-08.22",
-      "./js/hours.js": "./js/hours.js?v=2026-10-08.22",
-      "./js/icons.js": "./js/icons.js?v=2026-10-08.22",
-      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-08.22",
-      "./js/importers.js": "./js/importers.js?v=2026-10-08.22",
-      "./js/map.js": "./js/map.js?v=2026-10-08.22",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-08.22",
-      "./js/directions.js": "./js/directions.js?v=2026-10-08.22",
-      "./js/road-distance.js": "./js/road-distance.js?v=2026-10-08.22",
-      "./js/osm-hours.js": "./js/osm-hours.js?v=2026-10-08.22",
-      "./js/wiki.js": "./js/wiki.js?v=2026-10-08.22",
-      "./js/climbs.js": "./js/climbs.js?v=2026-10-08.22",
-      "./js/profile.js": "./js/profile.js?v=2026-10-08.22",
-      "./js/pois.js": "./js/pois.js?v=2026-10-08.22",
-      "./js/store.js": "./js/store.js?v=2026-10-08.22"
+      "./js/app.js": "./js/app.js?v=2026-10-08.23",
+      "./js/backend.js": "./js/backend.js?v=2026-10-08.23",
+      "./js/cash.js": "./js/cash.js?v=2026-10-08.23",
+      "./js/categories.js": "./js/categories.js?v=2026-10-08.23",
+      "./js/config.js": "./js/config.js?v=2026-10-08.23",
+      "./js/geo.js": "./js/geo.js?v=2026-10-08.23",
+      "./js/hours.js": "./js/hours.js?v=2026-10-08.23",
+      "./js/icons.js": "./js/icons.js?v=2026-10-08.23",
+      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-08.23",
+      "./js/importers.js": "./js/importers.js?v=2026-10-08.23",
+      "./js/map.js": "./js/map.js?v=2026-10-08.23",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-08.23",
+      "./js/directions.js": "./js/directions.js?v=2026-10-08.23",
+      "./js/road-distance.js": "./js/road-distance.js?v=2026-10-08.23",
+      "./js/osm-hours.js": "./js/osm-hours.js?v=2026-10-08.23",
+      "./js/wiki.js": "./js/wiki.js?v=2026-10-08.23",
+      "./js/climbs.js": "./js/climbs.js?v=2026-10-08.23",
+      "./js/profile.js": "./js/profile.js?v=2026-10-08.23",
+      "./js/pois.js": "./js/pois.js?v=2026-10-08.23",
+      "./js/store.js": "./js/store.js?v=2026-10-08.23"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-08.22"></script>
+  <script type="module" src="js/app.js?v=2026-10-08.23"></script>
 </body>
 </html>
