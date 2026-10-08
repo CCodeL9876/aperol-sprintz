@@ -1966,7 +1966,7 @@ function renderCashSummary() {
     ? `<span class="cash-pos">+${formatEuro(c)}</span>`
     : c < 0 ? `<span class="cash-neg">−${formatEuro(-c)}</span>` : '<span class="muted">±0</span>';
   const transfers = settle(balances);
-  const paidBtn = (t) => `<button type="button" class="cash-paid-btn" data-settle-from="${escapeHtml(t.from)}" data-settle-to="${escapeHtml(t.to)}" data-settle-cents="${t.cents}"${extrasBlocked() ? ' disabled title="Datenbank noch nicht erweitert (siehe Hinweis oben)"' : ''}>${icon('check', { size: 13, stroke: 3 })}bezahlt</button>`;
+  const paidBtn = (t) => `<button type="button" class="cash-paid-btn" data-settle-from="${escapeHtml(t.from)}" data-settle-to="${escapeHtml(t.to)}" data-settle-cents="${t.cents}"${extrasBlocked() ? ' disabled title="Datenbank noch nicht erweitert (siehe Hinweis oben)"' : ' title="Als bezahlt markieren"'}>bezahlt?</button>`;
   box.innerHTML = `
     <div class="cash-table-wrap">
       <table class="cash-table">
@@ -1996,7 +1996,7 @@ function renderCashSummary() {
         <p class="hint cash-fx">${fx
           ? `In Franken zum EZB-Referenzkurs vom ${longDate(fx.date)}: 1 € = ${fx.rate.toFixed(4)} CHF.${fx.fetched === todayIso() ? '' : fxLoading ? ' Tageskurs wird aktualisiert …' : ' Gerade kein Internet – letzter bekannter Kurs.'} Mit € den Euro-Betrag anzeigen.`
           : fxLoading ? 'Wechselkurs wird geladen …' : 'Wechselkurs gerade nicht abrufbar – Beträge in Euro.'}
-          ${transfers.length ? ' Nach der Überweisung auf „bezahlt“ tippen – der Saldo wird für alle angepasst.' : ''}</p>
+          ${transfers.length ? ' Nach der Überweisung auf „bezahlt?“ tippen – der Saldo wird für alle angepasst.' : ''}</p>
       </div>
     </details>`;
 }
@@ -4154,7 +4154,7 @@ const INTRO = [
         '<strong>„Bezahlt von“</strong> ist mit dir vorausgewählt – änderbar, wenn jemand anderes bezahlt hat.',
         'In € oder CHF, gleich oder nach Anteilen aufgeteilt.',
         'Bei einem Ort direkt über <strong>„Rechnung“</strong>.',
-        'Der Ausgleich zeigt, wer wem wie viel schuldet – nach der Überweisung <strong>„bezahlt“</strong> antippen.',
+        'Der Ausgleich zeigt, wer wem wie viel schuldet – nach der Überweisung <strong>„bezahlt?“</strong> antippen.',
       ] },
   ] },
   { title: 'Rennrad', items: [

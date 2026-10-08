@@ -1260,6 +1260,9 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   border: 2px solid var(--edge); border-radius: 50%; background: var(--card); transition: transform 0.2s;
 }
 .cash-fold[open] .cash-fold-chevron { transform: rotate(180deg); }
+/* Ausgleich: zugeklappt nach rechts, aufgeklappt nach unten */
+.cash-settle .cash-fold-chevron { transform: rotate(-90deg); }
+.cash-settle[open] .cash-fold-chevron { transform: none; }
 .cash-fold-body { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; }
 .cash-fold-body > .hint { margin: 0; }
 .cash-section > .hint { margin: 0; }
