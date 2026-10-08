@@ -1547,24 +1547,30 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
     --sheet-h: 50%;
   }
   .layout[data-sheet="full"] { --sheet-h: calc(100% - 10px); }
-  /* Ganz eingeklappt: Blatt nach unten weg, nur der Knopf „Unsere Orte & Filter“ bleibt (66px: SHEET_HIDDEN_PX in app.js) */
-  .layout[data-sheet="hidden"] { --sheet-h: calc(66px + env(safe-area-inset-bottom, 0px)); }
+  /* Ganz eingeklappt: Blatt nach unten weg. Unten links bleibt ein runder Knopf „Unsere Orte & Filter“, die
+     Knöpfe der Karte (Cafés | Bars | Essen | Satellit) rutschen nach unten in dieselbe Zeile – knapp über
+     Google-Logo (links) und Quellenangabe (rechts), die sichtbar bleiben müssen. */
+  .layout[data-sheet="hidden"] { --sheet-h: calc(28px + env(safe-area-inset-bottom, 0px)); }
   .layout[data-sheet="hidden"] .sidebar { transform: translateY(calc(100% + 12px)); box-shadow: none; }
   .sheet-open {
-    position: absolute; z-index: 960; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px 0 14px;
+    /* mittig auf Höhe der Knopfzeile (.gmap-tools: --sheet-h + 12px, 36px hoch) */
+    position: absolute; z-index: 960; left: 10px; bottom: calc(var(--sheet-h) + 4px);
+    display: grid; place-items: center; width: 52px; height: 52px; padding: 0;
     background: var(--yellow); color: var(--ink); cursor: pointer;
     border: 2px solid var(--edge); border-radius: 999px; box-shadow: var(--pop);
-    font: 800 15px var(--font-display); white-space: nowrap;
-    transform: translate(-50%, calc(100% + 30px)); opacity: 0; pointer-events: none;
+    transform: translateY(calc(100% + 30px)); opacity: 0; pointer-events: none;
     transition: transform 0.25s ease, opacity 0.2s;
   }
-  .layout[data-sheet="hidden"] .sheet-open { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
-  .sheet-open:active { transform: translate(calc(-50% + 2px), 2px); box-shadow: 1px 1px 0 var(--edge); }
+  .layout[data-sheet="hidden"] .sheet-open { transform: none; opacity: 1; pointer-events: auto; }
+  .sheet-open:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--edge); }
+  /* Anzahl als kleines Abzeichen oben rechts am Knopf */
   .sheet-open-count {
-    min-width: 24px; padding: 1px 7px; border-radius: 999px; text-align: center;
-    background: var(--ink); color: var(--yellow); font-size: 12px; font-variant-numeric: tabular-nums;
+    position: absolute; top: -6px; right: -8px;
+    min-width: 22px; padding: 2px 6px; border-radius: 999px; text-align: center;
+    border: 2px solid var(--card);
+    background: var(--ink); color: var(--yellow); font: 800 11.5px/1.2 var(--font-display); font-variant-numeric: tabular-nums;
   }
+  .sheet-open-count:empty { display: none; }
 
   .map-wrap { position: absolute; inset: 0; padding: 0; z-index: 1; }
   .map-wrap::after { content: none; }
@@ -1574,7 +1580,13 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   .leaflet-container .leaflet-control-zoom { margin: 0 10px 10px 0; }
   .locate-btn { margin: 0 10px 10px 0 !important; }
   .pick-banner { top: auto; bottom: calc(var(--sheet-h) + 12px); font-size: 13px; }
-  .gmap-tools { right: 10px; bottom: calc(var(--sheet-h) + 12px); transition: bottom 0.25s ease; }
+  /* Cafés | Bars | Essen mittig, Satellit rechts aussen (links bleibt Platz für den runden Listen-Knopf) */
+  .gmap-tools {
+    left: 10px; right: 10px; bottom: calc(var(--sheet-h) + 12px); transition: bottom 0.25s ease;
+    justify-content: center; pointer-events: none;
+  }
+  .gmap-tools > * { pointer-events: auto; }
+  .gmap-tools > [data-tool="satellite"] { position: absolute; right: 0; bottom: 0; }
   .gplace-search { bottom: calc(var(--sheet-h) + 62px); transition: bottom 0.25s ease; }
   .gmap-tools .gplace-pills button { padding: 0 8px; }
   /* OpenStreetMap: rechts liegen Zoom- und Standort-Knopf, der Schalter daher links */

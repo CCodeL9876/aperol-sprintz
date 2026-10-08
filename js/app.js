@@ -503,13 +503,13 @@ async function addGooglePlace(g, categoryId) {
 
 // --- Handy: Liste als Blatt über der Karte ------------------------------------------------
 // Unter 900px liegt die Seitenleiste als Blatt unten über der randlosen Karte (wie auf dem Desktop
-// schwebend, nur von unten). Höhen: „hidden“ (ganz eingeklappt, nur Knopf „Unsere Orte & Filter“),
+// schwebend, nur von unten). Höhen: „hidden“ (ganz eingeklappt, nur der runde Listen-Knopf unten links),
 // „half“ (Standard), „full“ (ganze Liste).
 // Die Höhen selbst stehen in styles.css (--sheet-h); hier wird nur umgeschaltet.
 
 const isMobile = () => window.matchMedia('(max-width: 899px)').matches;
 const SHEET_STATES = ['hidden', 'half', 'full'];
-const SHEET_HIDDEN_PX = 66; // Platz für den Knopf „Unsere Orte & Filter“, siehe [data-sheet="hidden"] in styles.css
+const SHEET_HIDDEN_PX = 66; // Platz für die Knopfzeile unten (runder Listen-Knopf, Cafés | Bars | Essen | Satellit)
 
 function sheetState() {
   return $('.layout').dataset.sheet || 'half';
@@ -566,7 +566,7 @@ function mapInsets() {
     const i = SHEET_STATES.indexOf(sheetState());
     setSheet(SHEET_STATES[Math.max(0, Math.min(SHEET_STATES.length - 1, i + step))]);
   });
-  // Eingeklappt: ein Tipp auf „Unsere Orte & Filter“ holt das Blatt auf halbe Höhe zurück
+  // Eingeklappt: ein Tipp auf den runden Listen-Knopf holt das Blatt auf halbe Höhe zurück
   $('#sheet-open').addEventListener('click', () => setSheet('half'));
   // Suchen braucht Platz für Tastatur und Treffer
   $('#search').addEventListener('focus', () => { if (isMobile()) setSheet('full'); });
