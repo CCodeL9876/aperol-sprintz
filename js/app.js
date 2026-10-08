@@ -10,6 +10,7 @@ import { expandMapsLinks, hasShortMapsLinks,
 } from './backend.js';
 import { createMap, routeAttrs } from './map.js';
 import { TRAVEL_MODES, computeRoute, navUrl } from './directions.js';
+import { roadKm, loadRoadDistances } from './road-distance.js';
 import { sanitizeHours, hoursStale, openAt, hoursStatus } from './hours.js';
 import { cachedPois, loadPois, sanitizePois, POI_TYPES } from './pois.js';
 import { connectToHome, bikeRoute } from './home-loop.js';
@@ -547,12 +548,35 @@ function mapInsets() {
 
 // --- Ableitungen -------------------------------------------------------------------
 
+// Entfernung zum Airbnb: Strecke mit dem Auto (siehe road-distance.js); solange die fehlt oder ohne
+// Google-Schlüssel die Luftlinie, dann mit distanceAir markiert
 function placesWithDistance() {
   const a = state.airbnb;
-  return state.places.map((p) => ({
-    ...p,
-    distance: a && hasCoords(p) ? haversineKm(a.lat, a.lng, p.lat, p.lng) : null,
-  }));
+  return state.places.map((p) => {
+    if (!a || !hasCoords(p)) return { ...p, distance: null };
+    const road = roadKm(a, p);
+    return Number.isFinite(road)
+      ? { ...p, distance: road, distanceAir: false }
+      : { ...p, distance: haversineKm(a.lat, a.lng, p.lat, p.lng), distanceAir: true };
+  });
+}
+
+// Fehlende Strecken im Hintergrund holen und danach neu zeichnen. Schlägt es fehl (kein Netz, Routes API
+// nicht freigeschaltet), bleibt es bis zum nächsten Laden der Seite bei der Luftlinie.
+let roadLoading = false;
+let roadFailed = false;
+async function ensureRoadDistances() {
+  if (roadLoading || roadFailed || !GOOGLE_MAPS_API_KEY || !navigator.onLine || !state.airbnb) return;
+  roadLoading = true;
+  try {
+    if (await loadRoadDistances(GOOGLE_MAPS_API_KEY, state.airbnb, state.places)) render();
+  } catch (err) {
+    roadFailed = true;
+    console.warn('Strecken-Distanz:', err.detail || err.message);
+    if (err.setup) toast(`${err.message} – bis dahin Luftlinie.`);
+  } finally {
+    roadLoading = false;
+  }
 }
 
 function filterBase(places) {
@@ -628,6 +652,7 @@ function render({ fit = false } = {}) {
   if (fit) mapView.fitTo(visible, state.airbnb);
 
   saveUi(state.ui);
+  ensureRoadDistances();
 }
 
 // Bezeichnung und Adresse einer Unterkunft. Ältere Einträge haben nur label: „Name · Adresse“ wird
@@ -1371,7 +1396,7 @@ function renderList(visible, total) {
 function placeItemHtml(p, i, cats) {
   const c = catOf(p.category);
   const dist = p.distance != null
-    ? `<span class="place-dist">${distanceHtml(p.distance)}</span>`
+    ? `<span class="place-dist${p.distanceAir ? ' is-air' : ''}" title="${p.distanceAir ? 'Luftlinie vom Airbnb' : 'Strecke mit dem Auto vom Airbnb'}">${p.distanceAir ? '≈ ' : ''}${distanceHtml(p.distance)}</span>`
     : !hasCoords(p) ? '<span class="place-dist is-missing" title="Kein Standort">ohne Standort</span>' : '';
   const gf = !!p.glutenFree;
   const visited = !!p.visited;

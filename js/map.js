@@ -43,7 +43,7 @@ export function airbnbPopupHtml(airbnb) {
 }
 
 export function popupHtml(p, cat) {
-  const dist = p.distance != null ? `<span class="popup-dist">${formatKm(p.distance)} von der Unterkunft</span>` : '';
+  const dist = p.distance != null ? `<span class="popup-dist">${formatKm(p.distance)} ${p.distanceAir ? 'Luftlinie' : 'Strecke'} von der Unterkunft</span>` : '';
   const status = hoursStatus(p.hours);
   const today = hoursToday(p.hours);
   return `
