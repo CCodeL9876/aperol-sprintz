@@ -5,7 +5,7 @@
 import { readPref, writePref } from './store.js';
 
 // Öffentliche Overpass-Server, der Reihe nach: ist einer überlastet oder nicht erreichbar, kommt der nächste
-const ENDPOINTS = [
+export const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
@@ -71,7 +71,7 @@ export async function loadPois(route) {
   const box = [s - PAD_DEG, w - PAD_DEG, n + PAD_DEG, e + PAD_DEG].map((v) => v.toFixed(5)).join(',');
   const query = `[out:json][timeout:25];(node["amenity"="drinking_water"](${box});nwr["amenity"="bicycle_repair_station"](${box});nwr["shop"="bicycle"](${box}););out center tags;`;
   let lastError = null;
-  for (const url of ENDPOINTS) {
+  for (const url of OVERPASS_ENDPOINTS) {
     try {
       const res = await fetch(url, {
         method: 'POST',

@@ -126,7 +126,7 @@ Code vergessen: Mitreisende fragen – oder die Zeile in `trip_access` wie oben 
 
 Wer die **Admin-PIN** kennt, ist Admin. Nur der Admin kann den Zugangscode ändern und über das Menü **•••** alle
 Orte auf einmal löschen – das prüft die Datenbank selbst, nicht nur die App. Außerdem stehen nur dem Admin im
-Menü **•••** zur Verfügung: **„Öffnungszeiten laden“** (kostet Google-Kontingent), **„Kategorien verwalten“** und
+Menü **•••** zur Verfügung: **„Öffnungszeiten laden“** (zuerst gratis aus OpenStreetMap, der Rest kostet Google-Kontingent), **„Kategorien verwalten“** und
 **„Backup herunterladen“** – diese Sperre gilt nur in der App.
 
 1. Einmal `supabase/schema.sql` im SQL Editor ausführen (wie in Abschnitt 2a).
@@ -275,9 +275,10 @@ Die Google-Karte bietet: Google-Kartenbild, Satellit, antippbare Restaurants/Caf
 Öffnungszeiten sowie „Zu unseren Orten hinzufügen“.
 
 **Öffnungszeiten:** Neue Orte aus der Google-Karte bringen sie gleich mit. Für bestehende Orte im Menü **„•••“ →
-„Öffnungszeiten laden“** – die App sucht jeden Ort einmal bei Google (Strände und Aussichtspunkte ausgenommen)
-und fragt nach 30 Tagen erneut. Das kostet pro Ort eine Places-Abfrage; Google gewährt dafür ein monatliches
-Gratis-Kontingent (nach aktuellem Stand 1 000 Abfragen), für eure Liste reicht das bei Weitem.
+„Öffnungszeiten laden“** – die App sucht jeden Ort zuerst kostenlos in OpenStreetMap und nur die übrigen bei
+Google (Strände und Aussichtspunkte ausgenommen), nach 30 Tagen erneut. Jeder Ort bei Google kostet eine
+Places-Abfrage; Google gewährt dafür ein monatliches Gratis-Kontingent (nach aktuellem Stand 1 000 Abfragen).
+Zeiten aus OpenStreetMap sind im Kartenfenster mit „© OpenStreetMap“ gekennzeichnet.
 
 **Einmalig einrichten (ca. 15 Minuten):**
 

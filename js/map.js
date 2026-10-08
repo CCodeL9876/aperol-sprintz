@@ -56,8 +56,9 @@ export function popupHtml(p, cat) {
       ${p.visited ? `<span class="popup-visited">${icon('check', { size: 13, stroke: 2.6 })} Besucht</span>` : ''}
       ${p.reservation ? `<span class="popup-res">${icon('calendar-check', { size: 13, stroke: 2 })} ${escapeHtml(formatReservation(p.reservation))}</span>` : ''}
       ${p.glutenFree ? `<span class="popup-gf">${icon('wheat-off', { size: 13, stroke: 2 })} Glutenfrei</span>` : ''}
-      ${status ? `<span class="popup-hours ${status.open ? 'is-open' : 'is-closed'}">${icon('clock', { size: 13, stroke: 2.2 })} ${escapeHtml(status.text)}${today ? ` <small>· heute ${escapeHtml(today)}</small>` : ''}</span>` : ''}
+      ${status ? `<span class="popup-hours ${status.open ? 'is-open' : 'is-closed'}">${icon('clock', { size: 13, stroke: 2.2 })} ${escapeHtml(status.text)}${today ? ` <small>· heute ${escapeHtml(today)}</small>` : ''}${p.hours?.s === 'osm' ? ' <small>· © OpenStreetMap</small>' : ''}</span>` : ''}
       ${dist}
+      ${p.wiki ? `<span class="popup-wiki">${p.wiki.img ? `<img src="${escapeHtml(p.wiki.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}<span>${escapeHtml(p.wiki.extract.length > 140 ? `${p.wiki.extract.slice(0, 140).replace(/\s+\S*$/, '')} …` : p.wiki.extract)} <a href="${escapeHtml(safeHttpUrl(p.wiki.url))}" target="_blank" rel="noopener">Wikipedia</a></span></span>` : ''}
       <a class="popup-link" href="${escapeHtml(routeUrl(p))}" target="_blank" rel="noopener"${routeAttrs(p)}>${icon('navigation', { size: 13, stroke: 2.2 })} Route</a>
       <button type="button" class="popup-link popup-cash" data-popup-cash="${escapeHtml(p.id)}">${icon('receipt', { size: 13, stroke: 2 })} Rechnung erfassen</button>
     </div>`;

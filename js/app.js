@@ -11,6 +11,7 @@ import { expandMapsLinks, hasShortMapsLinks,
 import { createMap, routeAttrs } from './map.js';
 import { TRAVEL_MODES, computeRoute, navUrl } from './directions.js';
 import { roadKm, loadRoadDistances } from './road-distance.js';
+import { WIKI_CATEGORIES, cachedWiki, loadWiki } from './wiki.js';
 import { sanitizeHours, hoursStale, openAt, hoursStatus } from './hours.js';
 import { cachedPois, loadPois, sanitizePois, POI_TYPES } from './pois.js';
 import { connectToHome, bikeRoute } from './home-loop.js';
@@ -416,7 +417,6 @@ async function loadOpeningHours() {
   // Kostet Google-Kontingent für viele Orte auf einmal – nur der Admin (neue Orte aus der Google-Karte bringen
   // ihre Öffnungszeiten ohnehin mit). Nur in der App gesperrt: der Google-Schlüssel ist im Browser öffentlich.
   if (!canAdmin()) return toast('Öffnungszeiten laden kann nur der Admin.');
-  if (!GOOGLE_MAPS_API_KEY) return toast('Für Öffnungszeiten fehlt der Google-API-Schlüssel in js/config.js.', { sticky: true });
   if (backend.kind === 'shared' && state.hoursMissing) {
     return toast('Öffnungszeiten sind in der Datenbank noch nicht eingerichtet – bitte supabase/schema.sql im Supabase SQL Editor ausführen.', { sticky: true });
   }
@@ -424,25 +424,51 @@ async function loadOpeningHours() {
   if (!todo.length) return toast('Die Öffnungszeiten sind bei allen Orten aktuell.');
   hoursLoading = true;
   let done = 0;
-  let found = 0;
+  let fromOsm = 0;
+  let fromGoogle = 0;
+  const save = async (p, hours) => {
+    const place = state.places.find((x) => x.id === p.id);
+    if (!place) return;
+    const before = place.hours;
+    place.hours = hours;
+    const ok = await persist((b) => b.updatePlace(place.id, { hours }), 'Öffnungszeiten konnten nicht gespeichert werden');
+    if (!ok) {
+      place.hours = before;
+      throw new Error('Speichern fehlgeschlagen');
+    }
+  };
   toast(`Öffnungszeiten werden geladen … 0 von ${todo.length}`, { sticky: true });
   try {
-    const { lookupHours } = await import('./map-google.js');
-    await lookupHours(GOOGLE_MAPS_API_KEY, todo, async (p, hours) => {
+    // 1. Gratis aus OpenStreetMap (siehe osm-hours.js); fällt Overpass aus, übernimmt Google alles
+    let osm = new Map();
+    try {
+      const { lookupOsmHours } = await import('./osm-hours.js');
+      osm = await lookupOsmHours(todo);
+    } catch (err) {
+      console.warn('Öffnungszeiten aus OpenStreetMap:', err);
+    }
+    for (const [id, hours] of osm) {
+      await save({ id }, hours);
+      fromOsm++;
       done++;
-      if (hours.p) found++;
-      const place = state.places.find((x) => x.id === p.id);
-      if (!place) return;
-      const before = place.hours;
-      place.hours = hours;
-      const ok = await persist((b) => b.updatePlace(place.id, { hours }), 'Öffnungszeiten konnten nicht gespeichert werden');
-      if (!ok) {
-        place.hours = before;
-        throw new Error('Speichern fehlgeschlagen');
-      }
-      toast(`Öffnungszeiten werden geladen … ${done} von ${todo.length}`, { sticky: true });
-    });
-    toast(`Öffnungszeiten geladen: bei ${found} von ${todo.length} Orten gefunden.${found ? ' Filter „Jetzt offen“ steht oben bei den Arten.' : ''}`);
+    }
+    const rest = todo.filter((p) => !osm.has(p.id));
+    if (fromOsm) toast(`Öffnungszeiten werden geladen … ${done} von ${todo.length}`, { sticky: true });
+    // 2. Nur die übrigen bei Google (kostet Kontingent)
+    if (rest.length && GOOGLE_MAPS_API_KEY) {
+      const { lookupHours } = await import('./map-google.js');
+      await lookupHours(GOOGLE_MAPS_API_KEY, rest, async (p, hours) => {
+        done++;
+        if (hours.p) fromGoogle++;
+        await save(p, hours);
+        toast(`Öffnungszeiten werden geladen … ${done} von ${todo.length}`, { sticky: true });
+      });
+    }
+    const found = fromOsm + fromGoogle;
+    const src = [fromOsm && `${fromOsm} aus OpenStreetMap`, fromGoogle && `${fromGoogle} von Google`].filter(Boolean).join(', ');
+    toast(`Öffnungszeiten geladen: bei ${found} von ${todo.length} Orten gefunden${src ? ` (${src})` : ''}.`
+      + `${rest.length && !GOOGLE_MAPS_API_KEY ? ' Für die übrigen fehlt der Google-Schlüssel in js/config.js.' : ''}`
+      + `${found ? ' Filter „Jetzt offen“ steht oben bei den Arten.' : ''}`);
   } catch (err) {
     toast(`Öffnungszeiten nicht vollständig geladen – ${err.message}`, { sticky: true });
   } finally {
@@ -553,12 +579,29 @@ function mapInsets() {
 function placesWithDistance() {
   const a = state.airbnb;
   return state.places.map((p) => {
-    if (!a || !hasCoords(p)) return { ...p, distance: null };
+    const wiki = WIKI_CATEGORIES.has(p.category) ? cachedWiki(p) : undefined;
+    if (!a || !hasCoords(p)) return { ...p, wiki, distance: null };
     const road = roadKm(a, p);
     return Number.isFinite(road)
-      ? { ...p, distance: road, distanceAir: false }
-      : { ...p, distance: haversineKm(a.lat, a.lng, p.lat, p.lng), distanceAir: true };
+      ? { ...p, wiki, distance: road, distanceAir: false }
+      : { ...p, wiki, distance: haversineKm(a.lat, a.lng, p.lat, p.lng), distanceAir: true };
   });
+}
+
+// Wikipedia-Text für den geöffneten Ort aus „Kultur & Orte“ nachladen (siehe wiki.js); pro Ort und Sitzung
+// höchstens ein Versuch, falls Wikipedia nicht erreichbar ist
+const wikiTried = new Set();
+async function ensureWiki() {
+  const p = activeId && state.places.find((x) => x.id === activeId);
+  if (!p || !WIKI_CATEGORIES.has(p.category) || !hasCoords(p) || !navigator.onLine) return;
+  if (cachedWiki(p) !== undefined || wikiTried.has(p.id)) return;
+  wikiTried.add(p.id);
+  try {
+    await loadWiki(p);
+    render();
+  } catch (err) {
+    console.warn('Wikipedia:', err);
+  }
 }
 
 // Fehlende Strecken im Hintergrund holen und danach neu zeichnen. Schlägt es fehl (kein Netz, Routes API
@@ -653,6 +696,7 @@ function render({ fit = false } = {}) {
 
   saveUi(state.ui);
   ensureRoadDistances();
+  ensureWiki();
 }
 
 // Bezeichnung und Adresse einer Unterkunft. Ältere Einträge haben nur label: „Name · Adresse“ wird
@@ -1392,6 +1436,17 @@ function renderList(visible, total) {
   }
 }
 
+// Wikipedia-Kasten im aufgeklappten Ort: Bild, Anfang des Artikels, Link und Quelle (Lizenz CC BY-SA)
+function wikiHtml(w) {
+  const text = w.extract.length > 320 ? `${w.extract.slice(0, 320).replace(/\s+\S*$/, '')} …` : w.extract;
+  return `<div class="place-wiki">
+        ${w.img ? `<img class="place-wiki-img" src="${escapeHtml(w.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
+        <p class="place-wiki-text">${escapeHtml(text)}</p>
+        <a class="place-wiki-link" href="${escapeHtml(safeHttpUrl(w.url) || '#')}" target="_blank" rel="noopener">Mehr auf Wikipedia</a>
+        <small class="place-wiki-src">Text und Bild: Wikipedia (CC BY-SA)</small>
+      </div>`;
+}
+
 // Ein Eintrag der Ortsliste als HTML (Vergleich mit dem bisherigen Stand in patchList)
 function placeItemHtml(p, i, cats) {
   const c = catOf(p.category);
@@ -1424,6 +1479,7 @@ function placeItemHtml(p, i, cats) {
     </div>
     <div class="place-details">
       ${p.note ? `<p class="place-note">${escapeHtml(p.note)}</p>` : ''}
+      ${p.wiki ? wikiHtml(p.wiki) : ''}
       ${p.addedBy ? `<p class="place-by">Hinzugefügt von ${escapeHtml(p.addedBy)}</p>` : ''}
       ${canReserve ? reservationHtml(res) : ''}
       <div class="place-actions">
@@ -1521,6 +1577,7 @@ function selectPlace(id, { fly = true, scrollList = false } = {}) {
     $('.place-main', li).setAttribute('aria-expanded', String(on));
   });
   mapView.setActive(activeId);
+  ensureWiki();
   if (isMobile() && activeId) {
     // Ort aus der Liste gewählt: Karte muss sichtbar sein. Marker angetippt: Eintrag muss sichtbar sein.
     if (fly && sheetState() === 'full') setSheet('half');
