@@ -99,7 +99,7 @@ export function routeAttrs({ name, lat, lng, home = false }) {
 export const PLAN_COLOR = '#E8733A';
 // Routen-Vorschau zu einem Ort: Blau wie bei Navigations-Apps, klar unterscheidbar von Etappen und Planer
 export const ROUTE_LINE_COLOR = '#2F6E8C';
-export const planPinHtml = (i) => `<span class="plan-pin${i === 0 ? ' is-start' : ''}">${i === 0 ? 'S' : i}</span>`;
+export const planPinHtml = (i, selected = false) => `<span class="plan-pin${i === 0 ? ' is-start' : ''}${selected ? ' is-selected' : ''}">${i === 0 ? 'S' : i}</span>`;
 
 // Ersatz, falls Leaflet nicht geladen werden konnte: Die App läuft ohne Karte weiter,
 // statt beim Start komplett abzubrechen (dann fehlte auch die Ortsliste).
@@ -543,24 +543,47 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     fitPoints(route.points, 14);
   }
 
-  // Etappe planen: Entwurf { waypoints: [[lat, lng]], segments: [{ points, pending, error }] } oder null (beenden).
-  // Noch nicht berechnete Abschnitte gestrichelt als Luftlinie, fehlgeschlagene rot.
+  // Etappe planen: Entwurf { waypoints: [[lat, lng]], segments: [{ points, pending, error }], selected, edit }
+  // oder null (beenden). Noch nicht berechnete Abschnitte gestrichelt als Luftlinie, fehlgeschlagene rot.
+  // edit: { onMove(i, [lat, lng]), onPick(i), onInsert(segIndex, [lat, lng]) } – Wegpunkte lassen sich dann
+  // ziehen und antippen, ein Tipp auf die Linie fügt einen Zwischenpunkt ein.
+  let draggingDraft = false;
+  let deferredDraft;
   function setDraft(draft) {
+    if (draggingDraft) { deferredDraft = draft; return; } // Punkt wird gerade gezogen: danach zeichnen
     drafting = Boolean(draft);
     draftLayer.clearLayers();
     if (!draft) return;
-    for (const seg of draft.segments) {
+    const edit = draft.edit;
+    draft.segments.forEach((seg, si) => {
       const style = seg.error ? { color: '#C92A2A', dashArray: '6 8' } : seg.pending ? { color: PLAN_COLOR, dashArray: '6 8', opacity: 0.7 } : { color: PLAN_COLOR };
       L.polyline(seg.points, { color: '#FFFFFF', weight: 7, opacity: 0.9, lineJoin: 'round', interactive: false }).addTo(draftLayer);
       L.polyline(seg.points, { weight: 4, opacity: 0.95, lineJoin: 'round', interactive: false, ...style }).addTo(draftLayer);
-    }
+      if (edit && !seg.pending) {
+        // Breite unsichtbare Linie: leichter mit dem Finger zu treffen
+        L.polyline(seg.points, { color: '#000000', weight: 22, opacity: 0, bubblingMouseEvents: false })
+          .on('click', (e) => edit.onInsert(si, [e.latlng.lat, e.latlng.lng]))
+          .addTo(draftLayer);
+      }
+    });
     draft.waypoints.forEach((p, i) => {
-      L.marker(p, {
-        icon: L.divIcon({ className: '', html: planPinHtml(i), iconSize: [22, 22], iconAnchor: [11, 11] }),
-        interactive: false,
+      const m = L.marker(p, {
+        icon: L.divIcon({ className: '', html: planPinHtml(i, draft.selected === i), iconSize: [22, 22], iconAnchor: [11, 11] }),
+        interactive: Boolean(edit),
+        draggable: Boolean(edit),
+        bubblingMouseEvents: false,
         keyboard: false,
-        zIndexOffset: 1500,
+        zIndexOffset: i === 0 ? 1600 : 1500, // Start über dem Ziel (Rundtour: gleiche Stelle)
       }).addTo(draftLayer);
+      if (!edit) return;
+      m.on('click', () => edit.onPick(i));
+      m.on('dragstart', () => { draggingDraft = true; });
+      m.on('dragend', () => {
+        draggingDraft = false;
+        deferredDraft = undefined; // onMove zeichnet ohnehin neu
+        const ll = m.getLatLng();
+        edit.onMove(i, [ll.lat, ll.lng]);
+      });
     });
   }
 

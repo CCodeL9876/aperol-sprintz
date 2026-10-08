@@ -715,11 +715,16 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     searchMarker = null;
   }
 
-  // Etappe planen: Entwurf { waypoints: [[lat, lng]], segments: [{ points, pending, error }] } oder null (beenden).
-  // Noch nicht berechnete Abschnitte gestrichelt als Luftlinie, fehlgeschlagene rot.
+  // Etappe planen: Entwurf { waypoints: [[lat, lng]], segments: [{ points, pending, error }], selected, edit }
+  // oder null (beenden). Noch nicht berechnete Abschnitte gestrichelt als Luftlinie, fehlgeschlagene rot.
+  // edit: { onMove(i, [lat, lng]), onPick(i), onInsert(segIndex, [lat, lng]) } – Wegpunkte lassen sich dann
+  // ziehen und antippen, ein Tipp auf die Linie fügt einen Zwischenpunkt ein.
   let draftShapes = [];
+  let draggingDraft = false;
+  let deferredDraft;
   const dashed = (color) => [{ icon: { path: 'M 0,-1 0,1', strokeColor: color, strokeOpacity: 0.9, strokeWeight: 4, scale: 2 }, offset: '0', repeat: '12px' }];
   function setDraft(draft) {
+    if (draggingDraft) { deferredDraft = draft; return; } // Punkt wird gerade gezogen: danach zeichnen
     drafting = Boolean(draft);
     for (const s of draftShapes) {
       if (s.setMap) s.setMap(null); else s.map = null;
@@ -727,18 +732,37 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     draftShapes = [];
     if (!draft) return;
     if (draft.segments.length || draft.waypoints.length) info.close();
-    for (const seg of draft.segments) {
+    const edit = draft.edit;
+    draft.segments.forEach((seg, si) => {
       const path = seg.points.map(toLatLng);
       const color = seg.error ? '#C92A2A' : PLAN_COLOR;
       const plain = !seg.error && !seg.pending;
       draftShapes.push(new google.maps.Polyline({ map, path, strokeColor: '#FFFFFF', strokeOpacity: plain ? 0.9 : 0, strokeWeight: 7, clickable: false, zIndex: 9000 }));
       draftShapes.push(new google.maps.Polyline({ map, path, strokeColor: color, strokeOpacity: plain ? 0.95 : 0, strokeWeight: 4, clickable: false, zIndex: 9001, icons: plain ? null : dashed(color) }));
-    }
+      if (edit && !seg.pending) {
+        // Breite unsichtbare Linie: leichter mit dem Finger zu treffen
+        const hit = new google.maps.Polyline({ map, path, strokeColor: '#000000', strokeOpacity: 0, strokeWeight: 22, clickable: true, zIndex: 9002 });
+        hit.addListener('click', (e) => edit.onInsert(si, [e.latLng.lat(), e.latLng.lng()]));
+        draftShapes.push(hit);
+      }
+    });
     draft.waypoints.forEach((p, i) => {
       const content = document.createElement('div');
-      content.innerHTML = planPinHtml(i);
+      content.innerHTML = planPinHtml(i, draft.selected === i);
       content.style.transform = 'translateY(50%)'; // mittig auf den Punkt statt mit der Unterkante
-      draftShapes.push(new AdvancedMarkerElement({ map, position: toLatLng(p), content, zIndex: 2500 }));
+      const m = new AdvancedMarkerElement({ map, position: toLatLng(p), content, zIndex: i === 0 ? 2600 : 2500, gmpDraggable: Boolean(edit), gmpClickable: Boolean(edit) });
+      draftShapes.push(m);
+      if (!edit) return;
+      m.addListener('click', () => edit.onPick(i));
+      m.addListener('dragstart', () => { draggingDraft = true; });
+      m.addListener('dragend', () => {
+        draggingDraft = false;
+        deferredDraft = undefined; // onMove zeichnet ohnehin neu
+        const pos = m.position;
+        const lat = typeof pos.lat === 'function' ? pos.lat() : pos.lat;
+        const lng = typeof pos.lng === 'function' ? pos.lng() : pos.lng;
+        edit.onMove(i, [lat, lng]);
+      });
     });
   }
 
