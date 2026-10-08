@@ -7,7 +7,7 @@
 import { hasCoords, haversineKm } from './geo.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
 import { ROUTE_CATEGORY } from './categories.js';
-import { MALLORCA, popupHtml, routePopupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl, pinHtml, pinFlags, poiPinHtml, poiPopupHtml, poiTitle, PLAN_COLOR, planPinHtml, ROUTE_LINE_COLOR } from './map.js';
+import { MALLORCA, popupHtml, routePopupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl, pinHtml, pinFlags, poiPinHtml, poiPopupHtml, poiTitle, PLAN_COLOR, planPinHtml, planPinLabels, ROUTE_LINE_COLOR } from './map.js';
 import { hoursFromGoogle } from './hours.js';
 import { readPref, writePref } from './store.js';
 
@@ -754,9 +754,10 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     for (const run of draft.steep || []) {
       draftShapes.push(new google.maps.Polyline({ map, path: run.points.map(toLatLng), strokeColor: run.color, strokeOpacity: 1, strokeWeight: 5, clickable: false, zIndex: 9003 }));
     }
+    const labels = planPinLabels(draft.waypoints);
     draft.waypoints.forEach((p, i) => {
       const content = document.createElement('div');
-      content.innerHTML = planPinHtml(i, draft.selected === i);
+      content.innerHTML = planPinHtml(labels[i], draft.selected === i, p.coffee);
       content.style.transform = 'translateY(50%)'; // mittig auf den Punkt statt mit der Unterkante
       const m = new AdvancedMarkerElement({ map, position: toLatLng(p), content, zIndex: i === 0 ? 2600 : 2500, gmpDraggable: Boolean(edit), gmpClickable: Boolean(edit) });
       draftShapes.push(m);

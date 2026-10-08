@@ -205,7 +205,8 @@ const mapOptions = {
   },
   onMarkerClick: (id) => {
     const place = plan.on && state.places.find((p) => p.id === id);
-    if (place && hasCoords(place)) return addPlanPoint([place.lat, place.lng]); // eigener Ort als Wegpunkt
+    // eigener Ort als Wegpunkt; ein Café erscheint als Kaffee-Stopp (Tassen-Symbol)
+    if (place && hasCoords(place)) return addPlanPoint(Object.assign([place.lat, place.lng], place.category === 'kaffee' ? { coffee: place.name } : {}));
     if (!plan.on) selectPlace(id, { fly: false, scrollList: true });
   },
   onLocateMessage: (kind, detail) => locateProblem(kind, detail),
@@ -535,6 +536,9 @@ function mapInsets() {
   if (!m.height) return {};
   const row = $('.panel-row').getBoundingClientRect();
   let top = row.height ? Math.max(0, row.bottom - m.top) : 0;
+  // Beim Planen bzw. bei der Routen-Vorschau liegt oben das Feld dafür (Boxen-Reihe ist dann ausgeblendet)
+  const overlay = plan.on ? $('#plan-panel') : dir.on ? $('#dir-panel') : null;
+  if (overlay && !overlay.hidden) top = Math.max(0, overlay.getBoundingClientRect().bottom - m.top);
   if (isMobile()) {
     const state = sheetState();
     const bottom = state === 'hidden' ? SHEET_HIDDEN_PX : state === 'half' ? m.height * 0.5 : m.height;
@@ -3720,9 +3724,9 @@ async function editRoute(route) {
     return { points: part.map(([lat, lng]) => [lat, lng]), track: part, pending: false, error: false, orig: true };
   });
   $('#plan-name').value = `${route.name} (geändert)`.slice(0, 120);
-  mapView.fitToRoute(route);
   renderPlan();
-  toast('Punkte ziehen · auf die Linie tippen = Zwischenpunkt · Punkt antippen, dann Papierkorb = entfernen. Gespeichert wird eine Kopie.');
+  requestAnimationFrame(() => mapView.fitToRoute(route)); // erst wenn das Planer-Feld seine Höhe hat
+  toast('Punkte ziehen · Linie antippen = neuer Punkt · Punkt + Papierkorb = weg. Gespeichert wird eine Kopie.');
 }
 
 const samePoint = (a, b) => a && b && Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
@@ -3743,20 +3747,25 @@ function renderPlan() {
   mapView.setDraft({ waypoints: plan.waypoints, segments: plan.segments, selected: plan.selected, edit: planEdit, steep: track ? steepRuns(track) : [], alt: plan.alt });
   const pending = plan.segments.some((s) => s.pending);
   const failed = plan.segments.some((s) => s.error);
+  // Anstiege: während ein Abschnitt berechnet wird, bleiben die bisherigen stehen
+  if (track) planClimbs = findClimbs(track);
+  else if (!plan.segments.length) planClimbs = [];
   renderPlanExtras(track, pending);
   const stats = $('#plan-stats');
   let text = '';
   if (track) {
     const sum = summarizeTrack('', track);
     const hours = rideHours(sum);
-    text = [formatKm(sum.distanceKm), formatHm(sum.elevationGainM), hours ? formatDuration(hours) : ''].filter(Boolean).join(' · ');
-    renderPlanProfile(elevationProfile(track), findClimbs(track));
+    // Teile nicht mitten drin umbrechen („ca. 1 / h 35“), nur zwischen den Teilen
+    text = [formatKm(sum.distanceKm), formatHm(sum.elevationGainM), hours ? formatDuration(hours) : ''].filter(Boolean)
+      .map((t) => `<span class="nowrap">${escapeHtml(t)}</span>`).join(' · ');
+    renderPlanProfile(elevationProfile(track));
   } else if (plan.segments.length) {
     text = failed ? 'Abschnitt fehlt – Rückgängig' : 'Berechne …';
   }
   // Ohne Strecke steht hier der Hinweis (gedämpft) – spart eine eigene Zeile
   stats.classList.toggle('is-hint', !text);
-  stats.textContent = text || (plan.waypoints.length ? 'Punkte auf die Karte tippen' : 'Start auf die Karte tippen');
+  stats.innerHTML = text || (plan.waypoints.length ? 'Punkte auf die Karte tippen' : 'Start auf die Karte tippen');
   $('#plan-undo').disabled = !plan.history.length;
   $('#plan-remove').hidden = plan.selected == null || plan.waypoints.length <= 2;
   $('#plan-reverse').disabled = !plan.segments.length || pending;
@@ -3765,7 +3774,7 @@ function renderPlan() {
   loop.title = loopLabel;
   loop.setAttribute('aria-label', loopLabel);
   loop.disabled = plan.waypoints.length < 2 || samePoint(plan.waypoints.at(-1), plan.waypoints[0]);
-  $('#plan-name').hidden = $('#plan-save').hidden = !plan.segments.length;
+  $('#plan-name').hidden = $('#plan-save').hidden = $('#plan-save-row').hidden = !plan.segments.length;
   $('#plan-save').disabled = !track || pending || failed;
   for (const b of $$('#plan-route-mode [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === routeMode()));
   // Während ein Abschnitt berechnet wird, bleibt das bisherige Profil stehen; ohne Strecke weg
@@ -3775,16 +3784,15 @@ function renderPlan() {
 // Höhenprofil im Planer (Knopf mit Kurve schaltet es ab – jedes Gerät merkt sich das)
 const showPlanProfile = () => readPref('planProfile') !== false;
 let planProfile = null;
-let planClimbs = [];
-function renderPlanProfile(profile, climbs = planClimbs) {
+let planClimbs = []; // Anstiege der Planung – als Knöpfe in der Zeile unter dem Profil (renderPlanExtras)
+function renderPlanProfile(profile) {
   planProfile = profile;
-  planClimbs = profile ? climbs : [];
   const box = $('#plan-profile');
   $('#plan-elev').setAttribute('aria-pressed', String(showPlanProfile()));
   box.hidden = !profile || !showPlanProfile();
   mapView.setCursor(null);
   if (box.hidden) { box.innerHTML = ''; return; }
-  box.innerHTML = profileHtml(profile, { height: 56 }) + climbsHtml(planClimbs, 'plan');
+  box.innerHTML = profileHtml(profile, { height: isMobile() ? 44 : 56 }); // Handy: flacher, mehr Karte
   bindProfile(box.firstElementChild, profile, profileHover);
 }
 
@@ -3911,10 +3919,12 @@ function renderPlanExtras(track, pending) {
   }
   if (track && !pending) {
     items.push(['coffee', 'coffee', 'Kaffee-Stopp']);
-    items.push(['compare', 'swap', routeMode() === 'quiet' ? 'Mit „Schnell“ vergleichen' : 'Mit „Ruhig“ vergleichen']);
+    items.push(['compare', 'swap', 'Vergleichen']);
   }
-  box.hidden = !items.length;
-  const html = items.map(([k, ic, label]) => `<button type="button" class="plan-extra" data-extra="${k}" aria-expanded="${planPop.kind === k}">${icon(ic, { size: 14, stroke: 2.2 })}${label}</button>`).join('');
+  // Anstiege kurz: „⛰ 7,4 km · 5,8 %“ – voller Name im Tooltip, antippen zeigt sie auf der Karte
+  const climbs = track ? planClimbs.map((c, i) => `<button type="button" class="climb" data-climb="${i}" data-climb-src="plan" title="${escapeHtml(climbName(c, state.places))}: ${Math.round(c.gainM)} Hm">${icon('mountain', { size: 13, stroke: 2.2 })}<span>${formatKm(c.km)} · ${c.avgPct.toLocaleString('de-DE', { maximumFractionDigits: 1 })} %</span></button>`).join('') : '';
+  box.hidden = !items.length && !climbs;
+  const html = items.map(([k, ic, label]) => `<button type="button" class="plan-extra" data-extra="${k}" aria-expanded="${planPop.kind === k}">${icon(ic, { size: 14, stroke: 2.2 })}${label}</button>`).join('') + climbs;
   if (box.innerHTML !== html) box.innerHTML = html;
   // Knopf der offenen Sprechblase verschwunden (z. B. Strecke gelöscht): Sprechblase zu
   if (planPop.kind && !items.some(([k]) => k === planPop.kind)) closePlanPop();
@@ -4001,7 +4011,7 @@ function addCoffeeStop(placeId) {
   if (!p || !at) return;
   planSnapshot();
   const si = at.seg;
-  const stop = [p.lat, p.lng];
+  const stop = Object.assign([p.lat, p.lng], { coffee: p.name }); // als Kaffee-Stopp markiert (Tassen-Symbol)
   plan.segments.splice(si, 1, planSegment(plan.waypoints[si], stop), planSegment(stop, plan.waypoints[si + 1]));
   plan.waypoints.splice(si + 1, 0, stop);
   plan.selected = null;

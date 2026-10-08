@@ -1003,6 +1003,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   border-radius: var(--radius); box-shadow: var(--shadow-lg);
 }
 .plan-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.plan-stats .nowrap { white-space: nowrap; }
 .plan-stats { font-size: 14px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 .plan-stats.is-hint { font-weight: 600; color: var(--text-soft); }
 .plan-tools { display: inline-flex; gap: 4px; flex: none; }
@@ -1048,8 +1049,12 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .plan-mode-pop tbody th { font-weight: 600; color: var(--text-soft); white-space: nowrap; }
 .plan-mode-pop p { margin: 8px 0 0; color: var(--text-soft); }
 /* Zusatz-Knöpfe im Planer (Kaffee-Stopp, Vergleich, Rundtour) und ihre Sprechblase */
-.plan-extras { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+/* Zeile mit Streckenwahl, ⓘ, Zusatz-Knöpfen und Anstiegen (Handy: seitlich wischbar, siehe unten) */
+.plan-options { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.plan-extras { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 .plan-extras[hidden] { display: none; }
+.plan-save[hidden] { display: none; }
+.plan-options .climb { min-height: 30px; }
 .plan-extra {
   flex: none; display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 0 10px; cursor: pointer;
   border: 1.5px solid var(--green); border-radius: 999px; background: var(--card); color: var(--green);
@@ -1110,6 +1115,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   background: var(--orange); color: #FFFFFF; font-size: 11px; font-weight: 800; line-height: 1;
 }
 .plan-pin.is-start { background: var(--green); }
+.plan-pin.is-coffee { background: #8A5A34; width: 26px; height: 26px; margin: -2px; } /* Kaffee-Braun wie die Kategorie */
 .plan-pin.is-selected { box-shadow: 0 0 0 3px var(--orange), 0 1px 4px rgba(0, 0, 0, 0.35); transform: scale(1.25); }
 .leaflet-marker-draggable .plan-pin, gmp-advanced-marker .plan-pin { cursor: grab; }
 .routes-head-right { display: inline-flex; align-items: center; gap: 10px; }
@@ -1562,11 +1568,11 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   z-index: 3000;
   padding: 11px 20px;
   background: var(--green); color: #FFFFFF;
-  border-radius: 999px; box-shadow: var(--shadow-lg);
+  border-radius: 22px; box-shadow: var(--shadow-lg); /* 22px: einzeilig wie eine Pille, mehrzeilig ohne abgeschnittene Ecken */
   font-size: 14px; font-weight: 600;
   opacity: 0; pointer-events: none;
   transition: opacity 0.25s, transform 0.25s;
-  max-width: calc(100vw - 32px);
+  width: max-content; max-width: calc(100vw - 32px); /* sonst nur halb so breit (left: 50%) und unnötig hoch */
 }
 .toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
 
@@ -1722,6 +1728,16 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   .panel-row:has(> .map-search.is-collapsed:not([hidden])):not(:has(> details[open])) > .map-search { grid-column: 1; grid-row: 1; }
   .panel-row:has(> .map-search.is-collapsed:not([hidden])):not(:has(> details[open])) > #airbnb-panel { grid-column: 2; grid-row: 1; }
   .panel-row:has(> .map-search.is-collapsed:not([hidden])):not(:has(> details[open])) > #cash-panel { grid-column: 3; grid-row: 1; }
+  /* Planer kompakt: eine wischbare Optionen-Zeile, kleinere Knöpfe, schmalere Ränder */
+  .plan-panel { gap: 6px; padding: 6px 6px 6px 12px; }
+  .plan-stats { font-size: 13px; }
+  .plan-tools { gap: 3px; }
+  .plan-tool { width: 32px; height: 32px; }
+  .plan-tool .icon { width: 16px; height: 16px; }
+  .plan-options { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: -6px; padding-right: 6px; }
+  .plan-options::-webkit-scrollbar { display: none; }
+  .plan-options > *, .plan-extras > * { flex: none; }
+  .plan-extras { flex-wrap: nowrap; }
   /* Zuklapp-Pfeil neben „Espresso-Etappen“ und „Etappe planen“ in einer Zeile */
   .list-title { font-size: 19px; }
   .list-toggle { gap: 6px; }
