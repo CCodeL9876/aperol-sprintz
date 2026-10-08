@@ -746,6 +746,10 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
         draftShapes.push(hit);
       }
     });
+    // steile Stücke farbig über der Linie (gelb ab 5 %, rot ab 8 %, violett ab 10 %)
+    for (const run of draft.steep || []) {
+      draftShapes.push(new google.maps.Polyline({ map, path: run.points.map(toLatLng), strokeColor: run.color, strokeOpacity: 1, strokeWeight: 5, clickable: false, zIndex: 9003 }));
+    }
     draft.waypoints.forEach((p, i) => {
       const content = document.createElement('div');
       content.innerHTML = planPinHtml(i, draft.selected === i);

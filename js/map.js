@@ -566,6 +566,10 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
           .addTo(draftLayer);
       }
     });
+    // steile Stücke farbig über der Linie (gelb ab 5 %, rot ab 8 %, violett ab 10 %)
+    for (const run of draft.steep || []) {
+      L.polyline(run.points, { color: run.color, weight: 5, opacity: 1, lineJoin: 'round', lineCap: 'round', interactive: false }).addTo(draftLayer);
+    }
     draft.waypoints.forEach((p, i) => {
       const m = L.marker(p, {
         icon: L.divIcon({ className: '', html: planPinHtml(i, draft.selected === i), iconSize: [22, 22], iconAnchor: [11, 11] }),

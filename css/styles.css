@@ -1099,6 +1099,21 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .elev-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .elev-line { fill: none; stroke: var(--green); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .elev-area { fill: var(--green); fill-opacity: 0.12; stroke: none; }
+.elev-steep { fill-opacity: 0.35; stroke: none; }
+.elev-steep-line { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+/* Anstiege unter dem Höhenprofil: antippbare Zeile, im Planer seitlich wischbar */
+.climbs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+.plan-profile .climbs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-top: 6px; }
+.climb {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 0 10px; cursor: pointer;
+  border: 0; border-radius: 999px; background: var(--chip); color: var(--text); font: 600 12px var(--font-body); white-space: nowrap;
+}
+.climb .icon { color: var(--green); }
+.climb strong { font-weight: 800; }
+.climb span { color: var(--text-soft); }
+.climb:hover { background: var(--chip-hover); }
+.climb-legend { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+.climb-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--g); margin-left: 4px; }
 .elev-grid, .elev-base { fill: none; stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .elev-y {
   position: absolute; left: 0; transform: translateY(-100%);

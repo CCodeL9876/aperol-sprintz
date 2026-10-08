@@ -12,6 +12,7 @@ import { createMap, routeAttrs } from './map.js';
 import { TRAVEL_MODES, computeRoute, navUrl } from './directions.js';
 import { roadKm, loadRoadDistances } from './road-distance.js';
 import { WIKI_CATEGORIES, cachedWiki, loadWiki } from './wiki.js';
+import { GRADE_CLASSES, steepRuns, findClimbs, climbName } from './climbs.js';
 import { sanitizeHours, hoursStale, openAt, hoursStatus } from './hours.js';
 import { cachedPois, loadPois, sanitizePois, POI_TYPES } from './pois.js';
 import { connectToHome, bikeRoute } from './home-loop.js';
@@ -1172,7 +1173,9 @@ async function loadRouteProfile(r) {
     if (!gpx && backend.routeGpx) gpx = await backend.routeGpx(r.id);
     if (gpx) {
       gpxCache.set(r.id, gpx);
-      profile = elevationProfile(parseGpx(gpx).track);
+      const track = parseGpx(gpx).track;
+      profile = elevationProfile(track);
+      if (profile) routeClimbs.set(r.id, findClimbs(track));
     }
   } catch (err) {
     console.warn('Höhenprofil nicht ladbar:', err.message);
@@ -1185,7 +1188,7 @@ function routeProfileHtml(r) {
   if (p === undefined) loadRouteProfile(r);
   if (p === undefined || p === 'loading') return '<span class="muted">wird geladen …</span>';
   if (p === 'none') return '<span class="muted">nicht verfügbar – die GPX-Datei dieser Etappe hat keine Höhenangaben</span>';
-  return profileHtml(p, { height: 90, key: r.id });
+  return profileHtml(p, { height: 90, key: r.id }) + climbsHtml(routeClimbs.get(r.id) || [], r.id, { legend: true });
 }
 
 function renderRoutes() {
@@ -3732,17 +3735,18 @@ function planTrack() {
 const planEdit = { onMove: movePlanPoint, onPick: pickPlanPoint, onInsert: insertPlanPoint };
 
 function renderPlan() {
-  mapView.setDraft({ waypoints: plan.waypoints, segments: plan.segments, selected: plan.selected, edit: planEdit });
+  const track = planTrack();
+  // steile Stücke farbig über der Planungslinie (siehe climbs.js)
+  mapView.setDraft({ waypoints: plan.waypoints, segments: plan.segments, selected: plan.selected, edit: planEdit, steep: track ? steepRuns(track) : [] });
   const pending = plan.segments.some((s) => s.pending);
   const failed = plan.segments.some((s) => s.error);
-  const track = planTrack();
   const stats = $('#plan-stats');
   let text = '';
   if (track) {
     const sum = summarizeTrack('', track);
     const hours = rideHours(sum);
     text = [formatKm(sum.distanceKm), formatHm(sum.elevationGainM), hours ? formatDuration(hours) : ''].filter(Boolean).join(' · ');
-    renderPlanProfile(elevationProfile(track));
+    renderPlanProfile(elevationProfile(track), findClimbs(track));
   } else if (plan.segments.length) {
     text = failed ? 'Abschnitt fehlt – Rückgängig' : 'Berechne …';
   }
@@ -3767,16 +3771,40 @@ function renderPlan() {
 // Höhenprofil im Planer (Knopf mit Kurve schaltet es ab – jedes Gerät merkt sich das)
 const showPlanProfile = () => readPref('planProfile') !== false;
 let planProfile = null;
-function renderPlanProfile(profile) {
+let planClimbs = [];
+function renderPlanProfile(profile, climbs = planClimbs) {
   planProfile = profile;
+  planClimbs = profile ? climbs : [];
   const box = $('#plan-profile');
   $('#plan-elev').setAttribute('aria-pressed', String(showPlanProfile()));
   box.hidden = !profile || !showPlanProfile();
   mapView.setCursor(null);
   if (box.hidden) { box.innerHTML = ''; return; }
-  box.innerHTML = profileHtml(profile, { height: 56 });
+  box.innerHTML = profileHtml(profile, { height: 56 }) + climbsHtml(planClimbs, 'plan');
   bindProfile(box.firstElementChild, profile, profileHover);
 }
+
+// Anstiege als antippbare Zeile (Planer und Etappen-Details): Name, Länge, Durchschnitt, Höhenmeter.
+// Antippen zeigt das Stück auf der Karte. src: 'plan' oder die ID der Etappe.
+function climbsHtml(climbs, src, { legend = false } = {}) {
+  const pct = (v) => `${v.toLocaleString('de-DE', { maximumFractionDigits: 1 })} %`;
+  const items = climbs.map((c, i) => `<button type="button" class="climb" data-climb="${i}" data-climb-src="${escapeHtml(src)}" title="Steilster halber Kilometer: ${pct(c.maxPct)}">
+      ${icon('mountain', { size: 13, stroke: 2.2 })}<strong>${escapeHtml(climbName(c, state.places))}</strong>
+      <span>${formatKm(c.km)} · ${pct(c.avgPct)} · ${Math.round(c.gainM)} Hm</span></button>`).join('');
+  const key = legend ? `<span class="climb-legend">${GRADE_CLASSES.slice().reverse().map((g) => `<i style="--g:${g.color}"></i>${g.label}`).join(' ')}</span>` : '';
+  if (!items && !key) return '';
+  return `<div class="climbs">${items || (legend ? '<span class="muted">Keine nennenswerten Anstiege.</span>' : '')}${key}</div>`;
+}
+const routeClimbs = new Map(); // Etappen-ID → Anstiege (aus der GPX-Datei, siehe loadRouteProfile)
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-climb]');
+  if (!b) return;
+  const list = b.dataset.climbSrc === 'plan' ? planClimbs : routeClimbs.get(b.dataset.climbSrc) || [];
+  const c = list[Number(b.dataset.climb)];
+  if (!c) return;
+  if (isMobile() && !plan.on && sheetState() === 'full') setSheet('half');
+  mapView.fitToRoute({ points: c.points });
+});
 const profileHover = (p) => mapView.setCursor(p ? [p.lat, p.lng] : null);
 
 async function savePlan() {
