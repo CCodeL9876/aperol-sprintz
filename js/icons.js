@@ -19,6 +19,8 @@ const PATHS = {
   download: '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>',
   more: '<circle cx="5" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="19" cy="12" r="1.2" fill="currentColor"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  // Teilen (nach Lucide „share“) – „Ans Garmin“ bei den Etappen
+  share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="m16 6-4-4-4 4"/><path d="M12 2v13"/>',
   // Willkommensseite: Info, Kamera, Flugzeug (nach Lucide)
   camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
   // Rückgängig (nach Lucide „undo-2“) – „Etappe planen“
