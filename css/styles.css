@@ -567,6 +567,9 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .popup-hours { font-size: 12px; color: var(--text-soft); }
 .popup-add { align-self: flex-start; margin-top: 6px; color: var(--on-orange); }
 .popup-add[disabled] { opacity: 0.75; cursor: default; }
+/* „Garmin öffnen“ (Etappe, nach dem Laden der Datei auf dem Handy) – Hauptaktion in Orange */
+.garmin-open { color: var(--on-orange); }
+.garmin-open::before { background: var(--orange); }
 /* .btn-small färbt sonst den Hauptknopf grau – „Zu unseren Orten hinzufügen“ soll als Aktion auffallen */
 .popup-add::before { background: var(--orange); }
 .popup-add:hover::before { background: var(--orange-hover); }

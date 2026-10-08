@@ -1270,7 +1270,9 @@ function renderRoutes() {
           ${editing ? linkForm(r, editing) : `<span class="route-links">${tour}${ridden ? `<span class="route-meta-sep">·</span>${ridden}` : ''}</span>`}</div>
         <div class="route-detail-actions">
           <button type="button" class="btn btn-small" data-action="show-route">${icon('route', { size: 14, stroke: 2 })}Auf der Karte zeigen</button>
-          ${canShareFiles ? `<button type="button" class="btn btn-small" data-action="share-route" title="GPX über das Teilen-Menü an Garmin Connect (oder eine andere App) senden">${icon('share', { size: 14, stroke: 2 })}Ans Garmin</button>` : ''}
+          ${garminReadyId === r.id
+            ? `<a class="btn btn-small btn-primary garmin-open" href="${GARMIN_COURSES_URL}" target="_blank" rel="noopener" title="Garmin Connect öffnen – dort Importieren und die geladene Datei wählen">Garmin öffnen ↗</a>`
+            : `<button type="button" class="btn btn-small" data-action="garmin-route" title="GPX laden und Garmin Connect (Strecken → Importieren) öffnen">${icon('share', { size: 14, stroke: 2 })}Für Garmin</button>`}
           <button type="button" class="route-action" data-action="edit-route" aria-label="Etappe „${escapeHtml(r.name)}“ bearbeiten" title="Bearbeiten (als Kopie)">${icon('pencil', { size: 15, stroke: 1.9 })}</button>
           <button type="button" class="route-action" data-action="download-route" aria-label="Etappe „${escapeHtml(r.name)}“ als GPX herunterladen" title="Als GPX herunterladen – z. B. für connect.garmin.com → Strecken → Importieren">${icon('download', { size: 15, stroke: 1.9 })}</button>
           <button type="button" class="route-action is-danger" data-action="delete-route" aria-label="Etappe „${escapeHtml(r.name)}“ entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
@@ -1368,39 +1370,24 @@ async function downloadRouteGpx(route) {
   if (reduced) toast(REDUCED_GPX_HINT);
 }
 
-// „Ans Garmin“: GPX direkt über das Teilen-Menü des Geräts weitergeben (dort Garmin Connect, AirDrop, Mail …) –
-// ein direktes Senden an Garmin bietet Garmin nur Firmenpartnern an. Nur auf Handy/Tablet (Touch) und nur, wo
-// Dateien geteilt werden können – am Laptop gibt es keine Garmin-Connect-App, dort bleibt der Download.
-const canShareFiles = (() => {
-  if (!matchMedia('(hover: none) and (pointer: coarse)').matches) return false;
-  try {
-    return Boolean(navigator.canShare?.({ files: [new File(['<gpx/>'], 'etappe.gpx', { type: 'application/gpx+xml' })] }));
-  } catch {
-    return false;
-  }
-})();
+// „Für Garmin“: GPX herunterladen und Garmin Connect (Strecken) öffnen – dort „Importieren“ und die Datei wählen.
+// Der Import über die Garmin-Connect-App (Teilen-Menü) zeigt falsche Werte (immer 15 km, keine Höhen), die Website
+// rechnet korrekt; ein direktes Senden bietet Garmin nur Firmenpartnern an.
+// Laptop: ein Klick öffnet Garmin im neuen Tab und lädt die Datei. Handy: zwei Schritte – Safari fragt beim Download
+// „Laden?“, ein gleichzeitig geöffneter Tab ließe diese Frage verschwinden; danach wird der Knopf zu „Garmin öffnen“.
+const GARMIN_COURSES_URL = 'https://connect.garmin.com/modern/courses';
+const touchDevice = matchMedia('(hover: none) and (pointer: coarse)').matches;
+let garminReadyId = null; // Handy: Etappe, deren Datei schon geladen ist (Knopf zeigt „Garmin öffnen“)
 
-async function shareRouteGpx(route) {
-  // Teilen klappt nur direkt nach dem Tipp – die Datei liegt meist schon bereit (beim Aufklappen fürs Höhenprofil geladen)
-  const cached = gpxCache.get(route.id);
-  let gpx;
-  let reduced = false;
-  if (cached) {
-    try { gpx = buildGpx(route.name, parseGpx(cached).track); } catch { gpx = cached; }
+async function garminExport(route) {
+  if (!touchDevice) window.open(GARMIN_COURSES_URL, '_blank', 'noopener'); // gleich im Klick, sonst blockiert
+  await downloadRouteGpx(route);
+  if (touchDevice) {
+    garminReadyId = route.id;
+    renderRoutes();
+    toast('Datei geladen – jetzt „Garmin öffnen“ und dort Importieren → Datei aus „Downloads“ wählen.');
   } else {
-    ({ gpx, reduced } = await routeGpxText(route));
-  }
-  const file = new File([gpx], gpxFileName(route), { type: 'application/gpx+xml' });
-  try {
-    // Nur die Datei – mit title/text legt iOS zusätzlich eine .txt-Datei an (und Garmin bekommt zwei Elemente)
-    await navigator.share({ files: [file] });
-    if (reduced) toast(REDUCED_GPX_HINT);
-  } catch (err) {
-    if (err.name === 'AbortError') return; // im Teilen-Menü abgebrochen
-    // z. B. weil die Datei erst geladen werden musste und der Tipp „verbraucht“ ist – jetzt liegt sie bereit
-    if (err.name === 'NotAllowedError') return toast('Bitte noch einmal auf „Ans Garmin“ tippen.');
-    toast(`Teilen nicht möglich (${err.message}) – die Datei wird stattdessen heruntergeladen.`);
-    downloadRouteGpx(route);
+    toast('In Garmin Connect: Importieren → Datei aus „Downloads“ wählen → als Rennrad speichern.');
   }
 }
 
@@ -2615,7 +2602,7 @@ $('#route-list')?.addEventListener('click', async (e) => {
     renderRoutes();
   }
   if (action === 'download-route') await downloadRouteGpx(route);
-  if (action === 'share-route') await shareRouteGpx(route);
+  if (action === 'garmin-route') await garminExport(route);
   if (action === 'edit-route') await editRoute(route);
   if (action === 'delete-route') {
     if (!confirm(`Etappe „${route.name}“ entfernen?`)) return;
@@ -4609,7 +4596,7 @@ const INTRO = [
         'Der Kreis links neben der Etappe markiert sie als gefahren.',
         'In den Details: Tour-Link (Strava, Komoot) – nach dem Haken auch die gefahrene Aktivität.',
         `${icon('download', { size: 14, stroke: 2.2, cls: 'intro-inline' })} lädt die Etappe als GPX – z. B. für Garmin oder Wahoo.`,
-        '<strong>„Ans Garmin“</strong> (Handy) schickt die GPX über das Teilen-Menü direkt an Garmin Connect.',
+        '<strong>„Für Garmin“</strong> lädt die GPX und öffnet Garmin Connect – dort <strong>Importieren</strong> und die Datei wählen.',
       ] },
   ] },
   { title: 'Außerdem', items: [
