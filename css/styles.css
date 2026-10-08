@@ -1616,6 +1616,8 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   }
   .panel-row > details[open] { grid-column: 1 / -1; }
   .panel-row > .map-search { grid-column: 1 / -1; }
+  /* Etappe aufgeklappt: mehr Platz für die Strecke – Unterkunft und Ausgaben weg, die Kartensuche bleibt */
+  .is-route-open .panel-row > .panel { display: none; }
   /* „Etappe planen“ über dem Standort-Knopf; beim Planen weg (dort gibt es das Planer-Feld) */
   .map-plan-btn {
     position: absolute; z-index: 900; right: 10px; bottom: calc(var(--sheet-h) + 118px);

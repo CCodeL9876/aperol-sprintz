@@ -1166,6 +1166,8 @@ function renderRoutes() {
     if (startInput && document.activeElement !== startInput) startInput.value = rideStart();
   }
   if (expandedRouteId && !state.routes.some((r) => r.id === expandedRouteId)) expandedRouteId = null;
+  // Handy: bei aufgeklappter Etappe die Boxen „Unterkunft“ und „Ausgaben“ über der Karte ausblenden (styles.css)
+  document.body.classList.toggle('is-route-open', Boolean(expandedRouteId));
   // Offenes Link-Feld übersteht das Neuzeichnen (z. B. Abgleich alle 20 s) samt Eingabe und Fokus
   const draftInput = $('.route-link-form input', list);
   const draft = draftInput ? { value: draftInput.value, focused: document.activeElement === draftInput } : null;
