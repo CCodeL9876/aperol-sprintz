@@ -113,7 +113,7 @@ function createFallbackMap(el) {
   el.innerHTML = '<div class="map-error"><strong>Karte nicht verfügbar</strong><span>Die Kartenbibliothek konnte nicht geladen werden. Liste und Filter funktionieren trotzdem – Seite neu laden versuchen.</span></div>';
   const noop = () => {};
   const fakeMap = { flyTo: noop, getZoom: () => 9, setView: noop, fitBounds: noop };
-  return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, centerOn: noop, setPois: noop, setDraft: noop, setCursor: noop, setRouteLine: noop, invalidate: noop };
+  return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, centerOn: noop, setPois: noop, setDraft: noop, setCursor: noop, setRouteLine: noop, setRouteSteep: noop, invalidate: noop };
 }
 
 export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMessage, routePopup }) {
@@ -613,6 +613,25 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     fitPoints(points, 16);
   }
 
+  // Etappen-Details: steile Stücke der aufgeklappten Etappe farbig über ihrer Linie, der angetippte Anstieg
+  // dick hervorgehoben. { runs: [{ color, points }], climb: { points, color } | null } oder null.
+  // Eigene Ebene über den Linien, die keine Tipps abfängt (die gehen an die Etappe darunter)
+  const steepPane = map.createPane('route-steep');
+  steepPane.style.zIndex = 450;
+  steepPane.style.pointerEvents = 'none';
+  const steepLayer = L.layerGroup().addTo(map);
+  function setRouteSteep(steep) {
+    steepLayer.clearLayers();
+    if (!steep) return;
+    const line = (points, color, weight, opacity = 1) => L.polyline(points, { pane: 'route-steep', color, weight, opacity, lineJoin: 'round', lineCap: 'round', interactive: false }).addTo(steepLayer);
+    if (steep.climb?.points?.length > 1) {
+      line(steep.climb.points, '#1F1F1F', 12, 0.8);
+      line(steep.climb.points, '#FFFFFF', 9);
+      line(steep.climb.points, steep.climb.color, 5.5);
+    }
+    for (const run of steep.runs || []) line(run.points, run.color, steep.climb ? 5.5 : 4.5);
+  }
+
   // Punkt zum Fadenkreuz im Höhenprofil (profile.js): [lat, lng] oder null
   let cursor = null;
   function setCursor(p) {
@@ -642,5 +661,5 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     }
   }
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, setRouteLine, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => map.invalidateSize() };
+  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, setRouteLine, setRouteSteep, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => map.invalidateSize() };
 }

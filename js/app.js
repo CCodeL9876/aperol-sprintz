@@ -51,6 +51,8 @@ let activeId = null;
 let pickMode = false;
 // Etappe planen: Wegpunkte [lat, lng] und die Abschnitte dazwischen (siehe „Etappe planen“ weiter unten)
 const plan = { on: false, waypoints: [], segments: [], history: [], selected: null, source: null, noEle: false };
+const routeSteep = new Map(); // Etappen-ID → steile Stücke (aus der GPX-Datei, siehe loadRouteProfile)
+let pickedClimb = null; // { id, i } – in den Etappen-Details angetippter Anstieg
 // Route zu einem Ort (Vorschau in der App, siehe „Route zu einem Ort“ weiter unten)
 const dir = { on: false, to: null, name: '', home: false, destination: '', mode: 'drive', from: 'me', fromPos: null, seq: 0, cache: new Map() };
 let airbnbFormAuto = false; // Unterkunft-Formular nur geöffnet, weil noch keine Unterkunft eingetragen war
@@ -231,7 +233,7 @@ document.body.dataset.map = mapVariant; // Knöpfe auf der Karte sitzen je nach 
 function createGoogleMapView(el) {
   let impl = null;
   const view = { map: { getZoom: () => impl?.map.getZoom() ?? 9 } };
-  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'setPois', 'setDraft', 'setCursor', 'setRouteLine', 'searchPlaces', 'openSearchResult', 'clearSearchMarker', 'locate', 'invalidate']) {
+  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'setPois', 'setDraft', 'setCursor', 'setRouteLine', 'setRouteSteep', 'searchPlaces', 'openSearchResult', 'clearSearchMarker', 'locate', 'invalidate']) {
     view[k] = (...args) => impl?.[k](...args);
   }
   const ready = (m, shown) => {
@@ -1181,7 +1183,10 @@ async function loadRouteProfile(r) {
       gpxCache.set(r.id, gpx);
       const track = parseGpx(gpx).track;
       profile = elevationProfile(track);
-      if (profile) routeClimbs.set(r.id, findClimbs(track));
+      if (profile) {
+        routeClimbs.set(r.id, findClimbs(track));
+        routeSteep.set(r.id, steepRuns(track));
+      }
     }
   } catch (err) {
     console.warn('Höhenprofil nicht ladbar:', err.message);
@@ -1308,6 +1313,18 @@ function renderRoutes() {
     if (draft.focused) input.focus();
   }
   ensureWeather();
+  renderRouteSteep();
+}
+
+// Steile Stücke der aufgeklappten Etappe farbig auf der Karte (wie im Planer), der angetippte Anstieg dick
+// hervorgehoben – nur solange die Etappe auf der Karte eingeschaltet ist und nicht geplant wird
+function renderRouteSteep() {
+  const id = expandedRouteId;
+  if (pickedClimb && pickedClimb.id !== id) pickedClimb = null;
+  const i = state.routes.findIndex((r) => r.id === id);
+  if (i < 0 || plan.on || !state.ui.visibleRoutes.includes(id)) return mapView.setRouteSteep(null);
+  const climb = pickedClimb ? routeClimbs.get(id)?.[pickedClimb.i] : null;
+  mapView.setRouteSteep({ runs: routeSteep.get(id) || [], climb: climb ? { points: climb.points, color: routeColor(i).ink } : null });
 }
 
 // Link zur Tour (Strava, Komoot, …) bzw. zur gefahrenen Aktivität: Id der Route, deren Link-Feld gerade
@@ -3583,6 +3600,7 @@ function startPlan() {
   plan.selected = null;
   plan.source = null;
   plan.noEle = false;
+  mapView.setRouteSteep(null);
   $('#plan-name').value = '';
   $('#plan-panel').hidden = false;
   $('#map').classList.add('is-picking');
@@ -3614,6 +3632,7 @@ function endPlan() {
   document.body.classList.remove('is-planning');
   requestAnimationFrame(() => mapView.invalidate());
   mapView.setDraft(null);
+  renderRouteSteep();
   if (isMobile() && sheetState() === 'hidden') setSheet('half');
 }
 
@@ -3869,7 +3888,8 @@ function renderPlanProfile(profile) {
 // Antippen zeigt das Stück auf der Karte. src: 'plan' oder die ID der Etappe.
 function climbsHtml(climbs, src, { legend = false } = {}) {
   const pct = (v) => `${v.toLocaleString('de-DE', { maximumFractionDigits: 1 })} %`;
-  const items = climbs.map((c, i) => `<button type="button" class="climb" data-climb="${i}" data-climb-src="${escapeHtml(src)}" title="Steilster halber Kilometer: ${pct(c.maxPct)}">
+  const picked = (i) => src !== 'plan' && pickedClimb?.id === src && pickedClimb.i === i;
+  const items = climbs.map((c, i) => `<button type="button" class="climb" data-climb="${i}" data-climb-src="${escapeHtml(src)}"${src === 'plan' ? '' : ` aria-pressed="${picked(i)}"`} title="Steilster halber Kilometer: ${pct(c.maxPct)}">
       ${icon('mountain', { size: 13, stroke: 2.2 })}<strong>${escapeHtml(climbName(c, state.places))}</strong>
       <span>${formatKm(c.km)} · ${pct(c.avgPct)} · ${Math.round(c.gainM)} Hm</span></button>`).join('');
   const key = legend ? `<span class="climb-legend">${GRADE_CLASSES.slice().reverse().map((g) => `<i style="--g:${g.color}"></i>${g.label}`).join(' ')}</span>` : '';
@@ -3881,8 +3901,22 @@ document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-climb]');
   if (!b) return;
   const list = b.dataset.climbSrc === 'plan' ? planClimbs : routeClimbs.get(b.dataset.climbSrc) || [];
-  const c = list[Number(b.dataset.climb)];
+  const i = Number(b.dataset.climb);
+  const c = list[i];
   if (!c) return;
+  const id = b.dataset.climbSrc;
+  if (id !== 'plan') {
+    // Etappen-Details: Anstieg auf der Karte hervorheben (Etappe dafür einschalten), nochmals antippen hebt auf
+    const again = pickedClimb?.id === id && pickedClimb.i === i;
+    pickedClimb = again ? null : { id, i };
+    if (!state.ui.visibleRoutes.includes(id)) {
+      state.ui.visibleRoutes = [...state.ui.visibleRoutes, id];
+      render();
+    } else {
+      renderRoutes();
+    }
+    if (again) return;
+  }
   if (isMobile() && !plan.on && sheetState() === 'full') setSheet('half');
   mapView.fitToRoute({ points: c.points });
 });

@@ -788,6 +788,22 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     fitPoints(points, 16);
   }
 
+  // Etappen-Details: steile Stücke der aufgeklappten Etappe farbig über ihrer Linie, der angetippte Anstieg
+  // dick hervorgehoben. { runs: [{ color, points }], climb: { points, color } | null } oder null
+  let steepShapes = [];
+  function setRouteSteep(steep) {
+    for (const s of steepShapes) s.setMap(null);
+    steepShapes = [];
+    if (!steep) return;
+    const line = (points, color, weight, zIndex, opacity = 1) => steepShapes.push(new google.maps.Polyline({ map, path: points.map(toLatLng), strokeColor: color, strokeOpacity: opacity, strokeWeight: weight, clickable: false, zIndex }));
+    if (steep.climb?.points?.length > 1) {
+      line(steep.climb.points, '#1F1F1F', 12, 50000, 0.8);
+      line(steep.climb.points, '#FFFFFF', 9, 50001);
+      line(steep.climb.points, steep.climb.color, 5.5, 50002);
+    }
+    for (const run of steep.runs || []) line(run.points, run.color, steep.climb ? 5.5 : 4.5, 50003);
+  }
+
   // Punkt zum Fadenkreuz im Höhenprofil (profile.js): [lat, lng] oder null
   let cursor = null;
   function setCursor(p) {
@@ -942,5 +958,5 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     });
   }
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, setRouteLine, searchPlaces, openSearchResult, clearSearchMarker, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
+  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, setRouteLine, setRouteSteep, searchPlaces, openSearchResult, clearSearchMarker, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
 }

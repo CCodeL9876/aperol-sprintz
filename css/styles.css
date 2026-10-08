@@ -1157,6 +1157,8 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .climb strong { font-weight: 800; }
 .climb span { color: var(--text-soft); }
 .climb:hover { background: var(--chip-hover); }
+.climb[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+.climb[aria-pressed="true"] span, .climb[aria-pressed="true"] .icon { color: inherit; }
 .climb-legend { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
 .climb-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--g); margin-left: 4px; }
 .elev-grid, .elev-base { fill: none; stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
