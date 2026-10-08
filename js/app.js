@@ -579,7 +579,9 @@ function mapInsets() {
 function placesWithDistance() {
   const a = state.airbnb;
   return state.places.map((p) => {
-    const wiki = WIKI_CATEGORIES.has(p.category) ? cachedWiki(p) : undefined;
+    const cached = WIKI_CATEGORIES.has(p.category) ? cachedWiki(p) : undefined;
+    // null = nichts gefunden; noch nicht gefragt: Zwischenstand der Suche ('loading' / 'error')
+    const wiki = cached !== undefined || !WIKI_CATEGORIES.has(p.category) ? cached : wikiStatus.get(p.id);
     if (!a || !hasCoords(p)) return { ...p, wiki, distance: null };
     const road = roadKm(a, p);
     return Number.isFinite(road)
@@ -588,20 +590,26 @@ function placesWithDistance() {
   });
 }
 
-// Wikipedia-Text für den geöffneten Ort aus „Kultur & Orte“ nachladen (siehe wiki.js); pro Ort und Sitzung
-// höchstens ein Versuch, falls Wikipedia nicht erreichbar ist
-const wikiTried = new Set();
-async function ensureWiki() {
+// Wikipedia-Text für den geöffneten Ort aus „Kultur & Orte“ nachladen (siehe wiki.js). wikiStatus je Ort:
+// 'loading' während der Suche, 'error' wenn Wikipedia nicht erreichbar war (beim nächsten Öffnen neuer Versuch)
+const wikiStatus = new Map();
+// retry: Ort wurde (neu) geöffnet – dann auch nach einem Fehler wieder versuchen, sonst nicht (Endlosschleife)
+async function ensureWiki({ retry = false } = {}) {
   const p = activeId && state.places.find((x) => x.id === activeId);
-  if (!p || !WIKI_CATEGORIES.has(p.category) || !hasCoords(p) || !navigator.onLine) return;
-  if (cachedWiki(p) !== undefined || wikiTried.has(p.id)) return;
-  wikiTried.add(p.id);
+  if (!p || !WIKI_CATEGORIES.has(p.category) || !hasCoords(p)) return;
+  const status = wikiStatus.get(p.id);
+  if (cachedWiki(p) !== undefined || status === 'loading' || (status === 'error' && !retry)) return;
+  if (!navigator.onLine) { wikiStatus.set(p.id, 'error'); return; }
+  wikiStatus.set(p.id, 'loading');
+  render();
   try {
     await loadWiki(p);
-    render();
+    wikiStatus.delete(p.id);
   } catch (err) {
     console.warn('Wikipedia:', err);
+    wikiStatus.set(p.id, 'error');
   }
+  render();
 }
 
 // Fehlende Strecken im Hintergrund holen und danach neu zeichnen. Schlägt es fehl (kein Netz, Routes API
@@ -1441,6 +1449,11 @@ function renderList(visible, total) {
 
 // Wikipedia-Kasten im aufgeklappten Ort: Bild, Anfang des Artikels, Link und Quelle (Lizenz CC BY-SA)
 function wikiHtml(w) {
+  // Zwischenstände: suchen, nichts gefunden (null), nicht erreichbar
+  if (w === 'loading') return '<p class="place-wiki-note">Wikipedia wird gesucht …</p>';
+  if (w === 'error') return '<p class="place-wiki-note">Wikipedia gerade nicht erreichbar – beim nächsten Öffnen neuer Versuch.</p>';
+  if (w === null) return '<p class="place-wiki-note">Kein passender Wikipedia-Artikel in der Nähe gefunden.</p>';
+  if (!w) return '';
   const text = w.extract.length > 320 ? `${w.extract.slice(0, 320).replace(/\s+\S*$/, '')} …` : w.extract;
   return `<div class="place-wiki">
         ${w.img ? `<img class="place-wiki-img" src="${escapeHtml(w.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
@@ -1482,7 +1495,7 @@ function placeItemHtml(p, i, cats) {
     </div>
     <div class="place-details">
       ${p.note ? `<p class="place-note">${escapeHtml(p.note)}</p>` : ''}
-      ${p.wiki ? wikiHtml(p.wiki) : ''}
+      ${wikiHtml(p.wiki)}
       ${p.addedBy ? `<p class="place-by">Hinzugefügt von ${escapeHtml(p.addedBy)}</p>` : ''}
       ${canReserve ? reservationHtml(res) : ''}
       <div class="place-actions">
@@ -1580,7 +1593,7 @@ function selectPlace(id, { fly = true, scrollList = false } = {}) {
     $('.place-main', li).setAttribute('aria-expanded', String(on));
   });
   mapView.setActive(activeId);
-  ensureWiki();
+  ensureWiki({ retry: true });
   if (isMobile() && activeId) {
     // Ort aus der Liste gewählt: Karte muss sichtbar sein. Marker angetippt: Eintrag muss sichtbar sein.
     if (fly && sheetState() === 'full') setSheet('half');
