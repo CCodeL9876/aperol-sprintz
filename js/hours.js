@@ -1,9 +1,10 @@
-// Öffnungszeiten (von Google Places), kompakt am Ort gespeichert:
-//   { p: [[Tag, Minute, Tag, Minute], …] | null, w: ['Montag: 08:00–20:00', …], at: 'JJJJ-MM-TT' }
+// Öffnungszeiten (aus OpenStreetMap, sonst von Google Places), kompakt am Ort gespeichert:
+//   { p: [[Tag, Minute, Tag, Minute], …] | null, w: ['Montag: 08:00–20:00', …], at: 'JJJJ-MM-TT', s?: 'osm' }
 // p: Öffnungszeiträume – Tag 0 = Sonntag (wie Date.getDay), Minute = Minuten seit Mitternacht. Schliesstag
 //    und -minute null = rund um die Uhr geöffnet. p = null: Google kennt keine Öffnungszeiten (Strand, Aussicht …)
 // w: Googles Texte je Wochentag, Montag zuerst (für die Anzeige „Heute: …“)
 // at: Abrufdatum – nach HOURS_MAX_AGE_DAYS wird neu abgefragt
+// s: Quelle 'osm' (siehe osm-hours.js); fehlt = Google
 // Alle Zeiten gelten in der Ortszeit des Geräts – auf Mallorca wie in der Schweiz dieselbe Zeitzone.
 
 export const HOURS_MAX_AGE_DAYS = 30;
@@ -34,6 +35,7 @@ export function sanitizeHours(h) {
     p: p?.length ? p : null,
     w: (Array.isArray(h.w) ? h.w : []).slice(0, 7).map((s) => String(s).slice(0, 120)),
     at: /^\d{4}-\d{2}-\d{2}$/.test(h.at || '') ? h.at : '',
+    ...(h.s === 'osm' ? { s: 'osm' } : {}),
   };
 }
 

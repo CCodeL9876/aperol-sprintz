@@ -62,9 +62,11 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
 - **Hin- & Rückreise**: Datum und Uhrzeit von Hin- und Rückflug eintragen (Box über der Unterkunft),
   wird wie die Unterkunft gespeichert und in einer gemeinsamen Reise mit allen geteilt.
 - **Filter**: Kategorie-Chips (Mehrfachauswahl), „Jetzt offen“, Volltextsuche, Sortierung nach Entfernung/Name/Art/Datum.
-- **Öffnungszeiten** von Google Places (Spalte `places.hours`, `js/hours.js`): beim Hinzufügen aus der Google-Karte
-  automatisch, für bestehende Orte über Menü `•••` → „Öffnungszeiten laden“. Liste und Karten-Popup zeigen
-  „Offen bis …“ bzw. „Geschlossen · öffnet …“.
+- **Öffnungszeiten** (Spalte `places.hours`, `js/hours.js`): beim Hinzufügen aus der Google-Karte automatisch, für
+  bestehende Orte über Menü `•••` → „Öffnungszeiten laden“ – zuerst gratis aus OpenStreetMap (`js/osm-hours.js`),
+  nur die übrigen von Google Places. Liste und Karten-Popup zeigen „Offen bis …“ bzw. „Geschlossen · öffnet …“.
+- **Wikipedia** bei „Kultur & Orte“ (`js/wiki.js`): beim Öffnen eines Orts ein kurzer Text mit Bild und Link,
+  kostenlos und ohne Schlüssel, im Browser gemerkt.
 - **Ausgaben**: Rechnung direkt bei einem Ort erfassen („Rechnung“ in der Liste bzw. im Karten-Popup).
 - **Fotos**: Menü `•••` → „Fotos · Geteiltes Album“ öffnet auf iPhone/iPad die Fotos-App (dort „Geteilte Alben“).
   Apple zeigt nur Alben, zu denen man eingeladen ist – die App selbst speichert keinen Album-Link.
