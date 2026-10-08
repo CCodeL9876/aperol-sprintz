@@ -298,6 +298,8 @@ Gratis-Kontingent (nach aktuellem Stand 1 000 Abfragen), für eure Liste reicht 
 **Route in der App** (Linie, Dauer, Distanz bei „Route“): braucht die **Routes API**. Bei einem bestehenden
 Schlüssel nachrüsten: Bibliothek → „Routes API“ → Aktivieren, dann beim Schlüssel unter *API-Einschränkungen*
 „Routes API“ dazunehmen. Bis dahin zeigt die App einen Hinweis, und „Navigieren“ öffnet wie gewohnt Google Maps.
+Die **km-Angaben bei den Orten** (Strecke mit dem Auto vom Airbnb) kommen ebenfalls über die Routes API – ohne sie
+zeigt die App die Luftlinie mit „≈“ davor.
 Velo-Routen kommen ohne Google aus (BRouter).
 
 Der Schlüssel steht danach öffentlich im Quellcode – das ist bei Google Maps so vorgesehen. Durch die

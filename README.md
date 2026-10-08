@@ -1,7 +1,7 @@
 # Aperol Sprintz – Unsere Orte auf Mallorca
 
 Web-App, die gespeicherte Google-Maps-Orte auf einer Karte und in einer Liste zeigt – filterbar nach Art des Orts
-(Kaffee, Restaurant, Rennrad-Hotspot, …), sortierbar nach Entfernung zum Airbnb.
+(Kaffee, Restaurant, Rennrad-Hotspot, …), sortierbar nach Entfernung zum Airbnb (Strecke mit dem Auto, ohne Google-Schlüssel Luftlinie).
 Design „Aperol Spritz“ – wie ein handgemaltes Poster: Papierweiß, Aperol-Orange und Flaschengrün, Überschriften in
 Permanent Marker, gemalte Pinselkanten (SVG-Filter) um Karte, Knöpfe und Karten; Text in Instrument Sans.
 
