@@ -3530,6 +3530,7 @@ function endPlan() {
   plan.selected = null;
   plan.source = null;
   $('#plan-panel').hidden = true;
+  setPlanModeInfo(false);
   renderPlanProfile(null);
   $('#map').classList.remove('is-picking');
   document.body.classList.remove('is-planning');
@@ -3758,7 +3759,7 @@ function renderPlan() {
   loop.disabled = plan.waypoints.length < 2 || samePoint(plan.waypoints.at(-1), plan.waypoints[0]);
   $('#plan-name').hidden = $('#plan-save').hidden = !plan.segments.length;
   $('#plan-save').disabled = !track || pending || failed;
-  for (const b of $$('.plan-mode [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === routeMode()));
+  for (const b of $$('#plan-route-mode [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === routeMode()));
   // Während ein Abschnitt berechnet wird, bleibt das bisherige Profil stehen; ohne Strecke weg
   if (!plan.segments.length) renderPlanProfile(null);
 }
@@ -3818,7 +3819,28 @@ $('#plan-loop').addEventListener('click', () => {
   if (plan.waypoints.length) addPlanPoint(plan.waypoints[0]);
 });
 $('#plan-cancel').addEventListener('click', cancelPlan);
-$('.plan-mode').addEventListener('click', (e) => {
+// ⓘ neben „Schnell | Ruhig“: Erklärung als Sprechblase unter dem Planer, Spitze auf das ⓘ.
+// Schliesst bei nochmaligem Tipp, bei einem Tipp daneben und mit dem Ende der Planung.
+function setPlanModeInfo(open) {
+  const btn = $('#plan-mode-info-btn');
+  const pop = $('#plan-mode-info');
+  btn.setAttribute('aria-expanded', String(open));
+  pop.hidden = !open;
+  if (!open) return;
+  const panel = $('#plan-panel').getBoundingClientRect();
+  const b = btn.getBoundingClientRect();
+  const center = b.left + b.width / 2 - panel.left;
+  const left = Math.max(0, Math.min(center - pop.offsetWidth / 2, panel.width - pop.offsetWidth));
+  pop.style.setProperty('--pop-x', `${left}px`);
+  pop.style.setProperty('--tip-x', `${center - left}px`);
+}
+$('#plan-mode-info-btn').addEventListener('click', () => setPlanModeInfo($('#plan-mode-info').hidden));
+document.addEventListener('pointerdown', (e) => {
+  if ($('#plan-mode-info').hidden || e.target.closest('#plan-mode-info, #plan-mode-info-btn')) return;
+  setPlanModeInfo(false);
+});
+// Eigene ID: „.plan-mode“ trägt auch die Verkehrsmittel-Wahl der Routen-Vorschau (steht im HTML davor)
+$('#plan-route-mode').addEventListener('click', (e) => {
   const mode = e.target.closest('[data-mode]')?.dataset.mode;
   if (mode) setRouteMode(mode);
 });
