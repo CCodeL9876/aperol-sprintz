@@ -1392,7 +1392,8 @@ async function shareRouteGpx(route) {
   }
   const file = new File([gpx], gpxFileName(route), { type: 'application/gpx+xml' });
   try {
-    await navigator.share({ files: [file], title: route.name });
+    // Nur die Datei – mit title/text legt iOS zusätzlich eine .txt-Datei an (und Garmin bekommt zwei Elemente)
+    await navigator.share({ files: [file] });
     if (reduced) toast(REDUCED_GPX_HINT);
   } catch (err) {
     if (err.name === 'AbortError') return; // im Teilen-Menü abgebrochen
