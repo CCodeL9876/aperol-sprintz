@@ -7,19 +7,19 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-08.9" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-08.9">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-08.10" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-08.10">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-08.9">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-08.10">
   <!-- Pinselschrift (Logo, Überschriften) gleich zu Beginn laden – sonst entdeckt der Browser sie erst in fonts.css
        und zeigt so lange eine Ersatzschrift. Gleiche Adresse wie in fonts.css; crossorigin ist bei Schriften Pflicht. -->
   <link rel="preload" href="fonts/permanent-marker-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-08.9">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-08.9">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-08.10">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-08.10">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -283,7 +283,7 @@
         <!-- Name und Speichern erscheinen erst, sobald es eine Strecke gibt -->
         <div class="plan-save" id="plan-save-row">
           <!-- Streckenwahl: BRouter-Profil (siehe ROUTE_MODES in home-loop.js); ein Wechsel berechnet die Strecke neu -->
-          <span class="plan-mode" role="group" aria-label="Streckenwahl">
+          <span class="plan-mode" id="plan-route-mode" role="group" aria-label="Streckenwahl">
             <button type="button" data-mode="fast" aria-pressed="true" title="Direkte, asphaltierte Wege – auch über Hauptstraßen">Schnell</button>
             <button type="button" data-mode="quiet" aria-pressed="false" title="Meidet befahrene Straßen, nimmt dafür Umwege">Ruhig</button>
           </span>
@@ -656,33 +656,33 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-08.9"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-08.10"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-08.9",
-      "./js/backend.js": "./js/backend.js?v=2026-10-08.9",
-      "./js/cash.js": "./js/cash.js?v=2026-10-08.9",
-      "./js/categories.js": "./js/categories.js?v=2026-10-08.9",
-      "./js/config.js": "./js/config.js?v=2026-10-08.9",
-      "./js/geo.js": "./js/geo.js?v=2026-10-08.9",
-      "./js/hours.js": "./js/hours.js?v=2026-10-08.9",
-      "./js/icons.js": "./js/icons.js?v=2026-10-08.9",
-      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-08.9",
-      "./js/importers.js": "./js/importers.js?v=2026-10-08.9",
-      "./js/map.js": "./js/map.js?v=2026-10-08.9",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-08.9",
-      "./js/directions.js": "./js/directions.js?v=2026-10-08.9",
-      "./js/road-distance.js": "./js/road-distance.js?v=2026-10-08.9",
-      "./js/osm-hours.js": "./js/osm-hours.js?v=2026-10-08.9",
-      "./js/wiki.js": "./js/wiki.js?v=2026-10-08.9",
-      "./js/profile.js": "./js/profile.js?v=2026-10-08.9",
-      "./js/pois.js": "./js/pois.js?v=2026-10-08.9",
-      "./js/store.js": "./js/store.js?v=2026-10-08.9"
+      "./js/app.js": "./js/app.js?v=2026-10-08.10",
+      "./js/backend.js": "./js/backend.js?v=2026-10-08.10",
+      "./js/cash.js": "./js/cash.js?v=2026-10-08.10",
+      "./js/categories.js": "./js/categories.js?v=2026-10-08.10",
+      "./js/config.js": "./js/config.js?v=2026-10-08.10",
+      "./js/geo.js": "./js/geo.js?v=2026-10-08.10",
+      "./js/hours.js": "./js/hours.js?v=2026-10-08.10",
+      "./js/icons.js": "./js/icons.js?v=2026-10-08.10",
+      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-08.10",
+      "./js/importers.js": "./js/importers.js?v=2026-10-08.10",
+      "./js/map.js": "./js/map.js?v=2026-10-08.10",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-08.10",
+      "./js/directions.js": "./js/directions.js?v=2026-10-08.10",
+      "./js/road-distance.js": "./js/road-distance.js?v=2026-10-08.10",
+      "./js/osm-hours.js": "./js/osm-hours.js?v=2026-10-08.10",
+      "./js/wiki.js": "./js/wiki.js?v=2026-10-08.10",
+      "./js/profile.js": "./js/profile.js?v=2026-10-08.10",
+      "./js/pois.js": "./js/pois.js?v=2026-10-08.10",
+      "./js/store.js": "./js/store.js?v=2026-10-08.10"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-08.9"></script>
+  <script type="module" src="js/app.js?v=2026-10-08.10"></script>
 </body>
 </html>

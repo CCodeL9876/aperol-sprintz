@@ -3758,7 +3758,7 @@ function renderPlan() {
   loop.disabled = plan.waypoints.length < 2 || samePoint(plan.waypoints.at(-1), plan.waypoints[0]);
   $('#plan-name').hidden = $('#plan-save').hidden = !plan.segments.length;
   $('#plan-save').disabled = !track || pending || failed;
-  for (const b of $$('.plan-mode [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === routeMode()));
+  for (const b of $$('#plan-route-mode [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === routeMode()));
   // Während ein Abschnitt berechnet wird, bleibt das bisherige Profil stehen; ohne Strecke weg
   if (!plan.segments.length) renderPlanProfile(null);
 }
@@ -3818,7 +3818,8 @@ $('#plan-loop').addEventListener('click', () => {
   if (plan.waypoints.length) addPlanPoint(plan.waypoints[0]);
 });
 $('#plan-cancel').addEventListener('click', cancelPlan);
-$('.plan-mode').addEventListener('click', (e) => {
+// Eigene ID: „.plan-mode“ trägt auch die Verkehrsmittel-Wahl der Routen-Vorschau (steht im HTML davor)
+$('#plan-route-mode').addEventListener('click', (e) => {
   const mode = e.target.closest('[data-mode]')?.dataset.mode;
   if (mode) setRouteMode(mode);
 });
