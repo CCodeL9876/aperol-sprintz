@@ -3534,6 +3534,8 @@ function endPlan() {
   plan.source = null;
   $('#plan-panel').hidden = true;
   setPlanModeInfo(false);
+  closePlanPop();
+  plan.alt = null;
   renderPlanProfile(null);
   $('#map').classList.remove('is-picking');
   document.body.classList.remove('is-planning');
@@ -3575,6 +3577,7 @@ function planSegment(from, to) {
 
 // Stand vor einer Änderung merken (für „Rückgängig“)
 function planSnapshot() {
+  if (planPop.kind === 'compare') closePlanPop();
   plan.history.push({ waypoints: plan.waypoints.slice(), segments: plan.segments.slice(), selected: plan.selected });
   if (plan.history.length > 100) plan.history.shift();
 }
@@ -3737,9 +3740,10 @@ const planEdit = { onMove: movePlanPoint, onPick: pickPlanPoint, onInsert: inser
 function renderPlan() {
   const track = planTrack();
   // steile Stücke farbig über der Planungslinie (siehe climbs.js)
-  mapView.setDraft({ waypoints: plan.waypoints, segments: plan.segments, selected: plan.selected, edit: planEdit, steep: track ? steepRuns(track) : [] });
+  mapView.setDraft({ waypoints: plan.waypoints, segments: plan.segments, selected: plan.selected, edit: planEdit, steep: track ? steepRuns(track) : [], alt: plan.alt });
   const pending = plan.segments.some((s) => s.pending);
   const failed = plan.segments.some((s) => s.error);
+  renderPlanExtras(track, pending);
   const stats = $('#plan-stats');
   let text = '';
   if (track) {
@@ -3849,12 +3853,8 @@ $('#plan-loop').addEventListener('click', () => {
 $('#plan-cancel').addEventListener('click', cancelPlan);
 // ⓘ neben „Schnell | Ruhig“: Erklärung als Sprechblase unter dem Planer, Spitze auf das ⓘ.
 // Schliesst bei nochmaligem Tipp, bei einem Tipp daneben und mit dem Ende der Planung.
-function setPlanModeInfo(open) {
-  const btn = $('#plan-mode-info-btn');
-  const pop = $('#plan-mode-info');
-  btn.setAttribute('aria-expanded', String(open));
-  pop.hidden = !open;
-  if (!open) return;
+// Sprechblase unter dem Planer so schieben, dass ihre Spitze auf den Knopf zeigt
+function placePop(pop, btn) {
   const panel = $('#plan-panel').getBoundingClientRect();
   const b = btn.getBoundingClientRect();
   const center = b.left + b.width / 2 - panel.left;
@@ -3862,11 +3862,281 @@ function setPlanModeInfo(open) {
   pop.style.setProperty('--pop-x', `${left}px`);
   pop.style.setProperty('--tip-x', `${center - left}px`);
 }
+function setPlanModeInfo(open) {
+  const btn = $('#plan-mode-info-btn');
+  const pop = $('#plan-mode-info');
+  btn.setAttribute('aria-expanded', String(open));
+  pop.hidden = !open;
+  if (open) { closePlanPop(); placePop(pop, btn); }
+}
 $('#plan-mode-info-btn').addEventListener('click', () => setPlanModeInfo($('#plan-mode-info').hidden));
 document.addEventListener('pointerdown', (e) => {
-  if ($('#plan-mode-info').hidden || e.target.closest('#plan-mode-info, #plan-mode-info-btn')) return;
-  setPlanModeInfo(false);
+  if (!$('#plan-mode-info').hidden && !e.target.closest('#plan-mode-info, #plan-mode-info-btn')) setPlanModeInfo(false);
+  // Die Zusatz-Sprechblase bleibt beim Ziehen/Tippen auf der Karte offen (Kaffee-Stopp, Rundtour zeigen dort etwas);
+  // zu geht sie über ihren Knopf, das ✕ oder das Ende der Planung
 });
+
+// --- Zusatz-Knöpfe im Planer: Kaffee-Stopp, Schnell/Ruhig vergleichen, Rundtour vorschlagen ------------------------
+// Eine gemeinsame Sprechblase (#plan-pop); planPop.kind sagt, welche gerade offen ist.
+const planPop = { kind: null };
+function openPlanPop(kind, html, btn) {
+  const pop = $('#plan-pop');
+  setPlanModeInfo(false);
+  planPop.kind = kind;
+  pop.innerHTML = `<button type="button" class="plan-pop-close" data-pop="close" aria-label="Schliessen">${icon('close', { size: 16, stroke: 2.2 })}</button>${html}`;
+  pop.hidden = false;
+  for (const b of $$('#plan-extras [data-extra]')) b.setAttribute('aria-expanded', String(b.dataset.extra === kind));
+  placePop(pop, btn);
+}
+function closePlanPop() {
+  if (!planPop.kind) return;
+  const wasCompare = planPop.kind === 'compare';
+  planPop.kind = null;
+  const pop = $('#plan-pop');
+  pop.hidden = true;
+  pop.innerHTML = '';
+  for (const b of $$('#plan-extras [data-extra]')) b.setAttribute('aria-expanded', 'false');
+  mapView.setCursor(null);
+  if (wasCompare) plan.alt = null;
+  if (plan.on) renderPlan(); // Knöpfe (z. B. „Rundtour“ nur am Anfang) und Vergleichslinie auffrischen
+}
+
+// Knöpfe je nach Stand: Rundtour nur am Anfang (nur Start gesetzt), sonst Kaffee-Stopp und Vergleich
+function renderPlanExtras(track, pending) {
+  const box = $('#plan-extras');
+  const items = [];
+  // Rundtour am Anfang – und solange ihre Sprechblase offen ist (Varianten nacheinander ansehen)
+  if ((!plan.segments.length && plan.waypoints.length === 1) || planPop.kind === 'loop') {
+    items.push(['loop', 'route', 'Rundtour vorschlagen']);
+  }
+  if (track && !pending) {
+    items.push(['coffee', 'coffee', 'Kaffee-Stopp']);
+    items.push(['compare', 'swap', routeMode() === 'quiet' ? 'Mit „Schnell“ vergleichen' : 'Mit „Ruhig“ vergleichen']);
+  }
+  box.hidden = !items.length;
+  const html = items.map(([k, ic, label]) => `<button type="button" class="plan-extra" data-extra="${k}" aria-expanded="${planPop.kind === k}">${icon(ic, { size: 14, stroke: 2.2 })}${label}</button>`).join('');
+  if (box.innerHTML !== html) box.innerHTML = html;
+  // Knopf der offenen Sprechblase verschwunden (z. B. Strecke gelöscht): Sprechblase zu
+  if (planPop.kind && !items.some(([k]) => k === planPop.kind)) closePlanPop();
+}
+
+$('#plan-extras').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-extra]');
+  if (!btn) return;
+  const kind = btn.dataset.extra;
+  if (planPop.kind === kind) return closePlanPop();
+  if (kind === 'coffee') openCoffeePop(btn);
+  if (kind === 'compare') openComparePop(btn);
+  if (kind === 'loop') openLoopPop(btn);
+});
+$('#plan-pop').addEventListener('click', (e) => {
+  const t = e.target.closest('[data-pop]');
+  if (!t) return;
+  const a = t.dataset.pop;
+  if (a === 'close') closePlanPop();
+  if (a === 'coffee-add') addCoffeeStop(t.dataset.place);
+  if (a === 'compare-take') takeCompare();
+  if (a === 'loop-len') { loopOpts.km = Number(t.dataset.km); renderLoopPop(); }
+  if (a === 'loop-dir') { loopOpts.dir = t.dataset.dir; renderLoopPop(); }
+  if (a === 'loop-go') suggestLoops();
+  if (a === 'loop-take') takeLoop(Number(t.dataset.i));
+});
+
+// Punkt bei km auf der Strecke: { point: [lat, lng], seg: Abschnitt-Index }
+function planPointAt(km) {
+  let sum = 0;
+  for (let si = 0; si < plan.segments.length; si++) {
+    const t = plan.segments[si].track || [];
+    for (let k = 1; k < t.length; k++) {
+      const d = haversineKm(t[k - 1][0], t[k - 1][1], t[k][0], t[k][1]);
+      if (sum + d >= km) return { point: [t[k][0], t[k][1]], seg: si };
+      sum += d;
+    }
+  }
+  const last = plan.segments.at(-1)?.track?.at(-1);
+  return last ? { point: [last[0], last[1]], seg: plan.segments.length - 1 } : null;
+}
+
+// --- Kaffee-Stopp: eigene Cafés nah an einer Stelle der Strecke als Wegpunkt einbauen
+const COFFEE_MAX_KM = 5;
+const coffee = { km: 0, total: 0 };
+function openCoffeePop(btn) {
+  const track = planTrack();
+  if (!track) return;
+  coffee.total = summarizeTrack('', track).distanceKm;
+  coffee.km = Math.round(coffee.total / 2); // Vorschlag: Halbzeit
+  openPlanPop('coffee', `<strong class="plan-mode-pop-title">Kaffee-Stopp</strong>
+    <label class="coffee-km">bei km <output id="coffee-km-out">${coffee.km}</output>
+      <input id="coffee-km" type="range" min="0" max="${Math.max(1, Math.round(coffee.total))}" step="1" value="${coffee.km}" aria-label="Stelle der Strecke in km">
+    </label>
+    <div id="coffee-list"></div>`, btn);
+  $('#coffee-km').addEventListener('input', (e) => {
+    coffee.km = Number(e.target.value);
+    $('#coffee-km-out').textContent = coffee.km;
+    renderCoffeeList();
+  });
+  renderCoffeeList();
+}
+function renderCoffeeList() {
+  const at = planPointAt(coffee.km);
+  const list = $('#coffee-list');
+  if (!at || !list) return;
+  mapView.setCursor(at.point); // die Stelle als Punkt auf der Karte
+  const used = new Set(plan.waypoints.map((w) => `${w[0].toFixed(5)},${w[1].toFixed(5)}`));
+  const cafes = state.places
+    .filter((p) => p.category === 'kaffee' && hasCoords(p) && !used.has(`${p.lat.toFixed(5)},${p.lng.toFixed(5)}`))
+    .map((p) => ({ p, d: haversineKm(at.point[0], at.point[1], p.lat, p.lng) }))
+    .filter((x) => x.d <= COFFEE_MAX_KM)
+    .sort((a, b) => a.d - b.d)
+    .slice(0, 5);
+  list.innerHTML = cafes.length
+    ? `<ul class="coffee-list">${cafes.map(({ p, d }) => `<li>
+        <span><strong>${escapeHtml(p.name)}</strong><small>${formatKm(d)} von km ${coffee.km}${hoursStatus(p.hours) ? ` · ${escapeHtml(hoursStatus(p.hours).text)}` : ''}</small></span>
+        <button type="button" class="btn btn-small" data-pop="coffee-add" data-place="${escapeHtml(p.id)}">Einbauen</button></li>`).join('')}</ul>`
+    : `<p class="muted">Kein eigenes Café im Umkreis von ${COFFEE_MAX_KM} km. Mit „Cafés“ unten auf der Karte Google-Cafés zeigen und eines zu „Unsere Orte“ hinzufügen.</p>`;
+}
+function addCoffeeStop(placeId) {
+  const p = state.places.find((x) => x.id === placeId);
+  const at = planPointAt(coffee.km);
+  if (!p || !at) return;
+  planSnapshot();
+  const si = at.seg;
+  const stop = [p.lat, p.lng];
+  plan.segments.splice(si, 1, planSegment(plan.waypoints[si], stop), planSegment(stop, plan.waypoints[si + 1]));
+  plan.waypoints.splice(si + 1, 0, stop);
+  plan.selected = null;
+  closePlanPop();
+  renderPlan();
+  toast(`☕ „${p.name}“ als Stopp eingebaut`);
+}
+
+// --- Vergleich: dieselben Wegpunkte mit dem anderen Profil (Schnell ↔ Ruhig), gestrichelt auf der Karte
+const compare = { seq: 0, mode: null, segments: null };
+function openComparePop(btn) {
+  const other = routeMode() === 'quiet' ? 'fast' : 'quiet';
+  compare.mode = other;
+  compare.segments = null;
+  const seq = ++compare.seq;
+  openPlanPop('compare', `<strong class="plan-mode-pop-title">Schnell oder Ruhig?</strong><div id="compare-body"><p class="muted">Berechne „${other === 'quiet' ? 'Ruhig' : 'Schnell'}“ …</p></div>`, btn);
+  const wps = plan.waypoints.slice();
+  const segs = plan.segments.slice();
+  Promise.all(segs.map((s, i) => (s.orig ? Promise.resolve(s.track) : bikeRoute(wps[i], wps[i + 1], other))))
+    .then((tracks) => {
+      if (seq !== compare.seq || planPop.kind !== 'compare') return;
+      compare.segments = tracks.map((t, i) => (segs[i].orig ? segs[i] : { points: t.map(([lat, lng]) => [lat, lng]), track: t, pending: false, error: false, orig: false }));
+      const alt = compare.segments.flatMap((s, i) => (i ? s.track.slice(1) : s.track));
+      plan.alt = alt.map(([lat, lng]) => [lat, lng]);
+      renderPlan();
+      const row = (label, track, current) => {
+        const sum = summarizeTrack('', plan.noEle ? track.map(([a, b]) => [a, b, null]) : track);
+        const h = rideHours(sum);
+        return `<li class="${current ? 'is-current' : ''}"><span><strong>${label}</strong>${current ? ' <small>(jetzt)</small>' : ' <small>(gestrichelt)</small>'}</span>
+          <span>${[formatKm(sum.distanceKm), formatHm(sum.elevationGainM), h ? formatDuration(h) : ''].filter(Boolean).join(' · ')}</span></li>`;
+      };
+      const name = (m) => (m === 'quiet' ? 'Ruhig' : 'Schnell');
+      $('#compare-body').innerHTML = `<ul class="compare-list">${row(name(routeMode()), planTrack(), true)}${row(name(other), alt, false)}</ul>
+        <button type="button" class="btn btn-small" data-pop="compare-take">„${name(other)}“ nehmen</button>`;
+    })
+    .catch((err) => {
+      if (seq !== compare.seq || planPop.kind !== 'compare') return;
+      $('#compare-body').innerHTML = `<p class="muted">Vergleich nicht möglich (${escapeHtml(err.message)}).</p>`;
+    });
+}
+function takeCompare() {
+  if (!compare.segments) return;
+  planSnapshot();
+  writePref('routeMode', compare.mode);
+  plan.segments = compare.segments;
+  closePlanPop();
+  renderPlan();
+}
+
+// --- Rundtour auf Wunsch-Länge ab dem Start: Dreieck Start → A → B → Start, BRouter verbindet; bis zu 3 Varianten
+const loopOpts = { km: 80, dir: '' };
+const LOOP_DIRS = [['', 'Egal'], ['0', 'N'], ['45', 'NO'], ['90', 'O'], ['135', 'SO'], ['180', 'S'], ['225', 'SW'], ['270', 'W'], ['315', 'NW']];
+const loopRun = { seq: 0, variants: [], busy: false };
+function openLoopPop(btn) {
+  loopRun.variants = [];
+  openPlanPop('loop', '<div id="loop-body"></div>', btn);
+  renderLoopPop();
+  placePop($('#plan-pop'), btn);
+}
+function renderLoopPop() {
+  const body = $('#loop-body');
+  if (!body) return;
+  body.innerHTML = `<strong class="plan-mode-pop-title">Rundtour vorschlagen</strong>
+    <div class="loop-row"><span>Länge</span>${[40, 60, 80, 100, 120].map((k) => `<button type="button" class="loop-chip" data-pop="loop-len" data-km="${k}" aria-pressed="${loopOpts.km === k}">${k} km</button>`).join('')}</div>
+    <div class="loop-row"><span>Richtung</span>${LOOP_DIRS.map(([d, l]) => `<button type="button" class="loop-chip" data-pop="loop-dir" data-dir="${d}" aria-pressed="${loopOpts.dir === d}">${l}</button>`).join('')}</div>
+    <button type="button" class="btn btn-small" data-pop="loop-go"${loopRun.busy ? ' disabled' : ''}>${loopRun.busy ? 'Berechne …' : 'Vorschlagen'}</button>
+    ${loopRun.variants.length ? `<ul class="compare-list loop-list">${loopRun.variants.map((v, i) => `<li><span><strong>Variante ${i + 1}</strong></span>
+      <span>${formatKm(v.km)} · ${formatHm(v.hm)}</span><button type="button" class="btn btn-small" data-pop="loop-take" data-i="${i}">Zeigen</button></li>`).join('')}</ul>
+      <p class="muted">„Zeigen“ übernimmt die Variante in den Planer – danach wie gewohnt anpassen und speichern.</p>` : ''}
+    ${loopRun.note ? `<p class="muted">${escapeHtml(loopRun.note)}</p>` : ''}`;
+}
+// Punkt in d km Entfernung in Richtung bearing (Grad) von [lat, lng]
+function offsetPoint([lat, lng], d, bearing) {
+  const b = (bearing * Math.PI) / 180;
+  return [lat + (d / 111.2) * Math.cos(b), lng + (d / (111.2 * Math.cos((lat * Math.PI) / 180))) * Math.sin(b)];
+}
+const trackKm = (t) => t.reduce((sum, p, i) => (i ? sum + haversineKm(t[i - 1][0], t[i - 1][1], p[0], p[1]) : 0), 0);
+async function loopVariant(home, km, bearing, mode) {
+  let d = km / (3 * 1.3); // gleichseitiges Dreieck, Strassen ca. 30 % länger als die Luftlinie
+  let best = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let shrink = 1;
+    let legs = null;
+    // Liegt eine Ecke im Meer oder weitab jeder Strasse, findet BRouter nichts: Ecken näher an den Start rücken
+    for (let tries = 0; tries < 3 && !legs; tries++, shrink *= 0.75) {
+      const a = offsetPoint(home, d * shrink, bearing - 30);
+      const b = offsetPoint(home, d * shrink, bearing + 30);
+      try {
+        const t1 = await bikeRoute(home, a, mode);
+        const t2 = await bikeRoute(a, b, mode);
+        const t3 = await bikeRoute(b, home, mode);
+        legs = { wps: [home, a, b, home], tracks: [t1, t2, t3] };
+      } catch { /* nächster Versuch näher am Start */ }
+    }
+    if (!legs) break;
+    const total = legs.tracks.reduce((sum, t) => sum + trackKm(t), 0);
+    best = { ...legs, km: total };
+    if (Math.abs(total - km) / km <= 0.15) break;
+    d *= km / total; // einmal nachjustieren
+  }
+  if (!best) return null;
+  const full = best.tracks.flatMap((t, i) => (i ? t.slice(1) : t));
+  return { ...best, hm: summarizeTrack('', full).elevationGainM };
+}
+async function suggestLoops() {
+  if (loopRun.busy || !plan.waypoints.length) return;
+  const home = plan.waypoints[0];
+  const seq = ++loopRun.seq;
+  loopRun.busy = true;
+  loopRun.variants = [];
+  loopRun.note = '';
+  renderLoopPop();
+  const base = loopOpts.dir === '' ? Math.random() * 120 : Number(loopOpts.dir);
+  const bearings = loopOpts.dir === '' ? [base, base + 120, base + 240] : [base - 35, base, base + 35];
+  for (const bearing of bearings) {
+    const v = await loopVariant(home, loopOpts.km, bearing, routeMode());
+    if (seq !== loopRun.seq || planPop.kind !== 'loop') return;
+    if (v) { loopRun.variants.push(v); renderLoopPop(); }
+  }
+  loopRun.busy = false;
+  if (!loopRun.variants.length) loopRun.note = 'Keine Rundtour gefunden – andere Richtung oder Länge versuchen (Richtung Meer geht es nicht weit).';
+  renderLoopPop();
+}
+function takeLoop(i) {
+  const v = loopRun.variants[i];
+  if (!v) return;
+  planSnapshot();
+  plan.waypoints = v.wps.map((p) => [p[0], p[1]]);
+  plan.segments = v.tracks.map((t) => ({ points: t.map(([lat, lng]) => [lat, lng]), track: t, pending: false, error: false, orig: false }));
+  plan.selected = null;
+  renderPlan();
+  mapView.fitToRoute({ points: plan.segments.flatMap((s) => s.points) });
+  // Sprechblase bleibt offen, damit sich die Varianten nacheinander ansehen lassen; Knopf dafür bleibt erhalten
+  renderLoopPop();
+}
 // Eigene ID: „.plan-mode“ trägt auch die Verkehrsmittel-Wahl der Routen-Vorschau (steht im HTML davor)
 $('#plan-route-mode').addEventListener('click', (e) => {
   const mode = e.target.closest('[data-mode]')?.dataset.mode;
@@ -4241,7 +4511,8 @@ const INTRO = [
         `Start ist euer Airbnb. ${icon('home', { size: 14, stroke: 2.2, cls: 'intro-inline' })} führt zurück, ${icon('undo', { size: 14, stroke: 2.2, cls: 'intro-inline' })} macht den letzten Schritt rückgängig.`,
         `Punkte <strong>ziehen</strong>, auf die Linie tippen = Zwischenpunkt, Punkt antippen und ${icon('trash', { size: 14, stroke: 2.2, cls: 'intro-inline' })} = entfernen, ${icon('swap', { size: 14, stroke: 2.2, cls: 'intro-inline' })} dreht die Richtung um.`,
         '<strong>Schnell</strong>: direkte Wege. <strong>Ruhig</strong>: meidet Verkehr, dafür mit Umwegen – das <strong>ⓘ</strong> daneben erklärt den Unterschied.',
-        'Kilometer, Höhenmeter, Fahrzeit und Höhenprofil laufend.',
+        'Kilometer, Höhenmeter, Fahrzeit und Höhenprofil laufend. Steile Stücke farbig: gelb ab 5 %, rot ab 8 %, violett ab 10 % – darunter die Anstiege, antippen zeigt sie auf der Karte.',
+        'Knöpfe unter dem Profil: <strong>„Rundtour vorschlagen“</strong> (Länge und Richtung wählen), <strong>„Kaffee-Stopp“</strong> (eigenes Café an einer Stelle einbauen) und <strong>Schnell/Ruhig vergleichen</strong>.',
         'Gespeichert zeigt jede Etappe Wetter, Kaffee-Stopps, Wasser & Velo – und lässt sich als GPX laden.',
         'Oder eine GPX aus Strava/Komoot über <strong>„+ Importieren“</strong> – Start und Ziel werden ans Airbnb angeschlossen.',
       ] },

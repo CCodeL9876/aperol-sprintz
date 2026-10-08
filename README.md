@@ -45,6 +45,10 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
   `fastbike-verylowtraffic`, siehe `ROUTE_MODES` in `js/home-loop.js`; gilt auch für Anfahrt/Rückfahrt beim GPX-Import). Gespeichert wird wie eine importierte GPX-Etappe
   (Kaffee-Stopps, Trinkwasser, GPX-Download). Wegpunkte lassen sich **ziehen**, auf der Linie **einfügen**, antippen und
   **entfernen**; dazu **Richtung umdrehen** und mehrstufiges „Rückgängig“.
+  **Anstiege** (`js/climbs.js`): Höhenprofil und Planungslinie zeigen steile Stücke farbig (ab 5/8/10 %), darunter
+  die Anstiege mit Länge, Schnitt und Höhenmetern (benannt nach einem eigenen Ort an der Kuppe). Im Planer zudem
+  **Rundtour vorschlagen** (Länge, Richtung; Dreieck ab dem Start, bis zu 3 Varianten über BRouter),
+  **Kaffee-Stopp** (eigenes Café nah an einer Stelle als Wegpunkt) und **Schnell/Ruhig vergleichen** (gestrichelt).
   **Etappe bearbeiten** (Stift-Knopf in den Etappen-Details): auch importierte GPX-Etappen – die Strecke bekommt
   Wegpunkte alle 5 km; nur die Abschnitte neben einem geänderten Punkt werden mit BRouter neu berechnet, der Rest
   bleibt wie in der Datei. Gespeichert wird eine **Kopie** („… (geändert)“), das Original bleibt.
