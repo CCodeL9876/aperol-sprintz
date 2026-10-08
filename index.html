@@ -7,19 +7,19 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-08.12" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-08.12">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-08.14" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-08.14">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-08.12">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-08.14">
   <!-- Pinselschrift (Logo, Überschriften) gleich zu Beginn laden – sonst entdeckt der Browser sie erst in fonts.css
        und zeigt so lange eine Ersatzschrift. Gleiche Adresse wie in fonts.css; crossorigin ist bei Schriften Pflicht. -->
   <link rel="preload" href="fonts/permanent-marker-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-08.12">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-08.12">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-08.14">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-08.14">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -159,9 +159,9 @@
     </aside>
 
     <!-- Handy: erscheint, wenn das Blatt ganz eingeklappt ist; ein Tipp holt es zurück -->
-    <button id="sheet-open" class="sheet-open" type="button" aria-label="Unsere Orte und Filter einblenden">
-      <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
-      Unsere Orte &amp; Filter <span class="sheet-open-count" id="sheet-open-count"></span>
+    <button id="sheet-open" class="sheet-open" type="button" aria-label="Unsere Orte und Filter einblenden" title="Unsere Orte &amp; Filter">
+      <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      <span class="sheet-open-count" id="sheet-open-count"></span>
     </button>
 
     <div class="panel-row">
@@ -671,33 +671,33 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-08.12"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-08.14"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-08.12",
-      "./js/backend.js": "./js/backend.js?v=2026-10-08.12",
-      "./js/cash.js": "./js/cash.js?v=2026-10-08.12",
-      "./js/categories.js": "./js/categories.js?v=2026-10-08.12",
-      "./js/config.js": "./js/config.js?v=2026-10-08.12",
-      "./js/geo.js": "./js/geo.js?v=2026-10-08.12",
-      "./js/hours.js": "./js/hours.js?v=2026-10-08.12",
-      "./js/icons.js": "./js/icons.js?v=2026-10-08.12",
-      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-08.12",
-      "./js/importers.js": "./js/importers.js?v=2026-10-08.12",
-      "./js/map.js": "./js/map.js?v=2026-10-08.12",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-08.12",
-      "./js/directions.js": "./js/directions.js?v=2026-10-08.12",
-      "./js/road-distance.js": "./js/road-distance.js?v=2026-10-08.12",
-      "./js/osm-hours.js": "./js/osm-hours.js?v=2026-10-08.12",
-      "./js/wiki.js": "./js/wiki.js?v=2026-10-08.12",
-      "./js/profile.js": "./js/profile.js?v=2026-10-08.12",
-      "./js/pois.js": "./js/pois.js?v=2026-10-08.12",
-      "./js/store.js": "./js/store.js?v=2026-10-08.12"
+      "./js/app.js": "./js/app.js?v=2026-10-08.14",
+      "./js/backend.js": "./js/backend.js?v=2026-10-08.14",
+      "./js/cash.js": "./js/cash.js?v=2026-10-08.14",
+      "./js/categories.js": "./js/categories.js?v=2026-10-08.14",
+      "./js/config.js": "./js/config.js?v=2026-10-08.14",
+      "./js/geo.js": "./js/geo.js?v=2026-10-08.14",
+      "./js/hours.js": "./js/hours.js?v=2026-10-08.14",
+      "./js/icons.js": "./js/icons.js?v=2026-10-08.14",
+      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-08.14",
+      "./js/importers.js": "./js/importers.js?v=2026-10-08.14",
+      "./js/map.js": "./js/map.js?v=2026-10-08.14",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-08.14",
+      "./js/directions.js": "./js/directions.js?v=2026-10-08.14",
+      "./js/road-distance.js": "./js/road-distance.js?v=2026-10-08.14",
+      "./js/osm-hours.js": "./js/osm-hours.js?v=2026-10-08.14",
+      "./js/wiki.js": "./js/wiki.js?v=2026-10-08.14",
+      "./js/profile.js": "./js/profile.js?v=2026-10-08.14",
+      "./js/pois.js": "./js/pois.js?v=2026-10-08.14",
+      "./js/store.js": "./js/store.js?v=2026-10-08.14"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-08.12"></script>
+  <script type="module" src="js/app.js?v=2026-10-08.14"></script>
 </body>
 </html>
