@@ -3,6 +3,7 @@
 // Gezeichnet als SVG, das sich der Breite anpasst; Beschriftungen als HTML darüber, damit sie nicht mitgestreckt werden.
 
 import { haversineKm, formatKm } from './geo.js';
+import { gradeClass } from './climbs.js';
 
 const MAX_POINTS = 300; // genug für eine glatte Linie, wenig Arbeit beim Zeichnen
 const VIEW_W = 1000; // Breite der SVG-Zeichenfläche (wird auf die echte Breite gestreckt)
@@ -52,6 +53,24 @@ export function profileHtml(profile, { height = 90, key = '' } = {}) {
   const y = (ele) => height - ((ele - lo) / (hi - lo)) * height;
   const line = profile.pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.km).toFixed(1)},${y(p.ele).toFixed(1)}`).join('');
   const area = `${line}L${VIEW_W},${height}L0,${height}Z`;
+  // Steile Stücke bergauf farbig (gelb ab 5 %, rot ab 8 %, violett ab 10 %; Farben aus climbs.js)
+  const pts = profile.pts;
+  const steep = [];
+  let run = null;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(pts.length - 1, i + 2)];
+    const pct = b.km > a.km ? ((b.ele - a.ele) / ((b.km - a.km) * 1000)) * 100 : 0;
+    const c = gradeClass(pct);
+    if (c && run?.c === c) run.to = i + 1;
+    else if (c) steep.push(run = { c, from: i, to: i + 1 });
+    else run = null;
+  }
+  const steepSvg = steep.map(({ c, from, to }) => {
+    const seg = pts.slice(from, to + 1).map((p, k) => `${k ? 'L' : 'M'}${x(p.km).toFixed(1)},${y(p.ele).toFixed(1)}`).join('');
+    return `<path d="${seg}L${x(pts[to].km).toFixed(1)},${height}L${x(pts[from].km).toFixed(1)},${height}Z" fill="${c.color}" class="elev-steep"/>`
+      + `<path d="${seg}" stroke="${c.color}" class="elev-steep-line"/>`;
+  }).join('');
   const grid = [];
   const yLabels = [];
   // Niedrige Profile (Planer): nur unterste und oberste Linie beschriften, sonst stehen die Zahlen übereinander
@@ -74,6 +93,7 @@ export function profileHtml(profile, { height = 90, key = '' } = {}) {
         ${grid.join('')}
         <path d="${area}" class="elev-area"/>
         <path d="${line}" class="elev-line"/>
+        ${steepSvg}
         <path d="M0,${height}H${VIEW_W}" class="elev-base"/>
       </svg>
       ${yLabels.join('')}

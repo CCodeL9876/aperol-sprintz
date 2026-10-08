@@ -1047,6 +1047,42 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .plan-mode-pop thead th { font-weight: 800; color: var(--green); }
 .plan-mode-pop tbody th { font-weight: 600; color: var(--text-soft); white-space: nowrap; }
 .plan-mode-pop p { margin: 8px 0 0; color: var(--text-soft); }
+/* Zusatz-Knöpfe im Planer (Kaffee-Stopp, Vergleich, Rundtour) und ihre Sprechblase */
+.plan-extras { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.plan-extras[hidden] { display: none; }
+.plan-extra {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 0 10px; cursor: pointer;
+  border: 1.5px solid var(--green); border-radius: 999px; background: var(--card); color: var(--green);
+  font: 700 12px var(--font-body); white-space: nowrap;
+}
+.plan-extra[aria-expanded="true"] { background: var(--green); color: #FFFFFF; }
+.plan-pop { width: min(340px, 100%); }
+.plan-pop-close {
+  position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 28px; height: 28px; padding: 0;
+  border: 0; border-radius: 999px; background: var(--chip); color: var(--text); cursor: pointer;
+}
+.plan-pop .btn { min-height: 34px; margin-top: 8px; }
+.coffee-km { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; font-weight: 700; }
+.coffee-km output { font-variant-numeric: tabular-nums; min-width: 3ch; }
+.coffee-km input { grid-column: 1 / -1; width: 100%; accent-color: var(--orange); }
+.coffee-list, .compare-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.coffee-list li, .compare-list li {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 8px; border-radius: 10px; background: var(--chip);
+}
+.coffee-list li > span { display: grid; min-width: 0; }
+.coffee-list strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coffee-list small, .compare-list small { color: var(--text-soft); font-size: 11.5px; }
+.coffee-list .btn, .compare-list .btn { margin-top: 0; flex: none; }
+.compare-list li.is-current { box-shadow: inset 0 0 0 2px var(--orange); background: var(--card); }
+.compare-list li > span:last-of-type { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.loop-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px; }
+.loop-row > span { width: 100%; font-weight: 700; font-size: 12px; color: var(--text-soft); }
+.loop-chip {
+  min-height: 30px; padding: 0 9px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--chip); color: var(--text); font: 600 12px var(--font-body);
+}
+.loop-chip[aria-pressed="true"] { background: var(--green); color: #FFFFFF; }
 .plan-save .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .plan-save input { flex: 1; min-width: 0; min-height: 36px; padding-top: 4px; padding-bottom: 4px; }
 /* .btn-small färbt sonst auch den Hauptknopf grau */
@@ -1099,6 +1135,21 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .elev-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .elev-line { fill: none; stroke: var(--green); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .elev-area { fill: var(--green); fill-opacity: 0.12; stroke: none; }
+.elev-steep { fill-opacity: 0.35; stroke: none; }
+.elev-steep-line { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+/* Anstiege unter dem Höhenprofil: antippbare Zeile, im Planer seitlich wischbar */
+.climbs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+.plan-profile .climbs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-top: 6px; }
+.climb {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 0 10px; cursor: pointer;
+  border: 0; border-radius: 999px; background: var(--chip); color: var(--text); font: 600 12px var(--font-body); white-space: nowrap;
+}
+.climb .icon { color: var(--green); }
+.climb strong { font-weight: 800; }
+.climb span { color: var(--text-soft); }
+.climb:hover { background: var(--chip-hover); }
+.climb-legend { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+.climb-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--g); margin-left: 4px; }
 .elev-grid, .elev-base { fill: none; stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .elev-y {
   position: absolute; left: 0; transform: translateY(-100%);
@@ -1867,3 +1918,4 @@ button.popup-link { padding: 5px 0; border: 0; background: none; cursor: pointer
 @media (max-width: 379px) {
   .panel-row:has(> .map-search.is-collapsed:not([hidden])):not(:has(> details[open])) .panel-chevron { display: none; }
 }
+.plan-pop .plan-mode-pop-title { padding-right: 34px; }

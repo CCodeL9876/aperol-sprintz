@@ -733,6 +733,10 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     if (!draft) return;
     if (draft.segments.length || draft.waypoints.length) info.close();
     const edit = draft.edit;
+    // Vergleichsstrecke (anderes Profil) gestrichelt grau unter der Planung
+    if (draft.alt?.length) {
+      draftShapes.push(new google.maps.Polyline({ map, path: draft.alt.map(toLatLng), strokeOpacity: 0, strokeWeight: 4, clickable: false, zIndex: 8990, icons: dashed('#5E5E50') }));
+    }
     draft.segments.forEach((seg, si) => {
       const path = seg.points.map(toLatLng);
       const color = seg.error ? '#C92A2A' : PLAN_COLOR;
@@ -746,6 +750,10 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
         draftShapes.push(hit);
       }
     });
+    // steile Stücke farbig über der Linie (gelb ab 5 %, rot ab 8 %, violett ab 10 %)
+    for (const run of draft.steep || []) {
+      draftShapes.push(new google.maps.Polyline({ map, path: run.points.map(toLatLng), strokeColor: run.color, strokeOpacity: 1, strokeWeight: 5, clickable: false, zIndex: 9003 }));
+    }
     draft.waypoints.forEach((p, i) => {
       const content = document.createElement('div');
       content.innerHTML = planPinHtml(i, draft.selected === i);

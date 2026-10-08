@@ -555,6 +555,11 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     draftLayer.clearLayers();
     if (!draft) return;
     const edit = draft.edit;
+    // Vergleichsstrecke (anderes Profil) gestrichelt grau unter der Planung
+    if (draft.alt?.length) {
+      L.polyline(draft.alt, { color: '#FFFFFF', weight: 7, opacity: 0.8, lineJoin: 'round', interactive: false }).addTo(draftLayer);
+      L.polyline(draft.alt, { color: '#5E5E50', weight: 4, opacity: 0.9, dashArray: '8 8', lineJoin: 'round', interactive: false }).addTo(draftLayer);
+    }
     draft.segments.forEach((seg, si) => {
       const style = seg.error ? { color: '#C92A2A', dashArray: '6 8' } : seg.pending ? { color: PLAN_COLOR, dashArray: '6 8', opacity: 0.7 } : { color: PLAN_COLOR };
       L.polyline(seg.points, { color: '#FFFFFF', weight: 7, opacity: 0.9, lineJoin: 'round', interactive: false }).addTo(draftLayer);
@@ -566,6 +571,10 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
           .addTo(draftLayer);
       }
     });
+    // steile Stücke farbig über der Linie (gelb ab 5 %, rot ab 8 %, violett ab 10 %)
+    for (const run of draft.steep || []) {
+      L.polyline(run.points, { color: run.color, weight: 5, opacity: 1, lineJoin: 'round', lineCap: 'round', interactive: false }).addTo(draftLayer);
+    }
     draft.waypoints.forEach((p, i) => {
       const m = L.marker(p, {
         icon: L.divIcon({ className: '', html: planPinHtml(i, draft.selected === i), iconSize: [22, 22], iconAnchor: [11, 11] }),
