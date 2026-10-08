@@ -205,7 +205,8 @@ const mapOptions = {
   },
   onMarkerClick: (id) => {
     const place = plan.on && state.places.find((p) => p.id === id);
-    if (place && hasCoords(place)) return addPlanPoint([place.lat, place.lng]); // eigener Ort als Wegpunkt
+    // eigener Ort als Wegpunkt; ein Café erscheint als Kaffee-Stopp (Tassen-Symbol)
+    if (place && hasCoords(place)) return addPlanPoint(Object.assign([place.lat, place.lng], place.category === 'kaffee' ? { coffee: place.name } : {}));
     if (!plan.on) selectPlace(id, { fly: false, scrollList: true });
   },
   onLocateMessage: (kind, detail) => locateProblem(kind, detail),
@@ -4010,7 +4011,7 @@ function addCoffeeStop(placeId) {
   if (!p || !at) return;
   planSnapshot();
   const si = at.seg;
-  const stop = [p.lat, p.lng];
+  const stop = Object.assign([p.lat, p.lng], { coffee: p.name }); // als Kaffee-Stopp markiert (Tassen-Symbol)
   plan.segments.splice(si, 1, planSegment(plan.waypoints[si], stop), planSegment(stop, plan.waypoints[si + 1]));
   plan.waypoints.splice(si + 1, 0, stop);
   plan.selected = null;

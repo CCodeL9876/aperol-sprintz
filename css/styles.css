@@ -1115,6 +1115,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   background: var(--orange); color: #FFFFFF; font-size: 11px; font-weight: 800; line-height: 1;
 }
 .plan-pin.is-start { background: var(--green); }
+.plan-pin.is-coffee { background: #8A5A34; width: 26px; height: 26px; margin: -2px; } /* Kaffee-Braun wie die Kategorie */
 .plan-pin.is-selected { box-shadow: 0 0 0 3px var(--orange), 0 1px 4px rgba(0, 0, 0, 0.35); transform: scale(1.25); }
 .leaflet-marker-draggable .plan-pin, gmp-advanced-marker .plan-pin { cursor: grab; }
 .routes-head-right { display: inline-flex; align-items: center; gap: 10px; }

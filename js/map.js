@@ -99,7 +99,13 @@ export function routeAttrs({ name, lat, lng, home = false }) {
 export const PLAN_COLOR = '#E8733A';
 // Routen-Vorschau zu einem Ort: Blau wie bei Navigations-Apps, klar unterscheidbar von Etappen und Planer
 export const ROUTE_LINE_COLOR = '#2F6E8C';
-export const planPinHtml = (i, selected = false) => `<span class="plan-pin${i === 0 ? ' is-start' : ''}${selected ? ' is-selected' : ''}">${i === 0 ? 'S' : i}</span>`;
+// Wegpunkt im Planer: S = Start, Kaffee-Stopp mit Tassen-Symbol (waypoint.coffee = Name des Cafés), sonst Nummer.
+// Die Nummern zählen nur die normalen Wegpunkte (planPinLabels), damit ein Kaffee-Stopp keine Lücke reisst.
+export function planPinLabels(waypoints) {
+  let n = 0;
+  return waypoints.map((w, i) => (i === 0 ? 'S' : w.coffee ? 'coffee' : String(++n)));
+}
+export const planPinHtml = (label, selected = false, title = '') => `<span class="plan-pin${label === 'S' ? ' is-start' : ''}${label === 'coffee' ? ' is-coffee' : ''}${selected ? ' is-selected' : ''}"${title ? ` title="${escapeHtml(title)}"` : ''}>${label === 'coffee' ? icon('coffee', { size: 13, stroke: 2.4 }) : label}</span>`;
 
 // Ersatz, falls Leaflet nicht geladen werden konnte: Die App läuft ohne Karte weiter,
 // statt beim Start komplett abzubrechen (dann fehlte auch die Ortsliste).
@@ -575,9 +581,10 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     for (const run of draft.steep || []) {
       L.polyline(run.points, { color: run.color, weight: 5, opacity: 1, lineJoin: 'round', lineCap: 'round', interactive: false }).addTo(draftLayer);
     }
+    const labels = planPinLabels(draft.waypoints);
     draft.waypoints.forEach((p, i) => {
       const m = L.marker(p, {
-        icon: L.divIcon({ className: '', html: planPinHtml(i, draft.selected === i), iconSize: [22, 22], iconAnchor: [11, 11] }),
+        icon: L.divIcon({ className: '', html: planPinHtml(labels[i], draft.selected === i, p.coffee), iconSize: [22, 22], iconAnchor: [11, 11] }),
         interactive: Boolean(edit),
         draggable: Boolean(edit),
         bubblingMouseEvents: false,
