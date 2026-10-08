@@ -1024,6 +1024,14 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .plan-save input[hidden], .plan-save .btn[hidden] { display: none; }
 .plan-save[hidden] { display: none; }
 .plan-save .btn { min-height: 36px; padding: 0 14px; }
+/* ⓘ neben „Schnell | Ruhig“ und die Erklärung dazu */
+.plan-mode-info-btn { margin-left: 2px; }
+.plan-mode-info { margin: 0; padding: 8px 10px; font-size: 12.5px; }
+.plan-mode-info table { width: 100%; border-collapse: collapse; }
+.plan-mode-info th, .plan-mode-info td { padding: 3px 6px 3px 0; text-align: left; vertical-align: top; }
+.plan-mode-info thead th { font-weight: 800; color: var(--green); }
+.plan-mode-info tbody th { font-weight: 600; color: var(--text-soft); white-space: nowrap; }
+.plan-mode-info p { margin: 6px 0 0; color: var(--text-soft); }
 .plan-save .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .plan-save input { flex: 1; min-width: 0; min-height: 36px; padding-top: 4px; padding-bottom: 4px; }
 /* .btn-small färbt sonst auch den Hauptknopf grau */

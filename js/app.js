@@ -3530,6 +3530,7 @@ function endPlan() {
   plan.selected = null;
   plan.source = null;
   $('#plan-panel').hidden = true;
+  setPlanModeInfo(false);
   renderPlanProfile(null);
   $('#map').classList.remove('is-picking');
   document.body.classList.remove('is-planning');
@@ -3818,6 +3819,12 @@ $('#plan-loop').addEventListener('click', () => {
   if (plan.waypoints.length) addPlanPoint(plan.waypoints[0]);
 });
 $('#plan-cancel').addEventListener('click', cancelPlan);
+// ⓘ neben „Schnell | Ruhig“: Erklärung ein- und ausblenden
+function setPlanModeInfo(open) {
+  $('#plan-mode-info-btn').setAttribute('aria-expanded', String(open));
+  $('#plan-mode-info').hidden = !open;
+}
+$('#plan-mode-info-btn').addEventListener('click', () => setPlanModeInfo($('#plan-mode-info').hidden));
 // Eigene ID: „.plan-mode“ trägt auch die Verkehrsmittel-Wahl der Routen-Vorschau (steht im HTML davor)
 $('#plan-route-mode').addEventListener('click', (e) => {
   const mode = e.target.closest('[data-mode]')?.dataset.mode;
