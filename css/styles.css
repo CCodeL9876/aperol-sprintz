@@ -1633,9 +1633,9 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   /* Zuklapp-Pfeil neben „Espresso-Etappen“ und „Etappe planen“ in einer Zeile */
   .list-title { font-size: 19px; }
   .list-toggle { gap: 6px; }
-  /* Etappe auf der Karte eingeschaltet oder aufgeklappt: mehr Platz für die Strecke – Unterkunft und Ausgaben
-     weg, die Kartensuche bleibt */
-  .is-route-open .panel-row > .panel { display: none; }
+  /* Etappe auf der Karte eingeschaltet oder aufgeklappt: mehr Platz für die Strecke – Unterkunft, Ausgaben
+     und die Lupe der Kartensuche weg */
+  .is-route-open .panel-row { display: none; }
   /* „Etappe planen“ über dem Standort-Knopf; beim Planen weg (dort gibt es das Planer-Feld) */
   .map-plan-btn {
     position: absolute; z-index: 900; right: 10px; bottom: calc(var(--sheet-h) + 118px);
