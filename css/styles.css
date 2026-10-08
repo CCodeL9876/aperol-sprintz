@@ -721,6 +721,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .place-wiki:not(:has(.place-wiki-img)) > * { grid-column: 1 / -1; }
 .place-wiki-link { font-size: 12.5px; font-weight: 600; color: var(--green); }
 .place-wiki-src { font-size: 11px; color: var(--muted); }
+.place-wiki-note { margin: 0; font-size: 12px; color: var(--muted); }
 .popup-wiki { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.4; color: var(--text-soft); max-width: 260px; }
 .popup-wiki a { color: var(--green); font-weight: 600; }
 .popup-wiki img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; flex: none; }
@@ -733,6 +734,19 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   font-size: 22px; line-height: 1.1; letter-spacing: 0.02em;
   color: var(--green); text-transform: uppercase;
 }
+/* Abschnitte „Unsere Orte“ und „Espresso-Etappen“ zuklappbar: Pfeil zugeklappt nach rechts, offen nach unten */
+.list-toggle {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0; margin: 0;
+  background: none; border: 0; cursor: pointer; text-align: left;
+  font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit;
+}
+.list-chevron {
+  flex: none; box-sizing: border-box; width: 26px; height: 26px; padding: 3px; color: var(--green);
+  border: 2px solid var(--edge); border-radius: 50%; background: var(--card); transition: transform 0.2s;
+}
+.list-toggle[aria-expanded="false"] .list-chevron { transform: rotate(-90deg); }
+.list-section.is-collapsed > :not(.list-head) { display: none !important; }
+.list-section.is-collapsed .sort { display: none; }
 .route-empty { margin: 10px 0 0; }
 .route-row { display: flex; align-items: center; }
 .route-item .place-main { flex: 1; min-width: 0; }
@@ -1616,8 +1630,12 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   }
   .panel-row > details[open] { grid-column: 1 / -1; }
   .panel-row > .map-search { grid-column: 1 / -1; }
-  /* Etappe aufgeklappt: mehr Platz für die Strecke – Unterkunft und Ausgaben weg, die Kartensuche bleibt */
-  .is-route-open .panel-row > .panel { display: none; }
+  /* Zuklapp-Pfeil neben „Espresso-Etappen“ und „Etappe planen“ in einer Zeile */
+  .list-title { font-size: 19px; }
+  .list-toggle { gap: 6px; }
+  /* Etappe auf der Karte eingeschaltet oder aufgeklappt: mehr Platz für die Strecke – Unterkunft, Ausgaben
+     und die Lupe der Kartensuche weg */
+  .is-route-open .panel-row { display: none; }
   /* „Etappe planen“ über dem Standort-Knopf; beim Planen weg (dort gibt es das Planer-Feld) */
   .map-plan-btn {
     position: absolute; z-index: 900; right: 10px; bottom: calc(var(--sheet-h) + 118px);
