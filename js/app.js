@@ -572,6 +572,33 @@ function mapInsets() {
   $('#search').addEventListener('focus', () => { if (isMobile()) setSheet('full'); });
 })();
 
+// --- Abschnitte zuklappen ---------------------------------------------------------
+// „Unsere Orte“ und „Espresso-Etappen“ lassen sich über die Überschrift zuklappen; jedes Gerät merkt sich das.
+// Wird etwas aus einem zugeklappten Abschnitt gebraucht (Marker angetippt, Suche …), klappt er von selbst auf.
+const SECTIONS = { places: '#places-section', routes: '#routes-section' };
+const collapsedSections = () => {
+  const v = readPref('collapsedSections');
+  return v && typeof v === 'object' ? v : {};
+};
+function setSectionCollapsed(key, collapsed, { remember = true } = {}) {
+  const sec = $(SECTIONS[key]);
+  if (!sec) return; // altes index.html im Cache
+  sec.classList.toggle('is-collapsed', collapsed);
+  $(`.list-toggle[data-section="${key}"]`)?.setAttribute('aria-expanded', String(!collapsed));
+  if (remember) writePref('collapsedSections', { ...collapsedSections(), [key]: collapsed });
+}
+const expandSection = (key) => {
+  if ($(SECTIONS[key])?.classList.contains('is-collapsed')) setSectionCollapsed(key, false);
+};
+for (const [key, collapsed] of Object.entries(collapsedSections())) {
+  if (SECTIONS[key]) setSectionCollapsed(key, Boolean(collapsed), { remember: false });
+}
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.list-toggle');
+  if (btn) setSectionCollapsed(btn.dataset.section, btn.getAttribute('aria-expanded') === 'true');
+});
+$('#search').addEventListener('input', () => expandSection('places'));
+
 // --- Ableitungen -------------------------------------------------------------------
 
 // Entfernung zum Airbnb: Strecke mit dem Auto (siehe road-distance.js); solange die fehlt oder ohne
@@ -1118,6 +1145,7 @@ document.addEventListener('click', (e) => {
   const id = more.dataset.popupRoute;
   if (!state.routes.some((r) => r.id === id)) return;
   mapView.map.closePopup?.();
+  expandSection('routes');
   expandedRouteId = id;
   editingRouteLink = null;
   renderRoutes();
@@ -1174,8 +1202,9 @@ function renderRoutes() {
     if (startInput && document.activeElement !== startInput) startInput.value = rideStart();
   }
   if (expandedRouteId && !state.routes.some((r) => r.id === expandedRouteId)) expandedRouteId = null;
-  // Handy: bei aufgeklappter Etappe die Boxen „Unterkunft“ und „Ausgaben“ über der Karte ausblenden (styles.css)
-  document.body.classList.toggle('is-route-open', Boolean(expandedRouteId));
+  // Handy: sobald eine Etappe auf der Karte eingeschaltet (oder aufgeklappt) ist, die Boxen „Unterkunft“ und
+  // „Ausgaben“ über der Karte ausblenden (styles.css)
+  document.body.classList.toggle('is-route-open', Boolean(expandedRouteId) || state.ui.visibleRoutes.length > 0);
   // Offenes Link-Feld übersteht das Neuzeichnen (z. B. Abgleich alle 20 s) samt Eingabe und Fokus
   const draftInput = $('.route-link-form input', list);
   const draft = draftInput ? { value: draftInput.value, focused: document.activeElement === draftInput } : null;
@@ -1600,6 +1629,7 @@ function selectPlace(id, { fly = true, scrollList = false } = {}) {
   }
   if (activeId && fly) mapView.focusPlace(activeId);
   if (activeId && scrollList) {
+    expandSection('places');
     const li = $(`#place-list .place[data-id="${CSS.escape(activeId)}"]`);
     // Marker eines Orts angetippt, der in der zugeklappten Liste versteckt ist → Liste aufklappen
     if (li?.classList.contains('is-extra') && !placesExpanded) {
