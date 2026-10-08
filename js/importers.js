@@ -256,15 +256,28 @@ export function summarizeTrack(name, full) {
 const escapeXml = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
 
-// Schreibt eine GPX-1.1-Datei mit einem Track. points: [lat, lon] oder [lat, lon, ele].
+// Schreibt eine GPX-1.1-Datei mit einem Track (Strecke) – so, wie Garmin Connect, Komoot und Strava sie für
+// „Strecke importieren“ erwarten: vollständiger Kopf mit Schema-Angabe, Datum in den Metadaten, Typ „cycling“.
+// points: [lat, lon] oder [lat, lon, ele]. Hat die Strecke Höhen, bekommt jeder Punkt eine (Lücken, z. B. am Ende
+// einer BRouter-Strecke, vom Nachbarpunkt). Bewusst ohne Zeitstempel: sonst könnte Garmin die Datei als gefahrene
+// Aktivität übernehmen und die Statistik verfälschen.
 export function buildGpx(name, points) {
-  const pts = points.map(([lat, lon, ele]) =>
-    `      <trkpt lat="${lat}" lon="${lon}">${Number.isFinite(ele) ? `<ele>${ele}</ele>` : ''}</trkpt>`).join('\n');
+  const eles = points.map((p) => (Number.isFinite(p[2]) ? p[2] : null));
+  if (eles.some((e) => e !== null)) {
+    for (let i = 1; i < eles.length; i++) if (eles[i] === null) eles[i] = eles[i - 1];
+    for (let i = eles.length - 2; i >= 0; i--) if (eles[i] === null) eles[i] = eles[i + 1];
+  }
+  const pts = points.map(([lat, lon], i) =>
+    `      <trkpt lat="${lat}" lon="${lon}">${eles[i] !== null ? `<ele>${eles[i]}</ele>` : ''}</trkpt>`).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="Aperol Sprintz" xmlns="http://www.topografix.com/GPX/1/1">
-  <metadata><name>${escapeXml(name)}</name></metadata>
+<gpx version="1.1" creator="Aperol Sprintz" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${escapeXml(name)}</name>
+    <time>${new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')}</time>
+  </metadata>
   <trk>
     <name>${escapeXml(name)}</name>
+    <type>cycling</type>
     <trkseg>
 ${pts}
     </trkseg>

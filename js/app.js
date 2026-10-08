@@ -1345,7 +1345,12 @@ async function routeGpxText(route) {
   }
   if (gpx) {
     gpxCache.set(route.id, gpx);
-    return { gpx, reduced: false };
+    // Gespeicherte Dateien älterer Etappen im aktuellen, Garmin-tauglichen Format neu schreiben (mit aktuellem Namen)
+    try {
+      return { gpx: buildGpx(route.name, parseGpx(gpx).track), reduced: false };
+    } catch {
+      return { gpx, reduced: false };
+    }
   }
   return { gpx: buildGpx(route.name, route.points), reduced: true };
 }
@@ -1378,7 +1383,13 @@ const canShareFiles = (() => {
 async function shareRouteGpx(route) {
   // Teilen klappt nur direkt nach dem Tipp – die Datei liegt meist schon bereit (beim Aufklappen fürs Höhenprofil geladen)
   const cached = gpxCache.get(route.id);
-  const { gpx, reduced } = cached ? { gpx: cached, reduced: false } : await routeGpxText(route);
+  let gpx;
+  let reduced = false;
+  if (cached) {
+    try { gpx = buildGpx(route.name, parseGpx(cached).track); } catch { gpx = cached; }
+  } else {
+    ({ gpx, reduced } = await routeGpxText(route));
+  }
   const file = new File([gpx], gpxFileName(route), { type: 'application/gpx+xml' });
   try {
     await navigator.share({ files: [file], title: route.name });

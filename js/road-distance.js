@@ -17,6 +17,10 @@ const keyOf = (lat, lng) => `${lat.toFixed(5)},${lng.toFixed(5)}`;
 let cache = readPref(PREF);
 if (!cache || typeof cache !== 'object' || typeof cache.d !== 'object') cache = { origin: '', d: {} };
 
+// In dieser Sitzung schon angefragt (je Unterkunft + Ziel): Liefert Google für ein Ziel einen Fehler, wird es
+// nicht bei jedem Neuzeichnen erneut abgefragt – sonst entstünde eine Schleife aus Abfragen und Neuzeichnen.
+const tried = new Set();
+
 function cacheFor(airbnb) {
   const origin = keyOf(airbnb.lat, airbnb.lng);
   if (cache.origin !== origin) cache = { origin, d: {} };
@@ -39,8 +43,10 @@ export async function loadRoadDistances(apiKey, airbnb, places) {
   const known = cacheFor(airbnb);
   const missing = [...new Map(places.filter(hasCoords)
     .map((p) => [keyOf(p.lat, p.lng), [p.lat, p.lng]])).entries()]
-    .filter(([k]) => !(k in known));
+    .filter(([k]) => !(k in known) && !tried.has(`${cache.origin}|${k}`));
   if (!missing.length) return false;
+  for (const [k] of missing) tried.add(`${cache.origin}|${k}`);
+  let added = false;
   for (let i = 0; i < missing.length; i += CHUNK) {
     const part = missing.slice(i, i + CHUNK);
     const res = await fetch(ENDPOINT, {
@@ -67,10 +73,11 @@ export async function loadRoadDistances(apiKey, airbnb, places) {
     }
     for (const el of Array.isArray(data) ? data : []) {
       const k = part[el.destinationIndex ?? 0]?.[0]; // Index 0 lässt Google im JSON weg
-      if (!k || el.status?.code) continue; // Fehler bei einem Ziel: beim nächsten Mal erneut versuchen
+      if (!k || el.status?.code) continue; // Fehler bei einem Ziel: erst beim nächsten Laden der Seite erneut
       known[k] = el.condition === 'ROUTE_EXISTS' && Number.isFinite(el.distanceMeters) ? el.distanceMeters : null;
+      added = true;
     }
   }
-  writePref(PREF, cache);
-  return true;
+  if (added) writePref(PREF, cache);
+  return added;
 }
