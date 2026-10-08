@@ -1003,6 +1003,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   border-radius: var(--radius); box-shadow: var(--shadow-lg);
 }
 .plan-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.plan-stats .nowrap { white-space: nowrap; }
 .plan-stats { font-size: 14px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 .plan-stats.is-hint { font-weight: 600; color: var(--text-soft); }
 .plan-tools { display: inline-flex; gap: 4px; flex: none; }
@@ -1562,11 +1563,11 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   z-index: 3000;
   padding: 11px 20px;
   background: var(--green); color: #FFFFFF;
-  border-radius: 999px; box-shadow: var(--shadow-lg);
+  border-radius: 22px; box-shadow: var(--shadow-lg); /* 22px: einzeilig wie eine Pille, mehrzeilig ohne abgeschnittene Ecken */
   font-size: 14px; font-weight: 600;
   opacity: 0; pointer-events: none;
   transition: opacity 0.25s, transform 0.25s;
-  max-width: calc(100vw - 32px);
+  width: max-content; max-width: calc(100vw - 32px); /* sonst nur halb so breit (left: 50%) und unnötig hoch */
 }
 .toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
 
@@ -1722,6 +1723,10 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   .panel-row:has(> .map-search.is-collapsed:not([hidden])):not(:has(> details[open])) > .map-search { grid-column: 1; grid-row: 1; }
   .panel-row:has(> .map-search.is-collapsed:not([hidden])):not(:has(> details[open])) > #airbnb-panel { grid-column: 2; grid-row: 1; }
   .panel-row:has(> .map-search.is-collapsed:not([hidden])):not(:has(> details[open])) > #cash-panel { grid-column: 3; grid-row: 1; }
+  /* Planer: Name der Etappe in eigener Zeile über die ganze Breite (sonst nur „Testru…“ lesbar) */
+  .plan-save { flex-wrap: wrap; }
+  .plan-save input { order: 3; flex: 1 1 100%; }
+  .plan-save .btn { margin-left: auto; }
   /* Zuklapp-Pfeil neben „Espresso-Etappen“ und „Etappe planen“ in einer Zeile */
   .list-title { font-size: 19px; }
   .list-toggle { gap: 6px; }

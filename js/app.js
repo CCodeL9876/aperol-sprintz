@@ -535,6 +535,9 @@ function mapInsets() {
   if (!m.height) return {};
   const row = $('.panel-row').getBoundingClientRect();
   let top = row.height ? Math.max(0, row.bottom - m.top) : 0;
+  // Beim Planen bzw. bei der Routen-Vorschau liegt oben das Feld dafür (Boxen-Reihe ist dann ausgeblendet)
+  const overlay = plan.on ? $('#plan-panel') : dir.on ? $('#dir-panel') : null;
+  if (overlay && !overlay.hidden) top = Math.max(0, overlay.getBoundingClientRect().bottom - m.top);
   if (isMobile()) {
     const state = sheetState();
     const bottom = state === 'hidden' ? SHEET_HIDDEN_PX : state === 'half' ? m.height * 0.5 : m.height;
@@ -3720,9 +3723,9 @@ async function editRoute(route) {
     return { points: part.map(([lat, lng]) => [lat, lng]), track: part, pending: false, error: false, orig: true };
   });
   $('#plan-name').value = `${route.name} (geändert)`.slice(0, 120);
-  mapView.fitToRoute(route);
   renderPlan();
-  toast('Punkte ziehen · auf die Linie tippen = Zwischenpunkt · Punkt antippen, dann Papierkorb = entfernen. Gespeichert wird eine Kopie.');
+  requestAnimationFrame(() => mapView.fitToRoute(route)); // erst wenn das Planer-Feld seine Höhe hat
+  toast('Punkte ziehen, auf die Linie tippen für einen Zwischenpunkt, Punkt antippen + Papierkorb zum Entfernen. Gespeichert wird eine Kopie.');
 }
 
 const samePoint = (a, b) => a && b && Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
@@ -3749,14 +3752,16 @@ function renderPlan() {
   if (track) {
     const sum = summarizeTrack('', track);
     const hours = rideHours(sum);
-    text = [formatKm(sum.distanceKm), formatHm(sum.elevationGainM), hours ? formatDuration(hours) : ''].filter(Boolean).join(' · ');
+    // Teile nicht mitten drin umbrechen („ca. 1 / h 35“), nur zwischen den Teilen
+    text = [formatKm(sum.distanceKm), formatHm(sum.elevationGainM), hours ? formatDuration(hours) : ''].filter(Boolean)
+      .map((t) => `<span class="nowrap">${escapeHtml(t)}</span>`).join(' · ');
     renderPlanProfile(elevationProfile(track), findClimbs(track));
   } else if (plan.segments.length) {
     text = failed ? 'Abschnitt fehlt – Rückgängig' : 'Berechne …';
   }
   // Ohne Strecke steht hier der Hinweis (gedämpft) – spart eine eigene Zeile
   stats.classList.toggle('is-hint', !text);
-  stats.textContent = text || (plan.waypoints.length ? 'Punkte auf die Karte tippen' : 'Start auf die Karte tippen');
+  stats.innerHTML = text || (plan.waypoints.length ? 'Punkte auf die Karte tippen' : 'Start auf die Karte tippen');
   $('#plan-undo').disabled = !plan.history.length;
   $('#plan-remove').hidden = plan.selected == null || plan.waypoints.length <= 2;
   $('#plan-reverse').disabled = !plan.segments.length || pending;
