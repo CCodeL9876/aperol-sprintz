@@ -1665,10 +1665,11 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   }
   .panel-row > details[open] { grid-column: 1 / -1; }
   .panel-row > .map-search { grid-column: 1 / -1; }
-  /* Zugeklappte Lupe der Kartensuche zwischen „Unser Airbnb“ und „Ausgaben“ (eine Zeile statt zwei). Aufgeklappte
+  /* Zugeklappte Lupe der Kartensuche links neben „Unser Airbnb“ und „Ausgaben“ (eine Zeile statt zwei). Aufgeklappte
      Suche bzw. offene Unterkunft-Box: wie oben über die ganze Breite. */
-  .panel-row:has(> .map-search.is-collapsed:not([hidden])):not(:has(> details[open])) { grid-template-columns: 1fr auto 1fr; }
-  .panel-row:has(> .map-search.is-collapsed:not([hidden])):not(:has(> details[open])) > .map-search { grid-column: 2; grid-row: 1; }
+  .panel-row:has(> .map-search.is-collapsed:not([hidden])):not(:has(> details[open])) { grid-template-columns: auto 1fr 1fr; }
+  .panel-row:has(> .map-search.is-collapsed:not([hidden])):not(:has(> details[open])) > .map-search { grid-column: 1; grid-row: 1; }
+  .panel-row:has(> .map-search.is-collapsed:not([hidden])):not(:has(> details[open])) > #airbnb-panel { grid-column: 2; grid-row: 1; }
   .panel-row:has(> .map-search.is-collapsed:not([hidden])):not(:has(> details[open])) > #cash-panel { grid-column: 3; grid-row: 1; }
   /* Zuklapp-Pfeil neben „Espresso-Etappen“ und „Etappe planen“ in einer Zeile */
   .list-title { font-size: 19px; }
@@ -1862,7 +1863,7 @@ button.popup-link { padding: 5px 0; border: 0; background: none; cursor: pointer
 .offline-badge { background: var(--ink, #25321F); color: #FFFFFF; }
 .offline-badge:hover { background: var(--ink, #25321F); color: #FFFFFF; opacity: 0.85; }
 
-/* Sehr schmale Handys: mit der Lupe in der Mitte wird es eng – die kleinen Pfeile in den Boxen weglassen */
+/* Sehr schmale Handys: mit der Lupe in der Zeile wird es eng – die kleinen Pfeile in den Boxen weglassen */
 @media (max-width: 379px) {
   .panel-row:has(> .map-search.is-collapsed:not([hidden])):not(:has(> details[open])) .panel-chevron { display: none; }
 }
