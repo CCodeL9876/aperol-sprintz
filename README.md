@@ -43,7 +43,11 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
   eingeblendete Etappe –, BRouter verbindet sie fürs Rennrad. Start ist das Airbnb; Kilometer, Höhenmeter und
   Fahrzeit laufend, „Rückgängig“, „Zurück zum Airbnb“. Streckenwahl **Schnell | Ruhig** (BRouter-Profile `fastbike` bzw.
   `fastbike-verylowtraffic`, siehe `ROUTE_MODES` in `js/home-loop.js`; gilt auch für Anfahrt/Rückfahrt beim GPX-Import). Gespeichert wird wie eine importierte GPX-Etappe
-  (Kaffee-Stopps, Trinkwasser, GPX-Download).
+  (Kaffee-Stopps, Trinkwasser, GPX-Download). Wegpunkte lassen sich **ziehen**, auf der Linie **einfügen**, antippen und
+  **entfernen**; dazu **Richtung umdrehen** und mehrstufiges „Rückgängig“.
+  **Etappe bearbeiten** (Stift-Knopf in den Etappen-Details): auch importierte GPX-Etappen – die Strecke bekommt
+  Wegpunkte alle 5 km; nur die Abschnitte neben einem geänderten Punkt werden mit BRouter neu berechnet, der Rest
+  bleibt wie in der Datei. Gespeichert wird eine **Kopie** („… (geändert)“), das Original bleibt.
   **Höhenprofil** (`js/profile.js`) beim Planen (abschaltbar über den Kurven-Knopf) und in den aufgeklappten
   Etappen-Details – aus den Höhen der gespeicherten GPX-Datei; Fadenkreuz mit Kilometer und Höhe, die Stelle
   erscheint als Punkt auf der Karte. Ältere Etappen ohne Höhen in der Datei zeigen einen Hinweis.

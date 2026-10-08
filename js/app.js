@@ -48,7 +48,7 @@ const demoForced = /(?:^#|&)demo\b/i.test(location.hash);
 let activeId = null;
 let pickMode = false;
 // Etappe planen: Wegpunkte [lat, lng] und die Abschnitte dazwischen (siehe „Etappe planen“ weiter unten)
-const plan = { on: false, waypoints: [], segments: [] };
+const plan = { on: false, waypoints: [], segments: [], history: [], selected: null, source: null, noEle: false };
 // Route zu einem Ort (Vorschau in der App, siehe „Route zu einem Ort“ weiter unten)
 const dir = { on: false, to: null, name: '', home: false, destination: '', mode: 'drive', from: 'me', fromPos: null, seq: 0, cache: new Map() };
 let airbnbFormAuto = false; // Unterkunft-Formular nur geöffnet, weil noch keine Unterkunft eingetragen war
@@ -1224,6 +1224,7 @@ function renderRoutes() {
           ${editing ? linkForm(r, editing) : `<span class="route-links">${tour}${ridden ? `<span class="route-meta-sep">·</span>${ridden}` : ''}</span>`}</div>
         <div class="route-detail-actions">
           <button type="button" class="btn btn-small" data-action="show-route">${icon('route', { size: 14, stroke: 2 })}Auf der Karte zeigen</button>
+          <button type="button" class="route-action" data-action="edit-route" aria-label="Etappe „${escapeHtml(r.name)}“ bearbeiten" title="Bearbeiten (als Kopie)">${icon('pencil', { size: 15, stroke: 1.9 })}</button>
           <button type="button" class="route-action" data-action="download-route" aria-label="Etappe „${escapeHtml(r.name)}“ als GPX herunterladen" title="Als GPX herunterladen">${icon('download', { size: 15, stroke: 1.9 })}</button>
           <button type="button" class="route-action is-danger" data-action="delete-route" aria-label="Etappe „${escapeHtml(r.name)}“ entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
         </div>
@@ -2509,6 +2510,7 @@ $('#route-list')?.addEventListener('click', async (e) => {
     renderRoutes();
   }
   if (action === 'download-route') await downloadRouteGpx(route);
+  if (action === 'edit-route') await editRoute(route);
   if (action === 'delete-route') {
     if (!confirm(`Etappe „${route.name}“ entfernen?`)) return;
     state.routes = state.routes.filter((r) => r.id !== id);
@@ -3442,7 +3444,13 @@ $('#dir-panel').addEventListener('click', (e) => {
 // (BRouter, siehe home-loop.js) verbindet je zwei Punkte. Start ist das Airbnb, falls gesetzt.
 // Gespeichert wird wie eine importierte GPX-Etappe – Kaffee-Stopps, Trinkwasser und GPX-Download inklusive.
 // plan.segments[i] ist der Weg von waypoints[i] zu waypoints[i + 1]:
-// { points: [[lat, lng]], track: [[lat, lng, ele]] | null, pending, error }
+// { points: [[lat, lng]], track: [[lat, lng, ele]] | null, pending, error, orig }
+// orig: Abschnitt unverändert aus einer gespeicherten Etappe (wird beim Wechsel Schnell/Ruhig nicht neu berechnet).
+// Wegpunkte lassen sich ziehen (nur die beiden Abschnitte daneben werden neu berechnet), antippen (dann
+// „Entfernen“) und auf der Linie einfügen. plan.history: frühere Stände für „Rückgängig“.
+// Bearbeiten einer Etappe (editRoute): Wegpunkte alle EDIT_STEP_KM, gespeichert wird eine Kopie (plan.source).
+
+const EDIT_STEP_KM = 5;
 
 function startPlan() {
   if (pickMode) setPickMode(false);
@@ -3450,6 +3458,10 @@ function startPlan() {
   plan.on = true;
   plan.waypoints = state.airbnb ? [[state.airbnb.lat, state.airbnb.lng]] : [];
   plan.segments = [];
+  plan.history = [];
+  plan.selected = null;
+  plan.source = null;
+  plan.noEle = false;
   $('#plan-name').value = '';
   $('#plan-panel').hidden = false;
   $('#map').classList.add('is-picking');
@@ -3469,6 +3481,9 @@ function endPlan() {
   plan.on = false;
   plan.waypoints = [];
   plan.segments = [];
+  plan.history = [];
+  plan.selected = null;
+  plan.source = null;
   $('#plan-panel').hidden = true;
   renderPlanProfile(null);
   $('#map').classList.remove('is-picking');
@@ -3479,7 +3494,8 @@ function endPlan() {
 }
 
 function cancelPlan() {
-  if (plan.segments.length && !confirm('Planung verwerfen? Die gesetzten Wegpunkte gehen verloren.')) return;
+  const changed = plan.source ? plan.history.length > 0 : plan.segments.length > 0;
+  if (changed && !confirm(plan.source ? 'Bearbeitung verwerfen? Die Änderungen gehen verloren.' : 'Planung verwerfen? Die gesetzten Wegpunkte gehen verloren.')) return;
   endPlan();
 }
 
@@ -3488,7 +3504,7 @@ const routeMode = () => (readPref('routeMode') === 'quiet' ? 'quiet' : 'fast');
 
 // Abschnitt von „from“ nach „to“ berechnen lassen; bis dahin gestrichelte Luftlinie
 function planSegment(from, to) {
-  const seg = { points: [from, to], track: null, pending: true, error: false };
+  const seg = { points: [from, to], track: null, pending: true, error: false, orig: false };
   bikeRoute(from, to, routeMode())
     .then((track) => {
       seg.track = track;
@@ -3508,27 +3524,153 @@ function planSegment(from, to) {
   return seg;
 }
 
+// Stand vor einer Änderung merken (für „Rückgängig“)
+function planSnapshot() {
+  plan.history.push({ waypoints: plan.waypoints.slice(), segments: plan.segments.slice(), selected: plan.selected });
+  if (plan.history.length > 100) plan.history.shift();
+}
+
 function addPlanPoint(to) {
+  planSnapshot();
   const from = plan.waypoints.at(-1);
   plan.waypoints.push(to);
   if (from) plan.segments.push(planSegment(from, to));
+  plan.selected = null;
   renderPlan();
 }
 
-// Streckenwahl gewechselt: alle Abschnitte mit dem neuen Profil neu berechnen
+// Wegpunkt i verschoben: nur die Abschnitte davor und danach neu berechnen
+function movePlanPoint(i, to) {
+  if (samePoint(plan.waypoints[i], to)) return renderPlan();
+  planSnapshot();
+  plan.waypoints[i] = to;
+  if (i > 0) plan.segments[i - 1] = planSegment(plan.waypoints[i - 1], to);
+  if (i < plan.waypoints.length - 1) plan.segments[i] = planSegment(to, plan.waypoints[i + 1]);
+  plan.selected = i;
+  renderPlan();
+}
+
+// Wegpunkt antippen: auswählen (dann „Entfernen“ möglich), nochmals antippen hebt die Auswahl auf
+function pickPlanPoint(i) {
+  plan.selected = plan.selected === i ? null : i;
+  renderPlan();
+}
+
+// Tipp auf die Linie: Zwischenpunkt an der nächsten Stelle des Abschnitts. Der Abschnitt wird dort nur geteilt,
+// nicht neu berechnet – die Strecke bleibt gleich, bis der neue Punkt verschoben wird.
+function insertPlanPoint(si, at) {
+  const seg = plan.segments[si];
+  if (!seg?.track || seg.track.length < 3) return;
+  let best = 1;
+  let bestD = Infinity;
+  for (let k = 1; k < seg.track.length - 1; k++) {
+    const d = haversineKm(at[0], at[1], seg.track[k][0], seg.track[k][1]);
+    if (d < bestD) { bestD = d; best = k; }
+  }
+  planSnapshot();
+  const part = (track) => ({ points: track.map(([lat, lng]) => [lat, lng]), track, pending: false, error: false, orig: seg.orig });
+  const p = seg.track[best];
+  plan.segments.splice(si, 1, part(seg.track.slice(0, best + 1)), part(seg.track.slice(best)));
+  plan.waypoints.splice(si + 1, 0, [p[0], p[1]]);
+  plan.selected = si + 1;
+  renderPlan();
+}
+
+// Gewählten Wegpunkt entfernen: die Nachbarn werden direkt verbunden (Start/Ziel: Abschnitt fällt weg)
+function removePlanPoint() {
+  const i = plan.selected;
+  const n = plan.waypoints.length;
+  if (i == null || n <= 2) return;
+  planSnapshot();
+  if (i === 0) {
+    plan.waypoints.shift();
+    plan.segments.shift();
+  } else if (i === n - 1) {
+    plan.waypoints.pop();
+    plan.segments.pop();
+  } else {
+    plan.segments.splice(i - 1, 2, planSegment(plan.waypoints[i - 1], plan.waypoints[i + 1]));
+    plan.waypoints.splice(i, 1);
+  }
+  plan.selected = null;
+  renderPlan();
+}
+
+// Richtung umdrehen (z. B. wegen des Windes) – Abschnitte bleiben, nur rückwärts
+function reversePlan() {
+  if (plan.segments.length === 0 || plan.segments.some((s) => s.pending)) return;
+  planSnapshot();
+  plan.waypoints = plan.waypoints.slice().reverse();
+  plan.segments = plan.segments.slice().reverse().map((s) => ({
+    ...s,
+    points: s.points.slice().reverse(),
+    track: s.track ? s.track.slice().reverse() : null,
+  }));
+  plan.selected = null;
+  renderPlan();
+}
+
+// Streckenwahl gewechselt: selbst berechnete Abschnitte mit dem neuen Profil neu berechnen
+// (unveränderte Abschnitte einer bearbeiteten Etappe bleiben wie sie sind)
 function setRouteMode(mode) {
   if (mode === routeMode()) return;
   writePref('routeMode', mode);
-  plan.segments = plan.waypoints.slice(1).map((to, i) => planSegment(plan.waypoints[i], to));
+  if (plan.segments.some((s) => !s.orig)) planSnapshot();
+  plan.segments = plan.segments.map((s, i) => (s.orig ? s : planSegment(plan.waypoints[i], plan.waypoints[i + 1])));
   renderPlan();
 }
 
 function undoPlanPoint() {
-  // Das Airbnb als Start bleibt stehen
-  if (plan.waypoints.length <= (state.airbnb ? 1 : 0)) return;
-  plan.waypoints.pop();
-  plan.segments.length = Math.max(0, plan.waypoints.length - 1);
+  const prev = plan.history.pop();
+  if (!prev) return;
+  plan.waypoints = prev.waypoints;
+  plan.segments = prev.segments;
+  plan.selected = prev.selected;
   renderPlan();
+}
+
+// Gespeicherte Etappe bearbeiten: volle Strecke (aus der GPX-Datei, sonst die gespeicherte Linie ohne Höhen)
+// in Abschnitte von EDIT_STEP_KM teilen. Gespeichert wird eine Kopie, das Original bleibt.
+async function editRoute(route) {
+  let track = null;
+  try {
+    let gpx = gpxCache.get(route.id);
+    if (!gpx && backend.routeGpx) gpx = await backend.routeGpx(route.id);
+    if (gpx) {
+      gpxCache.set(route.id, gpx);
+      track = parseGpx(gpx).track;
+    }
+  } catch (err) {
+    console.warn('GPX zum Bearbeiten nicht ladbar:', err.message);
+  }
+  const noEle = !track?.some((p) => Number.isFinite(p[2]));
+  if (!track?.length) track = (route.points || []).map(([lat, lng]) => [lat, lng, null]);
+  if (track.length < 2) return toast('Diese Etappe hat zu wenige Punkte zum Bearbeiten.');
+  startPlan();
+  plan.source = route;
+  plan.noEle = noEle;
+  // Wegpunkte alle EDIT_STEP_KM; ein Rest unter 1 km hängt am letzten Abschnitt
+  const cut = [0];
+  let km = 0;
+  let next = EDIT_STEP_KM;
+  for (let k = 1; k < track.length; k++) {
+    km += haversineKm(track[k - 1][0], track[k - 1][1], track[k][0], track[k][1]);
+    if (km >= next) {
+      cut.push(k);
+      next = km + EDIT_STEP_KM;
+    }
+  }
+  if (km - (next - EDIT_STEP_KM) < 1 && cut.length > 1) cut.pop();
+  if (cut.at(-1) !== track.length - 1) cut.push(track.length - 1);
+  plan.waypoints = cut.map((k) => [track[k][0], track[k][1]]);
+  plan.segments = cut.slice(1).map((k, j) => {
+    const part = track.slice(cut[j], k + 1);
+    return { points: part.map(([lat, lng]) => [lat, lng]), track: part, pending: false, error: false, orig: true };
+  });
+  $('#plan-name').value = `${route.name} (geändert)`.slice(0, 120);
+  mapView.fitToRoute(route);
+  renderPlan();
+  toast('Punkte ziehen · auf die Linie tippen = Zwischenpunkt · Punkt antippen, dann Papierkorb = entfernen. Gespeichert wird eine Kopie.');
 }
 
 const samePoint = (a, b) => a && b && Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
@@ -3536,11 +3678,15 @@ const samePoint = (a, b) => a && b && Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a
 // Ganze Strecke in voller Auflösung, oder null, solange ein Abschnitt fehlt oder noch berechnet wird
 function planTrack() {
   if (!plan.segments.length || plan.segments.some((s) => !s.track)) return null;
-  return plan.segments.flatMap((s, i) => (i ? s.track.slice(1) : s.track));
+  const track = plan.segments.flatMap((s, i) => (i ? s.track.slice(1) : s.track));
+  // Original ohne Höhen: auch neue Abschnitte ohne Höhen, sonst wären die Höhenmeter nur halb gezählt
+  return plan.noEle ? track.map(([lat, lng]) => [lat, lng, null]) : track;
 }
 
+const planEdit = { onMove: movePlanPoint, onPick: pickPlanPoint, onInsert: insertPlanPoint };
+
 function renderPlan() {
-  mapView.setDraft({ waypoints: plan.waypoints, segments: plan.segments });
+  mapView.setDraft({ waypoints: plan.waypoints, segments: plan.segments, selected: plan.selected, edit: planEdit });
   const pending = plan.segments.some((s) => s.pending);
   const failed = plan.segments.some((s) => s.error);
   const track = planTrack();
@@ -3557,7 +3703,9 @@ function renderPlan() {
   // Ohne Strecke steht hier der Hinweis (gedämpft) – spart eine eigene Zeile
   stats.classList.toggle('is-hint', !text);
   stats.textContent = text || (plan.waypoints.length ? 'Punkte auf die Karte tippen' : 'Start auf die Karte tippen');
-  $('#plan-undo').disabled = plan.waypoints.length <= (state.airbnb ? 1 : 0);
+  $('#plan-undo').disabled = !plan.history.length;
+  $('#plan-remove').hidden = plan.selected == null || plan.waypoints.length <= 2;
+  $('#plan-reverse').disabled = !plan.segments.length || pending;
   const loop = $('#plan-loop');
   const loopLabel = state.airbnb ? 'Zurück zum Airbnb' : 'Zurück zum Start';
   loop.title = loopLabel;
@@ -3589,10 +3737,10 @@ async function savePlan() {
   const track = planTrack();
   if (!track) return;
   const name = $('#plan-name').value.trim().slice(0, 300)
-    || `Etappe vom ${new Date().toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric' })}`;
+    || (plan.source ? `${plan.source.name} (geändert)` : `Etappe vom ${new Date().toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric' })}`);
   const btn = $('#plan-save');
   btn.disabled = true;
-  const route = await addRoute(summarizeTrack(name, track), 'Geplant');
+  const route = await addRoute(summarizeTrack(name, track), plan.source ? 'Bearbeitet' : 'Geplant');
   if (!route) {
     renderPlan(); // Speichern fehlgeschlagen (Meldung kam schon) – Planung bleibt offen
     return;
@@ -3617,6 +3765,10 @@ $('#btn-plan').addEventListener('click', () => (plan.on ? cancelPlan() : startPl
 $('#map-plan').innerHTML = icon('route', { size: 20, stroke: 2.2 });
 $('#map-plan').addEventListener('click', () => { if (!plan.on) startPlan(); });
 $('#plan-undo').addEventListener('click', undoPlanPoint);
+$('#plan-remove').innerHTML = icon('trash', { size: 18, stroke: 2 });
+$('#plan-remove').addEventListener('click', removePlanPoint);
+$('#plan-reverse').innerHTML = icon('swap', { size: 18, stroke: 2 });
+$('#plan-reverse').addEventListener('click', reversePlan);
 $('#plan-loop').addEventListener('click', () => {
   if (plan.waypoints.length) addPlanPoint(plan.waypoints[0]);
 });

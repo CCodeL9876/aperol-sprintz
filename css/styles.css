@@ -1037,6 +1037,8 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   background: var(--orange); color: #FFFFFF; font-size: 11px; font-weight: 800; line-height: 1;
 }
 .plan-pin.is-start { background: var(--green); }
+.plan-pin.is-selected { box-shadow: 0 0 0 3px var(--orange), 0 1px 4px rgba(0, 0, 0, 0.35); transform: scale(1.25); }
+.leaflet-marker-draggable .plan-pin, gmp-advanced-marker .plan-pin { cursor: grab; }
 .routes-head-right { display: inline-flex; align-items: center; gap: 10px; }
 /* Route zu einem Ort: gleiches Feld wie der Planer, mit Ziel, Verkehrsmittel und Start */
 .dir-head { display: grid; gap: 2px; min-width: 0; }
