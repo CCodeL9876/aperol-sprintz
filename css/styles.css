@@ -1024,14 +1024,29 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .plan-save input[hidden], .plan-save .btn[hidden] { display: none; }
 .plan-save[hidden] { display: none; }
 .plan-save .btn { min-height: 36px; padding: 0 14px; }
-/* ⓘ neben „Schnell | Ruhig“ und die Erklärung dazu */
+/* ⓘ neben „Schnell | Ruhig“: Erklärung als Sprechblase unter dem Planer wie das Fenster eines Orts,
+   Spitze zeigt auf das ⓘ (--tip-x setzt app.js) */
 .plan-mode-info-btn { margin-left: 2px; }
-.plan-mode-info { margin: 0; padding: 8px 10px; font-size: 12.5px; }
-.plan-mode-info table { width: 100%; border-collapse: collapse; }
-.plan-mode-info th, .plan-mode-info td { padding: 3px 6px 3px 0; text-align: left; vertical-align: top; }
-.plan-mode-info thead th { font-weight: 800; color: var(--green); }
-.plan-mode-info tbody th { font-weight: 600; color: var(--text-soft); white-space: nowrap; }
-.plan-mode-info p { margin: 6px 0 0; color: var(--text-soft); }
+.plan-mode-pop {
+  position: absolute; top: calc(100% + 12px); left: var(--pop-x, 0px); z-index: 2;
+  width: min(300px, 100%); padding: 12px 14px;
+  border-radius: var(--radius); background: var(--card); color: var(--text); box-shadow: var(--shadow-lg);
+  font-size: 12.5px; line-height: 1.4;
+}
+.plan-mode-pop[hidden] { display: none; }
+.plan-mode-pop::before {
+  content: ''; position: absolute; top: -7px; left: calc(var(--tip-x, 24px) - 8px);
+  width: 16px; height: 16px; background: var(--card); transform: rotate(45deg); border-radius: 3px 0 0 0;
+}
+.plan-mode-pop-title {
+  display: block; margin-bottom: 6px;
+  font-family: var(--font-marker); font-weight: 400; font-size: 16px; color: var(--green); text-transform: uppercase;
+}
+.plan-mode-pop table { width: 100%; border-collapse: collapse; }
+.plan-mode-pop th, .plan-mode-pop td { padding: 3px 6px 3px 0; text-align: left; vertical-align: top; }
+.plan-mode-pop thead th { font-weight: 800; color: var(--green); }
+.plan-mode-pop tbody th { font-weight: 600; color: var(--text-soft); white-space: nowrap; }
+.plan-mode-pop p { margin: 8px 0 0; color: var(--text-soft); }
 .plan-save .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .plan-save input { flex: 1; min-width: 0; min-height: 36px; padding-top: 4px; padding-bottom: 4px; }
 /* .btn-small färbt sonst auch den Hauptknopf grau */

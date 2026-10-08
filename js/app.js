@@ -3819,12 +3819,26 @@ $('#plan-loop').addEventListener('click', () => {
   if (plan.waypoints.length) addPlanPoint(plan.waypoints[0]);
 });
 $('#plan-cancel').addEventListener('click', cancelPlan);
-// ⓘ neben „Schnell | Ruhig“: Erklärung ein- und ausblenden
+// ⓘ neben „Schnell | Ruhig“: Erklärung als Sprechblase unter dem Planer, Spitze auf das ⓘ.
+// Schliesst bei nochmaligem Tipp, bei einem Tipp daneben und mit dem Ende der Planung.
 function setPlanModeInfo(open) {
-  $('#plan-mode-info-btn').setAttribute('aria-expanded', String(open));
-  $('#plan-mode-info').hidden = !open;
+  const btn = $('#plan-mode-info-btn');
+  const pop = $('#plan-mode-info');
+  btn.setAttribute('aria-expanded', String(open));
+  pop.hidden = !open;
+  if (!open) return;
+  const panel = $('#plan-panel').getBoundingClientRect();
+  const b = btn.getBoundingClientRect();
+  const center = b.left + b.width / 2 - panel.left;
+  const left = Math.max(0, Math.min(center - pop.offsetWidth / 2, panel.width - pop.offsetWidth));
+  pop.style.setProperty('--pop-x', `${left}px`);
+  pop.style.setProperty('--tip-x', `${center - left}px`);
 }
 $('#plan-mode-info-btn').addEventListener('click', () => setPlanModeInfo($('#plan-mode-info').hidden));
+document.addEventListener('pointerdown', (e) => {
+  if ($('#plan-mode-info').hidden || e.target.closest('#plan-mode-info, #plan-mode-info-btn')) return;
+  setPlanModeInfo(false);
+});
 // Eigene ID: „.plan-mode“ trägt auch die Verkehrsmittel-Wahl der Routen-Vorschau (steht im HTML davor)
 $('#plan-route-mode').addEventListener('click', (e) => {
   const mode = e.target.closest('[data-mode]')?.dataset.mode;
