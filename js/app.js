@@ -3880,7 +3880,7 @@ function renderPlanProfile(profile) {
   box.hidden = !profile || !showPlanProfile();
   mapView.setCursor(null);
   if (box.hidden) { box.innerHTML = ''; return; }
-  box.innerHTML = profileHtml(profile, { height: isMobile() ? 44 : 56 }); // Handy: flacher, mehr Karte
+  box.innerHTML = profileHtml(profile, { height: isMobile() ? 44 : 110 }); // Handy: flacher, mehr Karte; Laptop: mit Höhenlinien
   bindProfile(box.firstElementChild, profile, profileHover);
 }
 

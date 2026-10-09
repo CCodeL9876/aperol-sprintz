@@ -1188,6 +1188,21 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .elev-map-dot { width: 14px; height: 14px; border-radius: 999px; background: var(--orange); border: 2px solid #FFFFFF; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); }
 .plan-profile { margin: -4px 4px 0 0; }
 .plan-profile[hidden] { display: none; }
+/* Laptop: Planer grösser – breiter, höheres Profil, grössere Knöpfe und Schrift (Handy bleibt kompakt) */
+@media (min-width: 900px) {
+  .plan-panel { width: min(640px, calc(100% - 48px)); gap: 12px; padding: 12px 12px 14px 20px; top: 20px; }
+  .plan-stats { font-size: 18px; }
+  .plan-tools { gap: 6px; }
+  .plan-tool { width: 42px; height: 42px; }
+  .plan-tool .icon { width: 20px; height: 20px; }
+  .plan-options { gap: 8px; }
+  .plan-mode button { min-height: 34px; padding: 0 14px; font-size: 14px; }
+  .plan-extra, .plan-options .climb { min-height: 36px; padding: 0 13px; font-size: 13.5px; }
+  .plan-options .intro-info { width: 28px; height: 28px; font-size: 15px; }
+  .plan-save .btn, .plan-save input { min-height: 42px; }
+  .plan-save input { font-size: 15px; }
+  .plan-profile { margin-top: 0; }
+}
 .plan-tool[aria-pressed="true"] { background: var(--green); color: #FFFFFF; }
 .route-detail.route-detail-elev { grid-template-columns: 1fr; gap: 0; }
 
