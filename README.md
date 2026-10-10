@@ -104,6 +104,7 @@ mallorca-places/
 │   ├── geo.js               Distanz, Koordinaten aus Maps-Links, Geocoding
 │   ├── map.js               Leaflet-Karte, Marker, Airbnb-Marker, Routen-Linien
 │   ├── map-google.js        Test-Variante mit Google Maps (Google-Orte antippen & übernehmen), siehe ANLEITUNG.md
+│   ├── gluten.js            Glutenfrei: Stichworte in Bewertungen (mit Verneinung), OpenStreetMap diet:gluten_free
 │   └── store.js             localStorage, Backup-Download, IDs und Reise-Schlüssel
 ├── data/sample-places.json  21 Beispielorte im Google-Takeout-Format
 ├── serve.py                 lokaler Testserver ohne Browser-Cache

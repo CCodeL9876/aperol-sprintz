@@ -10,6 +10,7 @@ import { ROUTE_CATEGORY } from './categories.js';
 import { MALLORCA, popupHtml, routePopupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl, pinHtml, pinFlags, poiPinHtml, poiPopupHtml, poiTitle, PLAN_COLOR, planPinHtml, planPinLabels, ROUTE_LINE_COLOR } from './map.js';
 import { hoursFromGoogle } from './hours.js';
 import { readPref, writePref } from './store.js';
+import { gfFromReviews, osmGlutenFree } from './gluten.js';
 
 const LOAD_TIMEOUT_MS = 12000;
 
@@ -68,6 +69,7 @@ const GPLACE_TYPES = {
   bar: { label: 'Bars', icon: 'wine', types: ['bar', 'pub', 'wine_bar'], primary: true },
   food: { label: 'Essen', icon: 'utensils', types: ['restaurant'] },
 };
+const GF_MIN_HALF_KM = 1.5; // Glutenfrei-Suche: mindestens so weit um die Kartenmitte
 const GPLACE_MAX_RADIUS_M = 8000; // weiter herausgezoomt: nicht suchen (höchstens 20 Treffer je Suche)
 
 const PLACE_FIELDS = [
@@ -174,12 +176,14 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
   tools.className = 'gmap-tools';
   // Google-Orte nach Art (siehe „Google-Orte nach Art“ weiter unten) und Satellit
   tools.innerHTML = `<span class="gplace-pills" role="group" aria-label="Google-Orte anzeigen">${Object.entries(GPLACE_TYPES)
-    .map(([k, t]) => `<button type="button" data-gplace="${k}" aria-pressed="false" title="${t.label} von Google im Kartenausschnitt zeigen">${icon(t.icon, { size: 14, stroke: 2.2 })}${t.label}</button>`).join('')}</span>
-    <button type="button" data-tool="satellite" aria-pressed="false">Satellit</button>`;
+    .map(([k, t]) => `<button type="button" data-gplace="${k}" aria-pressed="false" title="${t.label} von Google im Kartenausschnitt zeigen">${icon(t.icon, { size: 14, stroke: 2.2 })}${t.label}</button>`).join('')}<button type="button" class="gplace-gf" data-gf aria-pressed="false" title="Nur Orte mit glutenfreiem Angebot (Google-Suche, OpenStreetMap, Bewertungen)">${icon('wheat-off', { size: 14, stroke: 2.2 })}GF</button></span>
+    <button type="button" data-tool="satellite" aria-pressed="false" aria-label="Satellit" title="Satellitenbild">${icon('layers', { size: 15, stroke: 2.2 })}<span class="gmap-tool-label">Satellit</span></button>`;
   el.parentElement.append(tools);
   tools.addEventListener('click', (e) => {
     const g = e.target.closest('[data-gplace]');
     if (g) return toggleGPlace(g.dataset.gplace, g);
+    const gf = e.target.closest('[data-gf]');
+    if (gf) return toggleGf(gf);
     const btn = e.target.closest('[data-tool]');
     if (!btn) return;
     const on = btn.getAttribute('aria-pressed') !== 'true';
@@ -387,6 +391,9 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
   });
 
   async function showGooglePlace(placeId, latLng) {
+    // Glutenfrei-Belege: Bewertungen nur laden, wenn der Schalter GF an ist oder der Ort als GF gefunden wurde –
+    // „reviews“ gehört zur teuersten Places-Stufe (Enterprise + Atmosphere, 1'000 gratis pro Monat)
+    const gf = gfOn || gfInfo.has(placeId) ? { ...(gfInfo.get(placeId) || {}) } : null;
     setInfo('<div class="popup"><span class="popup-addr">Lade Details …</span></div>');
     info.setPosition(latLng);
     info.open({ shouldFocus: false, map });
@@ -395,7 +402,12 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     try {
       const { Place } = await google.maps.importLibrary('places');
       place = new Place({ id: placeId, requestedLanguage: 'de' });
-      await place.fetchFields({ fields: PLACE_FIELDS });
+      await place.fetchFields({ fields: gf ? [...PLACE_FIELDS, 'reviews'] : PLACE_FIELDS });
+      if (gf) {
+        gf.reviews = gfFromReviews((place.reviews || []).map((r) => ({
+          text: r.text, originalText: r.originalText, author: r.authorAttribution?.displayName,
+        })));
+      }
     } catch (err) {
       console.warn('Places API:', err);
       setInfo(`<div class="popup">
@@ -404,10 +416,28 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       </div>`);
       return;
     }
-    setInfo(googlePlaceContent(place, fallbackUrl));
+    setInfo(googlePlaceContent(place, fallbackUrl, gf));
   }
 
-  function googlePlaceContent(place, fallbackUrl) {
+  // Glutenfrei-Kasten im Google-Fenster: Quellen und bis zu 2 Zitate aus Bewertungen (mit Verfasser)
+  function gfBoxHtml(gf) {
+    const pos = gf.reviews?.positive || [];
+    const neg = gf.reviews?.negative || 0;
+    const src = [gf.osm && '✓ OpenStreetMap', gf.google && '✓ Google-Suche', pos.length && `💬 ${pos.length} ${pos.length === 1 ? 'Bewertung' : 'Bewertungen'}`].filter(Boolean);
+    const quotes = pos.slice(0, 2).map((q) => `<q>${escapeHtml(q.snippet)}</q>${q.author ? ` <small>– ${escapeHtml(q.author)}</small>` : ''}`).join('');
+    const note = !pos.length && neg ? 'Bewertungen erwähnen eher <strong>keine</strong> glutenfreien Optionen.'
+      : !src.length ? 'Keine Hinweise gefunden (Google zeigt nur die 5 relevantesten Bewertungen).' : '';
+    return `<div class="popup-gf-box">
+      <span class="popup-gf-head">${icon('wheat-off', { size: 14, stroke: 2.2 })}<strong>Glutenfrei-Hinweise</strong></span>
+      ${src.length ? `<span class="popup-gf-src">${src.join(' · ')}</span>` : ''}
+      ${quotes}
+      ${note ? `<span class="popup-gf-note">${note}</span>` : ''}
+      <span class="popup-gf-note">Ohne Gewähr – vor Ort nachfragen.</span>
+    </div>`;
+  }
+  const gfPositive = (gf) => Boolean(gf && (gf.osm || gf.google || gf.reviews?.positive?.length));
+
+  function googlePlaceContent(place, fallbackUrl, gf = null) {
     const name = place.displayName || 'Ort';
     const today = place.regularOpeningHours?.weekdayDescriptions?.[(new Date().getDay() + 6) % 7]; // Liste beginnt montags
     const rating = Number.isFinite(place.rating)
@@ -425,6 +455,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       ${place.formattedAddress ? `<span class="popup-addr">${escapeHtml(place.formattedAddress)}</span>` : ''}
       ${today ? `<span class="popup-hours">${escapeHtml(today)}</span>` : ''}
       ${place.nationalPhoneNumber ? `<a class="popup-addr" href="tel:${escapeHtml(place.nationalPhoneNumber.replace(/\s/g, ''))}">${escapeHtml(place.nationalPhoneNumber)}</a>` : ''}
+      ${gf ? gfBoxHtml(gf) : ''}
       ${onAddPlace && place.location ? '<button type="button" class="btn btn-small btn-primary popup-add">Zu unseren Orten hinzufügen</button>' : ''}
       <span class="popup-links">
         <a class="popup-link" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener">Google Maps ↗</a>
@@ -442,6 +473,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
         url: mapsUrl,
         types: [place.primaryType, ...(place.types || [])].filter(Boolean),
         hours: hoursFromGoogle(place.regularOpeningHours),
+        glutenFree: gfPositive(gf), // mit GF-Hinweis gleich als glutenfrei markiert
       });
       btn.textContent = result === 'added' ? '✓ Hinzugefügt' : result === 'dupe' ? 'Schon in eurer Liste' : 'Zu unseren Orten hinzufügen';
       btn.disabled = result === 'added' || result === 'dupe';
@@ -839,6 +871,107 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
   el.parentElement.append(gSearchBtn);
   gSearchBtn.addEventListener('click', () => searchGPlaces());
 
+  // --- Schalter „GF“: nur Orte mit Hinweis auf glutenfreies Angebot ----------------------------------------
+  // Quellen: Google-Textsuche „gluten free“ / „sin gluten“ im Ausschnitt (je Art) und OpenStreetMap
+  // (diet:gluten_free). Beides zusammengeführt; Belege aus Bewertungen erst beim Antippen (showGooglePlace).
+  let gfOn = false;
+  const gfFound = new Map(); // Art → [{ id, name, lat, lng, google, osm }]
+  const gfCache = new Map();
+  const gfInfo = new Map(); // Google-ID → { google, osm }
+  function toggleGf(btn) {
+    gfOn = !gfOn;
+    btn.setAttribute('aria-pressed', String(gfOn));
+    if (gfOn && !readPref('gfHint')) {
+      writePref('gfHint', true);
+      onNotice?.('GF: nur Cafés, Bars und Restaurants mit Hinweis auf glutenfreies Angebot. Antippen zeigt Belege aus Bewertungen – vor Ort nachfragen.');
+    }
+    // Ohne gewählte Art: Cafés und Essen einschalten
+    if (gfOn && !gActive.size) {
+      for (const key of ['cafe', 'food']) {
+        gActive.add(key);
+        tools.querySelector(`[data-gplace="${key}"]`)?.setAttribute('aria-pressed', 'true');
+      }
+    }
+    if (gActive.size) searchGPlaces();
+  }
+
+  async function searchGf(keys, Place) {
+    const vb = map.getBounds();
+    if (!vb) return;
+    // Stark herangezoomt: trotzdem mindestens ±GF_MIN_HALF_KM um die Mitte suchen (sonst kaum Treffer)
+    const c = map.getCenter();
+    const dLat = GF_MIN_HALF_KM / 111.32;
+    const dLng = dLat / Math.cos((c.lat() * Math.PI) / 180);
+    const box = {
+      south: Math.min(vb.getSouthWest().lat(), c.lat() - dLat), west: Math.min(vb.getSouthWest().lng(), c.lng() - dLng),
+      north: Math.max(vb.getNorthEast().lat(), c.lat() + dLat), east: Math.max(vb.getNorthEast().lng(), c.lng() + dLng),
+    };
+    const b = { south: box.south, west: box.west, north: box.north, east: box.east };
+    let osm = [];
+    try {
+      osm = await osmGlutenFree(box);
+    } catch (err) {
+      console.warn('Glutenfrei aus OpenStreetMap:', err);
+    }
+    for (const key of keys) {
+      const ck = `gf|${key}|${box.south.toFixed(3)}|${box.west.toFixed(3)}|${box.north.toFixed(3)}|${box.east.toFixed(3)}`;
+      let list = gfCache.get(ck);
+      if (!list) {
+        const found = new Map();
+        for (const textQuery of ['gluten free', 'sin gluten']) {
+          const { places } = await Place.searchByText({
+            textQuery,
+            fields: ['id', 'displayName', 'location'], // Stufe „Pro“ (5'000 gratis pro Monat)
+            locationRestriction: b,
+            includedType: GPLACE_TYPES[key].types[0],
+            useStrictTypeFiltering: true,
+            maxResultCount: 20,
+            language: 'de',
+          });
+          for (const p of places || []) {
+            if (p.location && !found.has(p.id)) found.set(p.id, { id: p.id, name: p.displayName || '', lat: p.location.lat(), lng: p.location.lng(), google: true, osm: false });
+          }
+        }
+        // OpenStreetMap dazu: liegt derselbe Ort schon vor (≤ 60 m), nur markieren, sonst eigener Eintrag
+        for (const o of osm.filter((x) => x.kind === key)) {
+          const same = [...found.values()].find((f) => haversineKm(f.lat, f.lng, o.lat, o.lng) <= 0.06);
+          if (same) same.osm = true;
+          else found.set(`osm:${o.lat},${o.lng}`, { id: null, name: o.name, lat: o.lat, lng: o.lng, google: false, osm: true });
+        }
+        list = [...found.values()];
+        gfCache.set(ck, list);
+      }
+      for (const x of list) if (x.id) gfInfo.set(x.id, { google: x.google, osm: x.osm });
+      gfFound.set(key, list);
+      if (gActive.has(key)) drawGPlaces(key);
+    }
+  }
+
+  // Nur in OpenStreetMap gefunden (ohne Google-ID): passenden Google-Ort am selben Fleck suchen, sonst kurzes Fenster
+  async function showOsmGf(x) {
+    const pos = new google.maps.LatLng(x.lat, x.lng);
+    try {
+      const { Place } = await google.maps.importLibrary('places');
+      const { places } = await Place.searchByText({
+        textQuery: x.name || 'restaurant', fields: ['id', 'location'], // Stufe „Essentials“ (nur IDs)
+        locationBias: { center: pos, radius: 80 }, maxResultCount: 1,
+      });
+      const hit = places?.[0];
+      if (hit?.location && haversineKm(hit.location.lat(), hit.location.lng(), x.lat, x.lng) <= 0.1) {
+        gfInfo.set(hit.id, { google: false, osm: true });
+        return showGooglePlace(hit.id, pos);
+      }
+    } catch (err) {
+      console.warn('Google-Ort zu OSM-Eintrag:', err);
+    }
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(x.name ? `${x.name}` : `${x.lat},${x.lng}`)}`;
+    setInfo(`<div class="popup popup-google"><strong class="popup-name">${escapeHtml(x.name || 'Lokal')}</strong>
+      ${gfBoxHtml({ osm: true })}
+      <a class="popup-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">In Google Maps suchen ↗</a></div>`);
+    info.setPosition(pos);
+    info.open({ shouldFocus: false, map });
+  }
+
   function toggleGPlace(key, btn) {
     const on = !gActive.has(key);
     if (on) gActive.add(key); else gActive.delete(key);
@@ -874,6 +1007,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     gSearchedAt = { lat: center.lat(), lng: center.lng(), zoom: map.getZoom(), radius };
     try {
       const { Place, SearchNearbyRankPreference } = await google.maps.importLibrary('places');
+      if (gfOn) return await searchGf(keys, Place);
       for (const key of keys) {
         const ck = `${key}|${center.lat().toFixed(3)}|${center.lng().toFixed(3)}|${Math.round(radius / 250)}`;
         let places = gCache.get(ck);
@@ -902,17 +1036,24 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     gMarkers.set(key, []);
     if (!gActive.has(key)) return;
     const near = (lat, lng) => ownCoords.some(([a, b]) => haversineKm(a, b, lat, lng) < 0.04);
-    const markers = (gFound.get(key) || []).filter((p) => p.location && !near(p.location.lat(), p.location.lng())).map((p) => {
+    // Einheitlich: { id, name, lat, lng, rating?, gf? } – bei GF aus der Glutenfrei-Suche, sonst aus der Umgebung
+    const items = gfOn
+      ? (gfFound.get(key) || []).map((x) => ({ ...x, gf: true }))
+      : (gFound.get(key) || []).filter((p) => p.location).map((p) => ({ id: p.id, name: p.displayName, lat: p.location.lat(), lng: p.location.lng(), rating: p.rating }));
+    const markers = items.filter((x) => !near(x.lat, x.lng)).map((x) => {
       const content = document.createElement('div');
-      content.className = `gplace-pin gplace-${key}`;
+      content.className = `gplace-pin gplace-${key}${x.gf ? ' is-gf' : ''}`;
       content.innerHTML = icon(GPLACE_TYPES[key].icon, { size: 13, stroke: 2.3 });
       content.style.transform = 'translateY(50%)'; // mittig auf den Punkt
-      const name = p.displayName || GPLACE_TYPES[key].label;
-      const m = new AdvancedMarkerElement({ map, position: p.location, content, title: p.rating ? `${name} · ★ ${p.rating}` : name, zIndex: 5 });
+      const name = x.name || GPLACE_TYPES[key].label;
+      const title = `${name}${x.rating ? ` · ★ ${x.rating}` : ''}${x.gf ? ' · glutenfrei-Hinweis' : ''}`;
+      const position = { lat: x.lat, lng: x.lng };
+      const m = new AdvancedMarkerElement({ map, position, content, title, zIndex: x.gf ? 6 : 5 });
       m.addListener('click', () => {
         // Beim Planen wird der Ort zum Wegpunkt, sonst Google-Details mit „Zu unseren Orten hinzufügen“
-        if (drafting) return onMapClick?.({ lat: p.location.lat(), lng: p.location.lng() });
-        showGooglePlace(p.id, p.location);
+        if (drafting) return onMapClick?.(position);
+        if (x.id) showGooglePlace(x.id, new google.maps.LatLng(x.lat, x.lng));
+        else showOsmGf(x);
       });
       return m;
     });

@@ -494,7 +494,7 @@ setInterval(() => {
 
 // Aus dem Google-Detailfenster: Ort in die eigene Liste übernehmen. Rückgabe steuert den Knopftext.
 async function addGooglePlace(g, categoryId) {
-  const { added, dupes } = await addPlaces([{ name: g.name, address: g.address, lat: g.lat, lng: g.lng, url: g.url, hours: g.hours }], categoryId || 'auto');
+  const { added, dupes } = await addPlaces([{ name: g.name, address: g.address, lat: g.lat, lng: g.lng, url: g.url, hours: g.hours, glutenFree: g.glutenFree }], categoryId || 'auto');
   if (added.length) {
     toast(`„${added[0].name}“ hinzugefügt (${catOf(added[0].category).label})`);
     return 'added';
@@ -514,7 +514,7 @@ async function addGooglePlace(g, categoryId) {
 
 const isMobile = () => window.matchMedia('(max-width: 899px)').matches;
 const SHEET_STATES = ['hidden', 'half', 'full'];
-const SHEET_HIDDEN_PX = 66; // Platz für die Knopfzeile unten (runder Listen-Knopf, Cafés | Bars | Essen | Satellit)
+const SHEET_HIDDEN_PX = 66; // Platz für die Knopfzeile unten (runder Listen-Knopf, Cafés | Bars | Essen | GF | Satellit)
 
 function sheetState() {
   return $('.layout').dataset.sheet || 'half';
@@ -4614,6 +4614,7 @@ const INTRO = [
       info: [
         { demo: false, html: 'Suchen: <strong>Lupe</strong> oben auf der Karte.' },
         '<strong>Cafés · Bars · Essen</strong> unten auf der Karte zeigen passende Google-Orte im Ausschnitt (weiße Kreise).',
+        { demo: false, html: '<strong>GF</strong> daneben: nur Orte mit Hinweis auf glutenfreies Angebot (Google-Suche, OpenStreetMap). Antippen zeigt Zitate aus Bewertungen – ohne Gewähr, vor Ort nachfragen.' },
         'Aus Google Maps: Ort → <strong>Teilen → Kopieren</strong>, hier <strong>„+ Importieren“</strong> und einfügen.',
         'Ganze Listen (Takeout, CSV, KML) ebenfalls über <strong>„+ Importieren“</strong>.',
         'Die Art (Kaffee, Restaurant …) wird erkannt und lässt sich in der Liste ändern.',
@@ -4676,7 +4677,7 @@ const INTRO = [
         'Die km bei den Orten sind die Strecke mit dem Auto ab dem Airbnb (mit ≈: Luftlinie). Sortiert wird danach, nach Name, Art oder Datum.',
         '„Jetzt offen“ braucht Öffnungszeiten: Orte aus der Google-Karte bringen sie mit, für ältere lädt sie der Admin (Menü <strong>•••</strong>).',
         'Bei <strong>„Kultur & Orte“</strong> erscheint beim Öffnen ein kurzer Wikipedia-Text mit Bild.',
-        '<strong>„Satellit“</strong> unten rechts zeigt Luftbilder.',
+        '<strong>„Satellit“</strong> unten rechts (Handy: Ebenen-Symbol) zeigt Luftbilder.',
       ] },
     { icon: 'star', color: 'var(--yellow)', name: 'Merken', text: 'Stern = Favorit, Häkchen = schon besucht, Reservierungen.',
       info: [
