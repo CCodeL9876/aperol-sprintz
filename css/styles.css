@@ -600,6 +600,27 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .gplace-cafe { --gp: #8A5A34; }
 .gplace-bar { --gp: #B5501F; }
 .gplace-food { --gp: #A8352D; }
+/* Schalter „GF“ (glutenfrei): durch Trennstrich abgesetzt, aktiv in Weizengelb; GF-Treffer mit kleinem Abzeichen */
+.gmap-tools .gplace-pills .gplace-gf { position: relative; margin-left: 3px; }
+.gmap-tools .gplace-pills .gplace-gf::before {
+  content: ""; position: absolute; left: -3px; top: 7px; bottom: 7px; width: 1px; background: var(--line, rgba(0, 0, 0, 0.15));
+}
+.gmap-tools .gplace-pills .gplace-gf[aria-pressed="true"] { background: #C8961E; color: #FFFFFF; }
+.gplace-pin.is-gf { position: relative; }
+.gplace-pin.is-gf::after {
+  content: "GF"; position: absolute; right: -9px; top: -8px; padding: 0 3px; border-radius: 6px;
+  background: #C8961E; color: #FFFFFF; font: 800 8px/12px var(--font-body); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+/* Glutenfrei-Kasten im Google-Fenster */
+.popup-gf-box {
+  display: flex; flex-direction: column; gap: 3px; max-width: 260px; padding: 6px 8px; border-radius: 8px;
+  background: #FBF3DF; color: #5C4410; font-size: 12px; line-height: 1.4;
+}
+.popup-gf-head { display: inline-flex; align-items: center; gap: 4px; }
+.popup-gf-src { font-weight: 600; }
+.popup-gf-box q { font-style: italic; }
+.popup-gf-box small { color: #8A6D2A; }
+.popup-gf-note { color: #8A6D2A; font-size: 11px; }
 .gplace-search {
   position: absolute; z-index: 900; left: 50%; bottom: 80px; transform: translateX(-50%);
   min-height: 38px; padding: 0 16px; border: 0; border-radius: 999px; cursor: pointer;
@@ -1665,7 +1686,13 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   .gmap-tools > * { pointer-events: auto; }
   .gmap-tools > [data-tool="satellite"] { position: absolute; right: 0; bottom: 0; }
   .gplace-search { bottom: calc(var(--sheet-h) + 62px); transition: bottom 0.25s ease; }
-  .gmap-tools .gplace-pills button { padding: 0 8px; }
+  .gmap-tools .gplace-pills button { padding: 0 7px; gap: 3px; }
+  /* Satellit nur als runder Knopf mit Symbol – sonst überdeckt er auf schmalen Handys den Schalter GF */
+  .gmap-tools > [data-tool="satellite"] { width: 36px; padding: 0; justify-content: center; }
+  .gmap-tools > [data-tool="satellite"] .gmap-tool-label { display: none; }
+  /* Pillen mittig im freien Platz zwischen rundem Listen-Knopf (links) und Satellit (rechts); GF nur als Text */
+  .gmap-tools { padding: 0 42px 0 56px; }
+  .gmap-tools .gplace-pills .gplace-gf .icon { display: none; }
   /* OpenStreetMap: rechts liegen Zoom- und Standort-Knopf, der Schalter daher links */
   .locate-btn.gmap-locate { right: 10px; bottom: calc(var(--sheet-h) + 60px); transition: bottom 0.25s ease; }
 

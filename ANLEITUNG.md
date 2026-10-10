@@ -274,6 +274,14 @@ Mit eingetragenem API-Schlüssel zeigt die App standardmässig Google Maps; ohne
 Die Google-Karte bietet: Google-Kartenbild, Satellit, antippbare Restaurants/Cafés mit Bewertung und
 Öffnungszeiten sowie „Zu unseren Orten hinzufügen“.
 
+**Glutenfrei („GF“):** Der Schalter neben Cafés · Bars · Essen zeigt nur Orte mit Hinweis auf glutenfreies Angebot.
+Gesucht wird im Kartenausschnitt (mindestens 1,5 km um die Mitte) per Google-Textsuche („gluten free“ und
+„sin gluten“) und kostenlos in OpenStreetMap (`diet:gluten_free`). Beim Antippen lädt die App die Bewertungen des
+Orts und zeigt Stellen, die glutenfreie Optionen erwähnen (Verneinungen wie „leider keine“ zählen nicht). Wird ein
+solcher Ort zu „Unsere Orte“ hinzugefügt, ist er als glutenfrei markiert. Kosten: je Suche und Art zwei
+Textsuchen (Stufe „Pro“), je angetippter Ort eine Abfrage mit Bewertungen (teuerste Stufe, nach aktuellem Stand
+1 000 gratis pro Monat). Ohne Gewähr – vor Ort nachfragen.
+
 **Öffnungszeiten:** Neue Orte aus der Google-Karte bringen sie gleich mit. Für bestehende Orte im Menü **„•••“ →
 „Öffnungszeiten laden“** – die App sucht jeden Ort zuerst kostenlos in OpenStreetMap und nur die übrigen bei
 Google (Strände und Aussichtspunkte ausgenommen), nach 30 Tagen erneut. Jeder Ort bei Google kostet eine
