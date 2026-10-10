@@ -922,6 +922,9 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   border-color: var(--orange);
   box-shadow: 0 0 0 7px rgba(232, 115, 58, 0.22), 0 3px 10px rgba(37, 50, 31, 0.3);
 }
+/* Glutenfrei markiert: grüner Ring aussen um den weissen Rand (auch beim aktiven Marker) */
+.pin.is-gf { box-shadow: 0 0 0 3px #2E9E4A, 0 2px 6px rgba(37, 50, 31, 0.3); }
+.pin.is-gf.is-active { box-shadow: 0 0 0 3px #2E9E4A, 0 0 0 9px rgba(232, 115, 58, 0.22), 0 3px 10px rgba(37, 50, 31, 0.3); }
 
 .home-pin {
   width: 32px; height: 38px;

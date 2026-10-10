@@ -24,10 +24,11 @@ export const escapeHtml = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // Popup-Inhalte – gemeinsam für die OpenStreetMap-Karte (hier) und die Google-Test-Variante (map-google.js)
-// Marker-Merkmale eines Orts; Favoriten bekommen zusätzlich einen gelben Stern oben links
-export const pinFlags = (p) => ({ reserved: !!p.reservation, visited: !!p.visited, starred: !!p.starred });
-export function pinHtml(cat, active, { reserved, visited, starred } = {}) {
-  const cls = `pin${active ? ' is-active' : ''}${reserved ? ' is-reserved' : ''}${visited ? ' is-visited' : ''}${starred ? ' is-starred' : ''}`;
+// Marker-Merkmale eines Orts; Favoriten bekommen zusätzlich einen gelben Stern oben links, glutenfreie Orte
+// einen grünen Ring
+export const pinFlags = (p) => ({ reserved: !!p.reservation, visited: !!p.visited, starred: !!p.starred, glutenFree: !!p.glutenFree });
+export function pinHtml(cat, active, { reserved, visited, starred, glutenFree } = {}) {
+  const cls = `pin${active ? ' is-active' : ''}${reserved ? ' is-reserved' : ''}${visited ? ' is-visited' : ''}${starred ? ' is-starred' : ''}${glutenFree ? ' is-gf' : ''}`;
   const star = starred ? `<span class="pin-star" aria-hidden="true">${icon('star', { size: 15, stroke: 2.2 })}</span>` : '';
   return `<div class="${cls}" style="${categoryStyle(cat)}">${categoryIcon(cat, { size: 14, stroke: 2.3 })}${star}</div>`;
 }
@@ -360,7 +361,7 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     });
   }
 
-  // flags: { reserved, visited, starred } – siehe pinFlags
+  // flags: { reserved, visited, starred, glutenFree } – siehe pinFlags
   function placeIcon(cat, active, flags = {}) {
     return L.divIcon({
       className: '',
