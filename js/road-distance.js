@@ -5,6 +5,7 @@
 
 import { readPref, writePref } from './store.js';
 import { hasCoords } from './geo.js';
+import { countGoogle } from './usage.js';
 
 const ENDPOINT = 'https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix';
 const TIMEOUT_MS = 20000;
@@ -49,6 +50,7 @@ export async function loadRoadDistances(apiKey, airbnb, places) {
   let added = false;
   for (let i = 0; i < missing.length; i += CHUNK) {
     const part = missing.slice(i, i + CHUNK);
+    countGoogle('matrix', part.length); // abgerechnet je Ziel (Element)
     const res = await fetch(ENDPOINT, {
       method: 'POST',
       signal: AbortSignal.timeout(TIMEOUT_MS),

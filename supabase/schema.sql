@@ -370,5 +370,68 @@ create policy "Nur mit Reise-Schlüssel" on public.expenses
 
 grant select, insert, update, delete on public.places, public.routes, public.route_files, public.trip_settings, public.expenses to anon, authenticated;
 
+-- Google-Verbrauch (Admin → „Google-Verbrauch“): Die App zählt ihre Google-Abfragen je Preisstufe und Monat.
+-- Für den ganzen API-Schlüssel gemeinsam (nicht je Reise). Kein direkter Tabellenzugriff: Hochzählen nur mit
+-- gültigem Reise-Schlüssel und Zugangscode, Lesen nur mit Admin-PIN.
+create table if not exists public.google_usage (
+  month text not null check (month ~ '^[0-9]{4}-[0-9]{2}$'),
+  sku   text not null check (sku ~ '^[A-Za-z]{2,30}$'),
+  n     bigint not null default 0,
+  primary key (month, sku)
+);
+alter table public.google_usage enable row level security;
+revoke all on public.google_usage from anon, authenticated;
+
+-- counts: { "sku": Anzahl, … } – höchstens 20 Einträge, je höchstens 1000 pro Aufruf
+create or replace function public.bump_google_usage(counts jsonb)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  m text := to_char(now() at time zone 'America/Los_Angeles', 'YYYY-MM');
+  k text;
+  v jsonb;
+begin
+  if not public.trip_code_ok() then
+    raise exception 'kein Zugriff auf diese Reise';
+  end if;
+  if jsonb_typeof(counts) <> 'object' or (select count(*) from jsonb_object_keys(counts)) > 20 then
+    raise exception 'ungültige Zähler';
+  end if;
+  for k, v in select * from jsonb_each(counts) loop
+    if k !~ '^[A-Za-z]{2,30}$' or jsonb_typeof(v) <> 'number' or (v::text)::numeric not between 1 and 1000
+       or (v::text)::numeric <> trunc((v::text)::numeric) then
+      continue;
+    end if;
+    insert into public.google_usage (month, sku, n) values (m, k, (v::text)::bigint)
+      on conflict (month, sku) do update set n = public.google_usage.n + excluded.n;
+  end loop;
+end
+$$;
+
+-- Die letzten drei Monate lesen – nur mit Admin-PIN
+create or replace function public.google_usage_overview(pin text)
+returns table (month text, sku text, n bigint)
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.trip_admin_ok(pin) then
+    raise exception 'nur der Admin sieht den Google-Verbrauch';
+  end if;
+  return query
+    select u.month, u.sku, u.n from public.google_usage u
+     where u.month >= to_char((now() at time zone 'America/Los_Angeles') - interval '2 months', 'YYYY-MM')
+     order by u.month, u.sku;
+end
+$$;
+
+grant execute on function public.bump_google_usage(jsonb), public.google_usage_overview(text) to anon, authenticated;
+
 -- Supabase die neuen Funktionen und Tabellen sofort bekannt machen (sonst ggf. erst nach einigen Minuten)
 notify pgrst, 'reload schema';

@@ -4,6 +4,7 @@
 // (navUrl) – eigene Abbiegehinweise erlauben Googles Nutzungsbedingungen in einer Web-App nicht.
 
 import { bikeRoute } from './home-loop.js';
+import { countGoogle } from './usage.js';
 
 const ENDPOINT = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 const TIMEOUT_MS = 20000;
@@ -50,6 +51,7 @@ export async function computeRoute(apiKey, from, to, mode) {
     return { points: track.map(([lat, lng]) => [lat, lng]), track, durationS: null, distanceM: null };
   }
   const travelMode = TRAVEL_MODES[mode]?.google || 'DRIVE';
+  countGoogle(travelMode === 'DRIVE' ? 'routes' : 'routesBasic'); // Auto mit Verkehrslage: Stufe „Pro“
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     signal: AbortSignal.timeout(TIMEOUT_MS),

@@ -11,6 +11,7 @@ import { MALLORCA, popupHtml, routePopupHtml, airbnbPopupHtml, escapeHtml, safeH
 import { hoursFromGoogle } from './hours.js';
 import { readPref, writePref } from './store.js';
 import { gfFromReviews, osmGlutenFree } from './gluten.js';
+import { countGoogle } from './usage.js';
 
 const LOAD_TIMEOUT_MS = 12000;
 
@@ -95,6 +96,7 @@ export async function lookupHours(apiKey, places, onResult) {
   for (const p of places) {
     let hours;
     try {
+      countGoogle('textHours');
       const { places: found } = await Place.searchByText({
         textQuery: p.address ? `${p.name}, ${p.address}` : p.name,
         fields: ['location', 'regularOpeningHours'],
@@ -128,6 +130,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
 
   const mobile = () => window.matchMedia('(max-width: 899px)').matches;
   el.innerHTML = '';
+  countGoogle('maps');
   const map = new GoogleMap(el, {
     center: toLatLng(MALLORCA.center),
     zoom: MALLORCA.zoom,
@@ -402,6 +405,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     try {
       const { Place } = await google.maps.importLibrary('places');
       place = new Place({ id: placeId, requestedLanguage: 'de' });
+      countGoogle(gf ? 'detailsReviews' : 'details');
       await place.fetchFields({ fields: gf ? [...PLACE_FIELDS, 'reviews'] : PLACE_FIELDS });
       if (gf) {
         gf.reviews = gfFromReviews((place.reviews || []).map((r) => ({
@@ -696,6 +700,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     try {
       const { AutocompleteSuggestion, AutocompleteSessionToken } = await google.maps.importLibrary('places');
       searchToken ||= new AutocompleteSessionToken();
+      countGoogle('autocomplete');
       const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
         input, sessionToken: searchToken, language: 'de', region: 'es', locationRestriction: SEARCH_AREA,
       });
@@ -719,6 +724,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     try {
       const { Place } = await google.maps.importLibrary('places');
       place = prediction ? prediction.toPlace() : new Place({ id: placeId, requestedLanguage: 'de' });
+      countGoogle('details');
       await place.fetchFields({ fields: PLACE_FIELDS });
     } catch (err) {
       console.warn('Places API:', err);
@@ -919,6 +925,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       if (!list) {
         const found = new Map();
         for (const textQuery of ['gluten free', 'sin gluten']) {
+          countGoogle('textPro');
           const { places } = await Place.searchByText({
             textQuery,
             fields: ['id', 'displayName', 'location'], // Stufe „Pro“ (5'000 gratis pro Monat)
@@ -952,8 +959,9 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     const pos = new google.maps.LatLng(x.lat, x.lng);
     try {
       const { Place } = await google.maps.importLibrary('places');
+      countGoogle('textPro');
       const { places } = await Place.searchByText({
-        textQuery: x.name || 'restaurant', fields: ['id', 'location'], // Stufe „Essentials“ (nur IDs)
+        textQuery: x.name || 'restaurant', fields: ['id', 'location'], // Stufe „Pro“ (wegen location)
         locationBias: { center: pos, radius: 80 }, maxResultCount: 1,
       });
       const hit = places?.[0];
@@ -1012,6 +1020,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
         const ck = `${key}|${center.lat().toFixed(3)}|${center.lng().toFixed(3)}|${Math.round(radius / 250)}`;
         let places = gCache.get(ck);
         if (!places) {
+          countGoogle('nearby');
           ({ places } = await Place.searchNearby({
             fields: ['id', 'displayName', 'location', 'rating'],
             locationRestriction: { center, radius: Math.max(150, radius) },

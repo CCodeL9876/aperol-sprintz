@@ -348,6 +348,22 @@ export class SharedBackend {
     if (error) throw new Error(error.message);
   }
 
+  // Google-Verbrauch (siehe usage.js): Zähler hochzählen bzw. als Admin lesen. Fehlt die Funktion (SQL noch
+  // nicht ausgeführt), wirft es mit err.missing.
+  async bumpGoogleUsage(counts) {
+    const { error } = await this.db.rpc('bump_google_usage', { counts });
+    if (error) throw Object.assign(new Error(error.message), { missing: error.code === 'PGRST202' });
+  }
+
+  // Rückgabe: { "2026-10": { sku: n } }
+  async googleUsage(pin = '') {
+    const { data, error } = await this.db.rpc('google_usage_overview', { pin: pin || null });
+    if (error) throw Object.assign(new Error(error.message), { missing: error.code === 'PGRST202' });
+    const out = {};
+    for (const r of data || []) (out[r.month] ||= {})[r.sku] = Number(r.n) || 0;
+    return out;
+  }
+
   constructor(db, key) {
     this.db = db;
     this.key = key;
