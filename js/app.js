@@ -4755,7 +4755,8 @@ const INTRO = [
       ] },
     { icon: 'navigation', color: 'var(--sky)', name: 'Unterwegs', text: 'Standort-Knopf und <strong>„Route“</strong> zu jedem Ort.',
       info: [
-        'Der Standort zeigt auch, wohin du schaust.',
+        'Der Standort (blauer Punkt) startet beim Öffnen von selbst, auf Mallorca springt die Karte dorthin. Er bleibt auf deinem Gerät.',
+        'Standort-Knopf antippen: zentrieren und zeigen, wohin du schaust; nochmals tippen schaltet ihn aus.',
         '„Route“ zeigt die Strecke in der App – Auto, Velo, zu Fuß oder ÖV, ab deinem Standort oder dem Airbnb.',
         '<strong>„Navigieren“</strong> übergibt an Google Maps (mit Sprachführung).',
         'Unter <strong>„Unser Airbnb“</strong> geht’s mit „Route zur Unterkunft“ zurück.',

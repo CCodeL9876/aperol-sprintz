@@ -7,7 +7,7 @@
 import { hasCoords, haversineKm } from './geo.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
 import { ROUTE_CATEGORY } from './categories.js';
-import { MALLORCA, popupHtml, routePopupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl, pinHtml, pinFlags, poiPinHtml, poiPopupHtml, poiTitle, PLAN_COLOR, planPinHtml, planPinLabels, ROUTE_LINE_COLOR } from './map.js';
+import { MALLORCA, autoLocateAllowed, nearMallorca, popupHtml, routePopupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl, pinHtml, pinFlags, poiPinHtml, poiPopupHtml, poiTitle, PLAN_COLOR, planPinHtml, planPinLabels, ROUTE_LINE_COLOR } from './map.js';
 import { hoursFromGoogle } from './hours.js';
 import { readPref, writePref } from './store.js';
 import { gfFromReviews, osmGlutenFree } from './gluten.js';
@@ -231,6 +231,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
   let locating = false;
   let firstFix = false;
   let following = false;
+  let autoStarted = false; // beim Öffnen von selbst gestartet: still bei Fehlern, Kompass erst nach einem Tipp
   let meLatLng = null;
   let meMarker = null;
   let meCircle = null;
@@ -344,9 +345,12 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     }
     if (firstFix) {
       firstFix = false;
-      following = true;
       setLocateState('on');
-      centerOn([meLatLng.lat, meLatLng.lng], Math.max(map.getZoom(), 16));
+      // Von selbst gestartet und nicht auf Mallorca (z. B. beim Planen zu Hause): Karte bleibt, wo sie ist
+      if (!autoStarted || nearMallorca(meLatLng.lat, meLatLng.lng)) {
+        following = true;
+        centerOn([meLatLng.lat, meLatLng.lng], Math.max(map.getZoom(), 16));
+      }
     } else if (following && !meIsCentered()) {
       centerOn([meLatLng.lat, meLatLng.lng], map.getZoom());
     }
@@ -356,19 +360,26 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     if (!locating) return;
     // Bei laufender Verfolgung kurze Aussetzer ignorieren – nur beim Start melden
     if (!firstFix && meLatLng && err.code !== 1) return;
+    const silent = autoStarted;
     stopLocate();
-    onLocateMessage?.(err.code === 1 ? 'denied' : 'unavailable', err.message);
+    if (!silent) onLocateMessage?.(err.code === 1 ? 'denied' : 'unavailable', err.message);
   }
 
-  function toggleLocate() {
+  function toggleLocate(auto = false) {
     if (!locating) {
       if (!navigator.geolocation) return onLocateMessage?.('unsupported');
       locating = true;
       firstFix = true;
-      startHeading();
+      autoStarted = auto === true;
+      if (!autoStarted) startHeading();
       setLocateState('waiting');
       watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 });
       return;
+    }
+    // Erster Tipp nach dem Start von selbst: ab jetzt wie von Hand gestartet (Kompass darf jetzt fragen)
+    if (autoStarted) {
+      autoStarted = false;
+      startHeading();
     }
     if (meLatLng && (!following || !meIsCentered())) {
       following = true;
@@ -376,7 +387,8 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     }
     stopLocate();
   }
-  locateBtn.addEventListener('click', toggleLocate);
+  locateBtn.addEventListener('click', () => toggleLocate());
+  autoLocateAllowed().then((ok) => { if (ok && !locating) toggleLocate(true); });
   // Selbst verschoben → nicht mehr mitlaufen (bis zum nächsten Tipp auf den Knopf)
   map.addListener('dragstart', () => { following = false; });
 
