@@ -1985,3 +1985,24 @@ button.popup-link { padding: 5px 0; border: 0; background: none; cursor: pointer
   .panel-row:has(> .map-search.is-collapsed:not([hidden])):not(:has(> details[open])) .panel-chevron { display: none; }
 }
 .plan-pop .plan-mode-pop-title { padding-right: 34px; }
+
+/* Google-Verbrauch (Admin): je Preisstufe ein Balken gegen das Gratis-Kontingent */
+.usage-body { display: flex; flex-direction: column; gap: 12px; }
+.usage-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.usage-top select { min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font: 600 14px var(--font-body); color: inherit; }
+.usage-cost { font-weight: 700; font-size: 14px; color: var(--green); }
+.usage-cost.is-over { color: var(--red); }
+.usage-note { margin: 0; }
+.usage-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.usage-row { display: flex; flex-direction: column; gap: 4px; }
+.usage-row.is-zero { opacity: 0.6; }
+.usage-head { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.usage-head span { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.usage-bar { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.usage-bar span { display: block; height: 100%; border-radius: inherit; background: var(--green); }
+.usage-row.is-warn .usage-bar span { background: var(--orange); }
+.usage-row.is-over .usage-bar span { background: var(--red); }
+.usage-row small { font-size: 12px; color: var(--muted); }
+.usage-row small b { color: var(--red); }
+.usage-links { display: flex; gap: 16px; flex-wrap: wrap; margin: 0; font-size: 13px; font-weight: 600; }
+.usage-links a { color: var(--green); }

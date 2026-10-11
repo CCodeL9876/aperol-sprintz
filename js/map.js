@@ -1,13 +1,27 @@
 // Leaflet-Karte: Orts-Marker, Airbnb-Marker, Radius-Kreis, Live-Standort und Rennrad-Routen (Linien statt Punkte).
 /* global L */
 
-import { hasCoords, formatKm, formatReservation, routeUrl, homeRouteUrl } from './geo.js';
+import { hasCoords, haversineKm, formatKm, formatReservation, routeUrl, homeRouteUrl } from './geo.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
 import { ROUTE_CATEGORY } from './categories.js';
 import { hoursStatus, hoursToday } from './hours.js';
 import { POI_TYPES } from './pois.js';
 
 export const MALLORCA = { center: [39.62, 2.95], zoom: 9 };
+
+// Standort beim Öffnen gleich einschalten (Google- und OSM-Karte): nur wenn das Gerät ihn nicht blockiert hat –
+// sonst gäbe es bei jedem Öffnen eine Fehlermeldung. Hat der Browser noch nie gefragt, fragt er jetzt einmal.
+// Der Standort bleibt auf dem Gerät (nur der blaue Punkt auf der Karte), er wird nirgends hin gesendet.
+export async function autoLocateAllowed() {
+  if (!navigator.geolocation) return false;
+  try {
+    return (await navigator.permissions.query({ name: 'geolocation' })).state !== 'denied';
+  } catch {
+    return true; // Browser ohne Permissions-API: versuchen, Fehler bleiben still
+  }
+}
+// Nur auf Mallorca (bis 80 km um die Inselmitte) springt die Karte beim Öffnen zum Standort
+export const nearMallorca = (lat, lng) => haversineKm(lat, lng, MALLORCA.center[0], MALLORCA.center[1]) < 80;
 
 // Kartenkacheln von OpenStreetMap: kein API-Key nötig. Die Farbanpassung kommt per CSS-Filter
 // (.leaflet-tile-pane in styles.css) – dort werden sie zurückgenommen, damit Orange und Grün leuchten. CARTO-Kacheln verlangen inzwischen einen API-Key.
@@ -191,6 +205,7 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
   let locating = false;
   let firstFix = false;
   let following = false;
+  let autoStarted = false; // beim Öffnen von selbst gestartet: still bei Fehlern, Kompass erst nach einem Tipp
   let meLatLng = null;
   let meMarker = null;
   let meCircle = null;
@@ -280,15 +295,21 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     return map.latLngToContainerPoint(meLatLng).distanceTo(mid) < 40;
   }
 
-  function toggleLocate() {
+  function toggleLocate(auto = false) {
     if (!locating) {
       if (!navigator.geolocation) return onLocateMessage?.('unsupported');
       locating = true;
       firstFix = true;
-      startHeading();
+      autoStarted = auto === true;
+      if (!autoStarted) startHeading();
       setLocateState('waiting');
       map.locate({ watch: true, enableHighAccuracy: true, setView: false, maximumAge: 10000, timeout: 20000 });
       return;
+    }
+    // Erster Tipp nach dem Start von selbst: ab jetzt wie von Hand gestartet (Kompass darf jetzt fragen)
+    if (autoStarted) {
+      autoStarted = false;
+      startHeading();
     }
     if (meLatLng && (!following || !meIsCentered())) {
       following = true;
@@ -318,9 +339,12 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     }
     if (firstFix) {
       firstFix = false;
-      following = true;
       setLocateState('on');
-      centerOn(e.latlng, Math.max(map.getZoom(), 16));
+      // Von selbst gestartet und nicht auf Mallorca (z. B. beim Planen zu Hause): Karte bleibt, wo sie ist
+      if (!autoStarted || nearMallorca(e.latlng.lat, e.latlng.lng)) {
+        following = true;
+        centerOn(e.latlng, Math.max(map.getZoom(), 16));
+      }
     } else if (following && !meIsCentered()) {
       centerOn(e.latlng, map.getZoom());
     }
@@ -332,8 +356,9 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     if (!locating) return;
     // Bei laufender Verfolgung kurze Aussetzer (z. B. im Tunnel) ignorieren – nur beim Start melden
     if (!firstFix && meLatLng && e.code !== 1) return;
+    const silent = autoStarted;
     stopLocate();
-    onLocateMessage?.(e.code === 1 ? 'denied' : 'unavailable', e.message);
+    if (!silent) onLocateMessage?.(e.code === 1 ? 'denied' : 'unavailable', e.message);
   });
 
   const LocateControl = L.Control.extend({
@@ -345,12 +370,13 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
       locateBtn.innerHTML = icon('locate', { size: 20, stroke: 2.2 });
       setLocateState('off');
       L.DomEvent.disableClickPropagation(locateBtn);
-      L.DomEvent.on(locateBtn, 'click', toggleLocate);
+      L.DomEvent.on(locateBtn, 'click', () => toggleLocate());
       return locateBtn;
     },
   });
   // Unten rechts stapelt Leaflet neue Knöpfe über die bestehenden: Standort liegt also über dem Zoom
   new LocateControl().addTo(map);
+  autoLocateAllowed().then((ok) => { if (ok && !locating) toggleLocate(true); });
 
   function fitPoints(pts, maxZoom) {
     const { top, right, bottom, left } = insets();

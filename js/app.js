@@ -12,6 +12,7 @@ import { createMap, routeAttrs } from './map.js';
 import { TRAVEL_MODES, computeRoute, navUrl } from './directions.js';
 import { roadKm, loadRoadDistances } from './road-distance.js';
 import { buildTcx } from './tcx.js';
+import { SKUS, setUsageSink, localUsage, pendingUsage, usageCost, usageMonth } from './usage.js';
 import { WIKI_CATEGORIES, cachedWiki, loadWiki } from './wiki.js';
 import { GRADE_CLASSES, steepRuns, findClimbs, climbName } from './climbs.js';
 import { sanitizeHours, hoursStale, openAt, hoursStatus } from './hours.js';
@@ -417,6 +418,70 @@ function initMapSearch() {
 // bringen ihre Öffnungszeiten gleich mit.
 const HOURS_SKIP = new Set(['strand', 'aussicht']);
 let hoursLoading = false;
+// --- Google-Verbrauch (Admin) -------------------------------------------------------------------
+// Von der App mitgezählte Abfragen je Preisstufe (usage.js) gegen das monatliche Gratis-Kontingent
+const usageDialog = $('#usage-dialog');
+const fmtCount = (n) => Math.round(n).toLocaleString('de-CH');
+const fmtUsd = (usd) => `${usd < 10 ? usd.toFixed(2) : Math.round(usd)} USD`;
+let usageData = null; // { months: { "2026-10": { sku: n } }, source, note }
+
+async function openUsage() {
+  $('#usage-body').innerHTML = '<p class="hint">Lade …</p>';
+  usageDialog.showModal();
+  let months = null;
+  let note = '';
+  let source = 'Nur dieses Gerät (keine gemeinsame Reise).';
+  if (backend.kind === 'shared') {
+    try {
+      months = await backend.googleUsage(rememberedAdminPin(backend.key));
+      // Noch nicht gesendete Zähler dieses Geräts dazu
+      const m = usageMonth();
+      for (const [k, n] of Object.entries(pendingUsage())) (months[m] ||= {})[k] = (months[m][k] || 0) + n;
+      source = 'Alle Geräte dieser gemeinsamen Reise.';
+    } catch (err) {
+      note = err.missing
+        ? 'In Supabase einmal <code>supabase/schema.sql</code> ausführen, damit alle Geräte zusammen zählen. Bis dahin: nur dieses Gerät.'
+        : `Gemeinsame Zahlen nicht ladbar (${escapeHtml(err.message)}). Angezeigt: nur dieses Gerät.`;
+    }
+  }
+  usageData = { months: months || localUsage(), source, note };
+  renderUsage(usageMonth());
+}
+
+function renderUsage(month) {
+  const { months, source, note } = usageData;
+  const list = [...new Set([usageMonth(), ...Object.keys(months)])].sort().reverse();
+  const data = months[month] || {};
+  const label = (m) => new Date(`${m}-15T12:00:00`).toLocaleDateString('de-CH', { month: 'long', year: 'numeric' });
+  const rows = Object.entries(SKUS).map(([k, sku]) => {
+    const n = data[k] || 0;
+    const pct = Math.min(100, (n / sku.free) * 100);
+    const over = Math.max(0, n - sku.free);
+    const level = n >= sku.free ? 'is-over' : pct >= 80 ? 'is-warn' : '';
+    return `<li class="usage-row ${level}${n ? '' : ' is-zero'}">
+      <div class="usage-head"><strong>${escapeHtml(sku.label)}</strong><span>${fmtCount(n)} / ${fmtCount(sku.free)}</span></div>
+      <div class="usage-bar" role="img" aria-label="${Math.round(pct)} % des Gratis-Kontingents"><span style="width:${n ? Math.max(pct, 1.5) : 0}%"></span></div>
+      <small>${escapeHtml(sku.note)} · darüber ${sku.usd} USD pro ${fmtCount(1000)}${over ? ` · <b>${fmtCount(over)} über Gratis ≈ ${fmtUsd((over / 1000) * sku.usd)}</b>` : ''}</small>
+    </li>`;
+  }).join('');
+  const cost = usageCost(data);
+  $('#usage-body').innerHTML = `
+    <div class="usage-top">
+      <select id="usage-month" aria-label="Monat">${list.map((m) => `<option value="${m}"${m === month ? ' selected' : ''}>${label(m)}</option>`).join('')}</select>
+      <span class="usage-cost ${cost ? 'is-over' : ''}">${cost ? `geschätzt ≈ ${fmtUsd(cost)}` : 'im Gratis-Kontingent'}</span>
+    </div>
+    ${note ? `<p class="hint usage-note">${note}</p>` : ''}
+    <ul class="usage-list">${rows}</ul>
+    <p class="hint">${escapeHtml(source)} Gezählt werden nur Abfragen dieser App – Tests oder andere Projekte mit demselben Schlüssel fehlen. Monat nach Pazifik-Zeit wie bei Google; Preise laut Google-Preisliste (Stand 2025), ohne Gewähr.</p>
+    <p class="usage-links">
+      <a href="https://console.cloud.google.com/google/maps-apis/metrics" target="_blank" rel="noopener">Genaue Zahlen: Cloud Console ↗</a>
+      <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener">Abrechnung ↗</a>
+    </p>`;
+}
+$('#usage-body').addEventListener('change', (e) => {
+  if (e.target.id === 'usage-month') renderUsage(e.target.value);
+});
+
 async function loadOpeningHours() {
   if (hoursLoading || backend.kind === 'demo') return;
   // Kostet Google-Kontingent für viele Orte auf einmal – nur der Admin (neue Orte aus der Google-Karte bringen
@@ -3182,6 +3247,8 @@ $('#offline-badge')?.addEventListener('click', () => {
 
 function switchTo(next) {
   backend = next;
+  // Google-Verbrauch: in der gemeinsamen Reise in Supabase mitzählen, sonst nur im Browser
+  setUsageSink(next.kind === 'shared' ? (counts) => next.bumpGoogleUsage(counts) : null);
   if (next.kind === 'shared') {
     rememberTripKey(next.key);
     history.replaceState(null, '', shareUrl(next.key));
@@ -4272,7 +4339,8 @@ $('.menu-panel').addEventListener('click', async (e) => {
   if (!what) return;
   $('.menu').open = false;
   if (what === 'intro') openIntro();
-  if (['categories', 'backup', 'hours', 'reset'].includes(what) && !canAdmin()) return toast('Das kann nur der Admin.');
+  if (['categories', 'backup', 'hours', 'usage', 'reset'].includes(what) && !canAdmin()) return toast('Das kann nur der Admin.');
+  if (what === 'usage') openUsage();
   if (what === 'categories') {
     renderCategoryManager();
     categoryDialog.showModal();
@@ -4687,7 +4755,8 @@ const INTRO = [
       ] },
     { icon: 'navigation', color: 'var(--sky)', name: 'Unterwegs', text: 'Standort-Knopf und <strong>„Route“</strong> zu jedem Ort.',
       info: [
-        'Der Standort zeigt auch, wohin du schaust.',
+        'Der Standort (blauer Punkt) startet beim Öffnen von selbst, auf Mallorca springt die Karte dorthin. Er bleibt auf deinem Gerät.',
+        'Standort-Knopf antippen: zentrieren und zeigen, wohin du schaust; nochmals tippen schaltet ihn aus.',
         '„Route“ zeigt die Strecke in der App – Auto, Velo, zu Fuß oder ÖV, ab deinem Standort oder dem Airbnb.',
         '<strong>„Navigieren“</strong> übergibt an Google Maps (mit Sprachführung).',
         'Unter <strong>„Unser Airbnb“</strong> geht’s mit „Route zur Unterkunft“ zurück.',

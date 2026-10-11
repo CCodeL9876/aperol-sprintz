@@ -288,6 +288,11 @@ Google (Strände und Aussichtspunkte ausgenommen), nach 30 Tagen erneut. Jeder O
 Places-Abfrage; Google gewährt dafür ein monatliches Gratis-Kontingent (nach aktuellem Stand 1 000 Abfragen).
 Zeiten aus OpenStreetMap sind im Kartenfenster mit „© OpenStreetMap“ gekennzeichnet.
 
+**Google-Verbrauch (Admin):** Im Menü **„•••“ → „Google-Verbrauch“** zeigt die App, wie viele Google-Abfragen sie
+diesen Monat gemacht hat – je Preisstufe mit Balken gegen das Gratis-Kontingent und geschätzten Kosten darüber.
+In der gemeinsamen Reise zählen alle Geräte zusammen (dafür einmal `supabase/schema.sql` erneut ausführen), sonst
+nur das eigene Gerät. Es ist eine Schätzung der App; genaue Zahlen nur in der Google Cloud Console.
+
 **Einmalig einrichten (ca. 15 Minuten):**
 
 1. <https://console.cloud.google.com> öffnen, oben **Projekt auswählen → Neues Projekt**, z. B. „Aperol Sprintz“.
