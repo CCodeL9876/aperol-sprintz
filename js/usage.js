@@ -11,7 +11,7 @@ import { readPref, writePref } from './store.js';
 export const SKUS = {
   maps: { label: 'Karte laden', note: 'Dynamic Maps', free: 10000, usd: 7 },
   autocomplete: { label: 'Suchvorschläge (Lupe)', note: 'Autocomplete Requests', free: 10000, usd: 2.83 },
-  nearby: { label: 'Cafés · Bars · Essen', note: 'Nearby Search Enterprise (mit Bewertung)', free: 1000, usd: 35 },
+  nearby: { label: 'Cafés · Bars · Essen', note: 'Nearby Search Pro', free: 5000, usd: 32 },
   textPro: { label: 'GF-Suche', note: 'Text Search Pro', free: 5000, usd: 32 },
   textHours: { label: 'Öffnungszeiten laden', note: 'Text Search Enterprise', free: 1000, usd: 35 },
   details: { label: 'Ort-Details', note: 'Place Details Enterprise', free: 1000, usd: 20 },

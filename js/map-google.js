@@ -1034,7 +1034,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
         if (!places) {
           countGoogle('nearby');
           ({ places } = await Place.searchNearby({
-            fields: ['id', 'displayName', 'location', 'rating'],
+            fields: ['id', 'displayName', 'location'], // ohne Sterne: Stufe „Pro“ (5'000 gratis) statt „Enterprise“ (1'000)
             locationRestriction: { center, radius: Math.max(150, radius) },
             [GPLACE_TYPES[key].primary ? 'includedPrimaryTypes' : 'includedTypes']: GPLACE_TYPES[key].types,
             maxResultCount: 20,
@@ -1057,17 +1057,17 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     gMarkers.set(key, []);
     if (!gActive.has(key)) return;
     const near = (lat, lng) => ownCoords.some(([a, b]) => haversineKm(a, b, lat, lng) < 0.04);
-    // Einheitlich: { id, name, lat, lng, rating?, gf? } – bei GF aus der Glutenfrei-Suche, sonst aus der Umgebung
+    // Einheitlich: { id, name, lat, lng, gf? } – bei GF aus der Glutenfrei-Suche, sonst aus der Umgebung
     const items = gfOn
       ? (gfFound.get(key) || []).map((x) => ({ ...x, gf: true }))
-      : (gFound.get(key) || []).filter((p) => p.location).map((p) => ({ id: p.id, name: p.displayName, lat: p.location.lat(), lng: p.location.lng(), rating: p.rating }));
+      : (gFound.get(key) || []).filter((p) => p.location).map((p) => ({ id: p.id, name: p.displayName, lat: p.location.lat(), lng: p.location.lng() }));
     const markers = items.filter((x) => !near(x.lat, x.lng)).map((x) => {
       const content = document.createElement('div');
       content.className = `gplace-pin gplace-${key}${x.gf ? ' is-gf' : ''}`;
       content.innerHTML = icon(GPLACE_TYPES[key].icon, { size: 13, stroke: 2.3 });
       content.style.transform = 'translateY(50%)'; // mittig auf den Punkt
       const name = x.name || GPLACE_TYPES[key].label;
-      const title = `${name}${x.rating ? ` · ★ ${x.rating}` : ''}${x.gf ? ' · glutenfrei-Hinweis' : ''}`;
+      const title = `${name}${x.gf ? ' · glutenfrei-Hinweis' : ''}`;
       const position = { lat: x.lat, lng: x.lng };
       const m = new AdvancedMarkerElement({ map, position, content, title, zIndex: x.gf ? 6 : 5 });
       m.addListener('click', () => {
