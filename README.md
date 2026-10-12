@@ -56,6 +56,10 @@ Zum Ausprobieren im Import-Dialog auf **„Beispielorte laden“** klicken.
   Etappen-Details – aus den Höhen der gespeicherten GPX-Datei; Fadenkreuz mit Kilometer und Höhe, die Stelle
   erscheint als Punkt auf der Karte. Ältere Etappen ohne Höhen in der Datei zeigen einen Hinweis.
   Pro Route lässt sich zudem ein **Link** (Strava, Komoot …) hinterlegen – erscheint unter der Route und im Karten-Popup.
+  **Bewertung** (Zeile „Bewertung“ in den Etappen-Details, nur bei als gefahren markierten Etappen): jede Person
+  vergibt eigene **1–5 Sterne**; derselbe Stern noch einmal angetippt nimmt die eigene Bewertung zurück. In der
+  Etappen-Zeile steht der Schnitt aller mit der Anzahl in Klammern. Die Sterne hängen an der Person aus „Wer bist
+  du?“ (Spalte `ratings` an der Route, `{ "<person-id>": 4 }`) und gelten für alle Geräte der Reise.
   **Kaffee-Stopps** (eigene Kaffees und Rennrad-Hotspots bis 500 m neben der Strecke) mit Kilometer, geschätzter
   Ankunftszeit ab der gewählten Startzeit und ob der Ort dann geöffnet ist; der Stopp um die Streckenmitte ist als
   Halbzeit markiert. **Trinkbrunnen und Velo-Werkstätten** entlang der Strecke kommen aus OpenStreetMap

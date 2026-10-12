@@ -62,6 +62,11 @@ alter table public.routes add column if not exists ridden boolean default false;
 alter table public.routes add column if not exists activity_url text check (char_length(activity_url) <= 2000);
 -- Trinkwasser und Velo-Werkstätten entlang der Etappe (aus OpenStreetMap, js/pois.js) – einmal geladen, für alle
 alter table public.routes add column if not exists pois jsonb;
+-- Nachträglich ergänzt: Sterne je Person, 1–5. Schlüssel ist die Personen-ID aus trip_settings.participants:
+-- { "<person-id>": 4, "<andere-person-id>": 5 }. Bewusst ohne „not null“ – bei einem Sammel-Insert füllt
+-- Supabase fehlende Felder einzelner Zeilen mit null statt mit dem Standardwert (siehe gluten_free in js/backend.js);
+-- null gilt in der App als „noch nicht bewertet“.
+alter table public.routes add column if not exists ratings jsonb;
 
 -- Original-GPX je Route (für den Download) – eigene Tabelle, damit der regelmäßige Abgleich die
 -- großen Dateien nicht jedes Mal mitlädt. Wird beim Löschen der Route automatisch mit gelöscht.

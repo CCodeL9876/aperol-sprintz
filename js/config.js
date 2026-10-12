@@ -17,8 +17,8 @@ export const SUPABASE_ANON_KEY = 'sb_publishable_G925wSaWBj-DIK_xWYjQOw_PCCPwZQy
 // dort zusätzlich der Airbnb- und der Google-Maps-Link nachtragen.
 export const FIXED_AIRBNB = null;
 
-// Google Maps ist die Standardkarte; OpenStreetMap gibt es über den Schalter „Google | OSM“ auf der Karte
-// oder mit ?karte=osm in der Adresse. Der Schlüssel ist – wie der Supabase-Key –
+// Google Maps ist die Standardkarte; OpenStreetMap gibt es über das Menü „…“ → „Auf OpenStreetMap umstellen“
+// (gemerkt für dieses Gerät) oder einmalig mit ?karte=osm in der Adresse. Der Schlüssel ist – wie der Supabase-Key –
 // für den Browser gedacht und öffentlich sichtbar. Deshalb in der Google Cloud Console UNBEDINGT auf die
 // eigenen Website-Adressen einschränken (siehe ANLEITUNG.md, Abschnitt „Google Maps“).
 // Leer lassen = nur OpenStreetMap.

@@ -140,6 +140,7 @@ export class DemoBackend {
   async deleteAllPlaces() {}
   async addRoutes() {}
   async updateRoute() {}
+  async setRating() { return {}; }
   async deleteRoute() {}
   async deleteAllRoutes() {}
   async saveSettings() {}
@@ -172,6 +173,7 @@ export class LocalBackend {
   async deleteAllPlaces() { this.#save(); }
   async addRoutes() { this.#save(); }
   async updateRoute() { this.#save(); }
+  async setRating() { this.#save(); return null; }
   async deleteRoute() { this.#save(); }
   async deleteAllRoutes() { this.#save(); }
   async saveSettings() { this.#save(); }
@@ -280,7 +282,11 @@ const toRouteRow = (route, key) => ({
   ...(route.ridden ? { ridden: true } : {}),
   ...(route.activityUrl ? { activity_url: route.activityUrl } : {}),
   ...(Array.isArray(route.pois) ? { pois: route.pois } : {}),
+  ...(route.ratings && Object.keys(route.ratings).length ? { ratings: route.ratings } : {}),
 });
+
+// Sterne je Person als reines Objekt { "<person-id>": 1–5 }; alles andere (null, Liste, Unsinn) gilt als leer
+const ratingsObject = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
 
 const fromRouteRow = (r) => ({
   id: r.id,
@@ -296,6 +302,7 @@ const fromRouteRow = (r) => ({
   ridden: r.ridden === true,
   activityUrl: r.activity_url || '',
   pois: Array.isArray(r.pois) ? r.pois : null,
+  ratings: ratingsObject(r.ratings),
 });
 
 function check({ error }) {
@@ -406,6 +413,11 @@ export class SharedBackend {
       const probe = await this.db.from('routes').select('pois').limit(1);
       this.poisMissing = Boolean(probe.error);
     }
+    // und die Spalte für die Sterne der Etappen (fehlt sie, bleiben die Sterne ausgegraut)
+    if (this.ratingsMissing === undefined) {
+      const probe = await this.db.from('routes').select('ratings').limit(1);
+      this.ratingsMissing = Boolean(probe.error);
+    }
     return {
       places: places.data.map(fromRow),
       routes: routes.data.map(fromRouteRow),
@@ -417,6 +429,7 @@ export class SharedBackend {
       cashExtrasMissing: Boolean(this.cashExtrasMissing),
       hoursMissing: Boolean(this.hoursMissing),
       poisMissing: Boolean(this.poisMissing),
+      ratingsMissing: Boolean(this.ratingsMissing),
     };
   }
 
@@ -496,6 +509,21 @@ export class SharedBackend {
       row.pois = patch.pois;
     }
     check(await this.db.from('routes').update(row).eq('id', id).eq('trip_key', this.key));
+  }
+
+  // Sterne einer Person setzen (1–5) oder mit stars = null entfernen. Wie bei changeParticipants wird der
+  // aktuelle Stand gelesen, nur der eigene Eintrag geändert und zurückgeschrieben – so überschreibt niemand
+  // die Bewertungen der anderen. Zwei Geräte, die im selben Augenblick dieselbe Etappe bewerten, können sich
+  // weiterhin überschreiben; das Zeitfenster ist eine Anfrage lang, und der Abgleich alle 20 s räumt es auf.
+  // Rückgabe: die neuen Sterne der Etappe vom Server.
+  async setRating(routeId, personId, stars) {
+    if (this.ratingsMissing) throw new Error('Spalte „ratings“ fehlt (supabase/schema.sql ausführen)');
+    const current = await this.db.from('routes').select('ratings').eq('id', routeId).eq('trip_key', this.key).maybeSingle();
+    check(current);
+    const ratings = { ...ratingsObject(current.data?.ratings) };
+    if (stars) ratings[personId] = stars; else delete ratings[personId];
+    check(await this.db.from('routes').update({ ratings, updated_at: new Date().toISOString() }).eq('id', routeId).eq('trip_key', this.key));
+    return ratings;
   }
 
   async deleteRoute(id) {
@@ -596,6 +624,7 @@ export class OfflineBackend {
   async deleteAllPlaces() { this.#offline(); }
   async addRoutes() { this.#offline(); }
   async updateRoute() { this.#offline(); }
+  async setRating() { this.#offline(); }
   async deleteRoute() { this.#offline(); }
   async deleteAllRoutes() { this.#offline(); }
   async saveSettings() { this.#offline(); }

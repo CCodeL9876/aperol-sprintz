@@ -107,6 +107,74 @@ function distanceHtml(km) {
   return `${value}<small>${unit}</small>`;
 }
 
+// --- Bewertung der Etappen --------------------------------------------------------
+// Jede Person bewertet selbst mit 1–5 Sternen; angezeigt wird der Schnitt aller. Die Sterne hängen an der
+// Personen-ID aus der Reisekasse („Wer bist du?“), liegen als { "<person-id>": 4 } an der Etappe und sind
+// darum für alle Geräte dieselben. Bewertet wird nur, was als gefahren markiert ist.
+
+const MAX_STARS = 5;
+
+// Die Sterne kommen aus der Datenbank, aus Backups und von Mitreisenden – darum Werte absichern.
+// Personen, die es nicht mehr gibt (in der Reisekasse gelöscht), fallen weg; ist noch niemand eingetragen,
+// bleiben die Sterne stehen, statt sie wegzuwerfen.
+function sanitizeRatings(value, people) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const known = people.length ? new Set(people.map((p) => p.id)) : null;
+  const out = {};
+  for (const [id, stars] of Object.entries(value)) {
+    const n = Math.round(Number(stars));
+    if ((!known || known.has(id)) && n >= 1 && n <= MAX_STARS) out[id] = n;
+  }
+  return out;
+}
+
+const ratingValues = (route) => Object.values(route.ratings || {});
+// Schnitt aller Bewertungen oder null, solange niemand bewertet hat
+function ratingAverage(route) {
+  const list = ratingValues(route);
+  return list.length ? list.reduce((a, b) => a + b, 0) / list.length : null;
+}
+const myRating = (route) => (me() ? route.ratings?.[me().id] || 0 : 0);
+// 4 → "4", 4,333… → "4,3"
+const starNumber = (v) => v.toLocaleString('de-CH', { maximumFractionDigits: 1 });
+const ratingCountText = (n) => (n === 1 ? '1 Bewertung' : `${n} Bewertungen`);
+
+// Kompakt in der zusammengeklappten Zeile: nur wenn schon bewertet wurde
+function ratingPill(route) {
+  const avg = ratingAverage(route);
+  if (avg == null) return '';
+  const n = ratingValues(route).length;
+  return `<span class="route-rating" title="${ratingCountText(n)} · Schnitt ${starNumber(avg)} von ${MAX_STARS}">${icon('star', { size: 12, stroke: 2.2, cls: 'is-filled' })}${starNumber(avg)}${n > 1 ? `<small>(${n})</small>` : ''}</span>`;
+}
+
+// Zeile „Bewertung“ in den Details: eigene Sterne antippbar, dahinter der Schnitt und wer wie bewertet hat
+function ratingDetailHtml(route) {
+  const person = me();
+  if (!person) {
+    return `<button class="btn-link muted route-link-add" type="button" data-action="who-for-rating">${icon('star', { size: 13, stroke: 2 })}Wer bist du? – dann kannst du bewerten</button>`;
+  }
+  const mine = myRating(route);
+  const blocked = state.ratingsMissing || backend.offline;
+  const stars = Array.from({ length: MAX_STARS }, (_, i) => {
+    const n = i + 1;
+    const on = n <= mine;
+    const title = blocked ? 'Bewerten gerade nicht möglich' : mine === n ? 'Antippen entfernt deine Bewertung' : `${n} von ${MAX_STARS}`;
+    return `<button type="button" class="star${on ? ' is-on' : ''}" data-action="rate" data-stars="${n}"${blocked ? ' disabled' : ''}
+      aria-label="${n} von ${MAX_STARS} Sternen" aria-pressed="${on}" title="${title}">${icon('star', { size: 19, stroke: 1.9, cls: on ? 'is-filled' : '' })}</button>`;
+  }).join('');
+  const others = Object.entries(route.ratings || {})
+    .filter(([id]) => id !== person.id)
+    .map(([id, n]) => `${escapeHtml(personName(id))} ${n}`);
+  const avg = ratingAverage(route);
+  const summary = others.length
+    ? `<span class="rating-note muted">Schnitt ${starNumber(avg)} · ${others.join(', ')}</span>`
+    : mine ? '<span class="rating-note muted">nur von dir</span>' : '';
+  const hint = state.ratingsMissing
+    ? '<span class="rating-note muted">in Supabase noch nicht eingerichtet (<code>supabase/schema.sql</code> ausführen)</span>'
+    : backend.offline ? '<span class="rating-note muted">ohne Netz nicht änderbar</span>' : summary;
+  return `<span class="rating-stars" role="group" aria-label="Deine Bewertung, ${mine || 'noch keine'} von ${MAX_STARS}">${stars}</span>${hint}`;
+}
+
 // --- Speichern ----------------------------------------------------------------------
 
 function applyData(data) {
@@ -117,11 +185,14 @@ function applyData(data) {
   state.airbnb = fixedAirbnb || data.airbnb || null;
   state.customCategories = (data.customCategories || []).map(sanitizeCategory);
   state.participants = sanitizeParticipants(data.participants);
+  // Erst nach den Personen: die Sterne hängen an deren IDs (siehe sanitizeRatings)
+  for (const r of state.routes) r.ratings = sanitizeRatings(r.ratings, state.participants);
   state.expenses = (data.expenses || []).map(sanitizeExpense).filter(Boolean);
   state.cashMissing = Boolean(data.cashMissing);
   state.cashExtrasMissing = Boolean(data.cashExtrasMissing);
   state.hoursMissing = Boolean(data.hoursMissing);
   state.poisMissing = Boolean(data.poisMissing);
+  state.ratingsMissing = Boolean(data.ratingsMissing);
 }
 
 // Führt eine Speicher-Operation aus. Schlägt sie in einer gemeinsamen Reise fehl,
@@ -217,14 +288,21 @@ const mapOptions = {
   getInsets: mapInsets,
 };
 
-// Karte: immer Google Maps. OpenStreetMap (Leaflet) nur noch als stiller Ersatz – ohne API-Schlüssel in
+// Karte: normalerweise Google Maps. OpenStreetMap (Leaflet) springt still ein – ohne API-Schlüssel in
 // config.js, ohne Netz (Google lädt offline keine Karte, gesehene OSM-Kacheln hält sw.js vor) oder wenn Google
-// scheitert (siehe createGoogleMapView). Selbst wählen lässt sich OSM nicht mehr.
+// scheitert (siehe createGoogleMapView). Dauerhaft wählen lässt sie sich im Menü „…“ → „Auf OpenStreetMap
+// umstellen“ (gilt nur für dieses Gerät, siehe switchMapChoice) – nötig etwa, um vor der Reise Kacheln für
+// unterwegs zu sammeln.
 // „Ohne Netz“ heisst: der Browser meldet offline, oder die App ist in dieser Sitzung schon auf den
 // gespeicherten Stand ausgewichen (Handy mit Empfang, aber ohne Daten meldet sich oft trotzdem „online“).
 const OFFLINE_MAP_FLAG = 'llocs.offlineMap';
 const offlineSession = (() => { try { return sessionStorage.getItem(OFFLINE_MAP_FLAG) === '1'; } catch { return false; } })();
-const mapVariant = GOOGLE_MAPS_API_KEY && navigator.onLine && !offlineSession ? 'google' : 'osm';
+// Gemerkte Wahl dieses Geräts (steuert die Beschriftung im Menü); „?karte=osm“ in der Adresse schaltet
+// zusätzlich einmalig um, ohne etwas zu merken
+const osmPref = readPref('mapChoice') === 'osm';
+const osmInUrl = /[?&]karte=osm\b/i.test(location.search);
+const osmChosen = osmPref || osmInUrl;
+const mapVariant = GOOGLE_MAPS_API_KEY && navigator.onLine && !offlineSession && !osmChosen ? 'google' : 'osm';
 
 const mapView = mapVariant === 'google' ? createGoogleMapView($('#map')) : createMap($('#map'), mapOptions);
 document.body.dataset.map = mapVariant; // Knöpfe auf der Karte sitzen je nach Karte anders (styles.css)
@@ -1340,6 +1418,8 @@ function renderRoutes() {
           <span class="route-stop-list">${poiDetailHtml(r)}</span></div>
         <div class="route-detail"><span class="route-detail-label">Links</span>
           ${editing ? linkForm(r, editing) : `<span class="route-links">${tour}${ridden ? `<span class="route-meta-sep">·</span>${ridden}` : ''}</span>`}</div>
+        ${r.ridden ? `<div class="route-detail"><span class="route-detail-label">Bewertung</span>
+          <span class="route-rating-row">${ratingDetailHtml(r)}</span></div>` : ''}
         <div class="route-detail-actions">
           <button type="button" class="btn btn-small" data-action="show-route">${icon('route', { size: 14, stroke: 2 })}Auf der Karte zeigen</button>
           ${garminReadyId === r.id
@@ -1358,7 +1438,7 @@ function renderRoutes() {
           <span class="place-icon" aria-hidden="true">${categoryIcon(ROUTE_CATEGORY, { size: 18, stroke: 1.7 })}</span>
           <span class="place-body">
             <span class="place-name">${escapeHtml(r.name)}</span>
-            <span class="place-meta route-stats">${stats}${weatherPill(r)}</span>
+            <span class="place-meta route-stats">${stats}${weatherPill(r)}${ratingPill(r)}</span>
           </span>
         </button>
         <button type="button" class="route-switch-btn" data-action="toggle-route" role="switch" aria-checked="${on}" aria-label="„${escapeHtml(r.name)}“ auf der Karte ${on ? 'ausblenden' : 'einblenden'}" title="${on ? 'Auf der Karte ausblenden' : 'Auf der Karte einblenden'}"><span class="route-switch" aria-hidden="true"></span></button>
@@ -2700,6 +2780,30 @@ $('#route-list')?.addEventListener('click', async (e) => {
     if (!ok) { route.ridden = !route.ridden; render(); return; }
     toast(route.ridden ? `„${route.name}“ als gefahren markiert` : 'Markierung „gefahren“ entfernt');
   }
+  if (action === 'who-for-rating') {
+    // setMe zeichnet nur die Kopfzeile neu – die Sterne erscheinen erst, wenn die Liste danach neu entsteht
+    await askWho();
+    renderRoutes();
+    return;
+  }
+  if (action === 'rate') {
+    const person = me();
+    if (!person) return askWho();
+    if (state.ratingsMissing) return toast('Bewertungen sind in der Datenbank noch nicht eingerichtet – dafür einmal supabase/schema.sql in Supabase ausführen.');
+    const stars = Number(e.target.closest('[data-stars]')?.dataset.stars) || 0;
+    if (!stars) return;
+    // Nochmals derselbe Stern = eigene Bewertung wieder weg
+    const next = myRating(route) === stars ? 0 : stars;
+    const before = { ...(route.ratings || {}) };
+    const after = { ...before };
+    if (next) after[person.id] = next; else delete after[person.id];
+    route.ratings = after;
+    renderRoutes();
+    const ok = await persist((b) => b.setRating(route.id, person.id, next || null),
+      'Bewertung konnte nicht gespeichert werden (Spalte „ratings“ in Supabase angelegt?)');
+    if (!ok) { route.ratings = before; renderRoutes(); return; }
+    toast(next ? `„${route.name}“: ${next} von ${MAX_STARS} Sternen` : `Deine Bewertung von „${route.name}“ ist entfernt`);
+  }
   if (action === 'show-stop') {
     const placeId = e.target.closest('[data-place]')?.dataset.place;
     if (!state.places.some((p) => p.id === placeId)) return;
@@ -2863,6 +2967,8 @@ async function restoreRoutes(routes) {
   const known = new Set(state.routes.map((r) => r.id));
   const missing = (routes || []).filter((r) => r?.points?.length && !known.has(r.id));
   if (!missing.length) return 0;
+  // Sterne aus der Datei absichern, bevor sie gezeichnet und gespeichert werden
+  for (const r of missing) r.ratings = sanitizeRatings(r.ratings, state.participants);
   state.routes.push(...missing);
   render();
   await persist((b) => b.addRoutes(missing), 'Routen konnten nicht wiederhergestellt werden');
@@ -3245,6 +3351,37 @@ $('#offline-badge')?.addEventListener('click', () => {
     : 'Gerade keine Verbindung – Änderungen werden erst wieder gespeichert, wenn Netz da ist.', { sticky: true });
 });
 
+// --- Karte wählen -------------------------------------------------------------------------------
+// Google oder OpenStreetMap, gemerkt für dieses Gerät. Welche Karte läuft, entscheidet sich beim Start
+// (mapVariant) – darum lädt die Seite nach dem Umstellen einmal neu.
+function renderMapChoice() {
+  const btn = $('#menu-map-choice');
+  if (!btn) return;
+  // Ohne Schlüssel in config.js gibt es ohnehin nur OpenStreetMap – dann ist die Wahl sinnlos
+  btn.hidden = !GOOGLE_MAPS_API_KEY;
+  btn.textContent = osmPref ? 'Auf Google Maps umstellen' : 'Auf OpenStreetMap umstellen';
+  btn.title = osmPref
+    ? 'Zurück zu Google Maps (mit Orten, Bewertungen und Öffnungszeiten)'
+    : 'OpenStreetMap: ohne Google-Daten – und die Karte, die für unterwegs ohne Netz gespeichert bleibt';
+}
+
+function switchMapChoice() {
+  const toOsm = !osmPref;
+  writePref('mapChoice', toOsm ? 'osm' : null);
+  // Die Automatik-Markierung dieser Sitzung würde sonst die bewusste Wahl überdecken
+  if (!toOsm) setOfflineSession(false);
+  toast(toOsm
+    ? 'Karte wird auf OpenStreetMap umgestellt – die Seite lädt gleich neu.'
+    : 'Karte wird auf Google Maps umgestellt – die Seite lädt gleich neu.');
+  setTimeout(() => {
+    // „?karte=osm“ in der Adresse würde die Umstellung auf Google sofort wieder aufheben
+    const url = new URL(location.href);
+    if (!toOsm) url.searchParams.delete('karte');
+    // Gleiche Adresse: replace() würde wegen des „#…“ nur den Anker anspringen statt neu zu laden
+    if (url.href === location.href) location.reload(); else location.replace(url);
+  }, 1200);
+}
+
 // --- Offline-Karte ------------------------------------------------------------------------------
 // Die Kartenbilder („Kacheln“) von OpenStreetMap legt sw.js ab, sobald man sie einmal gesehen hat;
 // vorab ganze Gebiete zu laden erlauben die OSM-Nutzungsregeln nicht. Hier nur die Anzeige im Menü:
@@ -3266,7 +3403,7 @@ async function showOfflineMapInfo() {
     if (usage) space = ` · die App belegt gerade rund ${Math.round(usage / 1024 / 1024)} MB`;
   } catch { /* Browser ohne storage.estimate – dann eben ohne Angabe */ }
   const fill = document.body.dataset.map === 'google'
-    ? 'Zum Füllen unten auf der Karte auf „OSM“ schalten und die Gebiete einmal abfahren, Zoomstufe für Zoomstufe.'
+    ? 'Zum Füllen im Menü auf OpenStreetMap umstellen und die Gebiete einmal abfahren, Zoomstufe für Zoomstufe.'
     : 'Zum Füllen die Gebiete einmal abfahren, Zoomstufe für Zoomstufe.';
   toast(`Offline-Karte: ${fmtCount(tiles)} von ${fmtCount(MAX_TILES)} Kartenbildern gespeichert${space}. ${fill} Was du einmal gesehen hast, bleibt da – ohne Netz zeigt die App automatisch diese Karte.`, { sticky: true });
 }
@@ -4359,6 +4496,8 @@ $('#plan-panel').addEventListener('submit', (e) => {
 const isAppleMobile = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 $('#menu-wallet').hidden = !isAppleMobile;
 $('#menu-photos').hidden = !isAppleMobile;
+// Beschriftung „Auf OpenStreetMap/Google Maps umstellen“ – ändert sich erst nach dem Neuladen, daher einmal hier
+renderMapChoice();
 
 $('.menu-panel').addEventListener('click', async (e) => {
   const what = e.target.closest('[data-menu]')?.dataset.menu;
@@ -4373,6 +4512,7 @@ $('.menu-panel').addEventListener('click', async (e) => {
   }
   if (what === 'backup') downloadBackup(state);
   if (what === 'fit') mapView.fitTo(lastVisible, state.airbnb);
+  if (what === 'map-choice') switchMapChoice();
   if (what === 'offline-map') showOfflineMapInfo();
   if (what === 'hours') loadOpeningHours();
   if (what === 'reset') {
@@ -4734,7 +4874,7 @@ const INTRO = [
       ] },
   ] },
   { title: 'Rennrad', items: [
-    { icon: 'trending-up', color: 'var(--mint)', name: 'Etappen-Details', text: 'Wetter, Kaffee-Stopps, Wasser & Velo, Höhenprofil.',
+    { icon: 'trending-up', color: 'var(--mint)', name: 'Etappen-Details', text: 'Wetter, Kaffee-Stopps, Wasser & Velo, Höhenprofil, Sterne.',
       info: [
         'Etappe in der Liste antippen – die Details klappen auf.',
         'Der Schalter rechts blendet die Etappe auf der Karte ein (Handy: die Boxen oben machen dann Platz).',
