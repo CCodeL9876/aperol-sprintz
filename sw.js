@@ -9,7 +9,10 @@
 
 const APP_CACHE = 'llocs-app-v1';
 const TILE_CACHE = 'llocs-tiles-v1';
-const MAX_TILES = 3000;
+// Platz für rund Mallorca auf den Zoomstufen 12–15 (z12 ≈ 130, z13 ≈ 530, z14 ≈ 2100, z15 ≈ 8400 Kacheln)
+// plus Reserve. Eine Kachel wiegt im Schnitt gut 20 KB – voll ausgereizt also grob 250 MB, in der Praxis
+// deutlich weniger, weil nur wirklich angesehene Ausschnitte hineinkommen.
+const MAX_TILES = 12000;
 const PAGE_TIMEOUT_MS = 6000; // schwaches Netz in den Bergen: nicht ewig warten, sondern den gespeicherten Stand zeigen
 const SCOPE = new URL(self.registration.scope);
 

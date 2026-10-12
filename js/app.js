@@ -3245,6 +3245,32 @@ $('#offline-badge')?.addEventListener('click', () => {
     : 'Gerade keine Verbindung – Änderungen werden erst wieder gespeichert, wenn Netz da ist.', { sticky: true });
 });
 
+// --- Offline-Karte ------------------------------------------------------------------------------
+// Die Kartenbilder („Kacheln“) von OpenStreetMap legt sw.js ab, sobald man sie einmal gesehen hat;
+// vorab ganze Gebiete zu laden erlauben die OSM-Nutzungsregeln nicht. Hier nur die Anzeige im Menü:
+// wie viel liegt schon bereit – und wie man den Vorrat vor der Reise füllt.
+const TILE_CACHE = 'llocs-tiles-v1'; // muss zu sw.js passen
+const MAX_TILES = 12000; // ebenso – nur für die Anzeige
+
+async function showOfflineMapInfo() {
+  let tiles = null;
+  try {
+    tiles = (await (await caches.open(TILE_CACHE)).keys()).length;
+  } catch { /* kein Cache Storage (z. B. über http geöffnet) */ }
+  if (tiles === null) {
+    return toast('Dieser Browser speichert nichts für offline – das klappt nur über https und mit Service Worker.', { sticky: true });
+  }
+  let space = '';
+  try {
+    const { usage } = await navigator.storage.estimate();
+    if (usage) space = ` · die App belegt gerade rund ${Math.round(usage / 1024 / 1024)} MB`;
+  } catch { /* Browser ohne storage.estimate – dann eben ohne Angabe */ }
+  const fill = document.body.dataset.map === 'google'
+    ? 'Zum Füllen unten auf der Karte auf „OSM“ schalten und die Gebiete einmal abfahren, Zoomstufe für Zoomstufe.'
+    : 'Zum Füllen die Gebiete einmal abfahren, Zoomstufe für Zoomstufe.';
+  toast(`Offline-Karte: ${fmtCount(tiles)} von ${fmtCount(MAX_TILES)} Kartenbildern gespeichert${space}. ${fill} Was du einmal gesehen hast, bleibt da – ohne Netz zeigt die App automatisch diese Karte.`, { sticky: true });
+}
+
 function switchTo(next) {
   backend = next;
   // Google-Verbrauch: in der gemeinsamen Reise in Supabase mitzählen, sonst nur im Browser
@@ -4347,6 +4373,7 @@ $('.menu-panel').addEventListener('click', async (e) => {
   }
   if (what === 'backup') downloadBackup(state);
   if (what === 'fit') mapView.fitTo(lastVisible, state.airbnb);
+  if (what === 'offline-map') showOfflineMapInfo();
   if (what === 'hours') loadOpeningHours();
   if (what === 'reset') {
     if (!canAdmin()) return toast('Alle Orte löschen kann nur der Admin.');
