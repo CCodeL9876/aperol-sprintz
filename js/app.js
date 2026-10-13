@@ -11,7 +11,6 @@ import { expandMapsLinks, hasShortMapsLinks,
 import { createMap, routeAttrs } from './map.js';
 import { TRAVEL_MODES, computeRoute, navUrl } from './directions.js';
 import { roadKm, loadRoadDistances } from './road-distance.js';
-import { buildTcx } from './tcx.js';
 import { SKUS, setUsageSink, localUsage, pendingUsage, usageCost, usageMonth } from './usage.js';
 import { WIKI_CATEGORIES, cachedWiki, loadWiki } from './wiki.js';
 import { GRADE_CLASSES, steepRuns, findClimbs, climbName } from './climbs.js';
@@ -1567,11 +1566,11 @@ const GARMIN_COURSES_URL = 'https://connect.garmin.com/modern/courses';
 const touchDevice = matchMedia('(hover: none) and (pointer: coarse)').matches;
 let garminReadyId = null; // Handy: Etappe, deren Datei schon geladen ist (Knopf zeigt „Garmin öffnen“)
 
-// Für Garmin als TCX: Kaffee-Stopps, Trinkwasser und Velo-Werkstätten kommen als Streckenpunkte mit (siehe tcx.js)
+// Für Garmin als GPX (wie überall in der App): Kaffee-Stopps, Trinkwasser und Velo-Werkstätten als Wegpunkte
 async function garminExport(route) {
   if (!touchDevice) window.open(GARMIN_COURSES_URL, '_blank', 'noopener'); // gleich im Klick, sonst blockiert
   const { track, reduced } = await routeTrack(route);
-  downloadText(buildTcx(route.name, track, exportStops(route), bikeSpeed()), gpxFileName(route).replace(/\.gpx$/, '.tcx'), 'application/vnd.garmin.tcx+xml');
+  downloadText(buildGpx(route.name, track, exportStops(route)), gpxFileName(route), 'application/gpx+xml');
   if (reduced) toast(REDUCED_GPX_HINT);
   if (touchDevice) {
     garminReadyId = route.id;
@@ -4157,7 +4156,7 @@ async function resumeRouteFromHere(route) {
   $('#plan-name').value = `${route.name} (ab hier)`.slice(0, 120);
   renderPlan();
   mapView.centerOn(here, Math.max(mapView.map.getZoom(), 13));
-  toast(`Ab hier ${best.d < 0.05 ? 'auf der Strecke' : `– ${formatKm(best.d)} bis zur Strecke`}. Speichern oder „Für Garmin“ nach dem Speichern.`);
+  toast(`Ab hier ${best.d < 0.05 ? 'auf der Strecke' : `– ${formatKm(best.d)} bis zur Strecke`}. Speichern oder unten direkt als GPX laden.`);
 }
 
 const samePoint = (a, b) => a && b && Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
@@ -4208,6 +4207,8 @@ function renderPlan() {
   loop.disabled = plan.waypoints.length < 2 || samePoint(plan.waypoints.at(-1), plan.waypoints[0]);
   $('#plan-name').hidden = $('#plan-save').hidden = $('#plan-save-row').hidden = !plan.segments.length;
   $('#plan-save').disabled = !track || pending || failed;
+  $('#plan-gpx').hidden = !plan.segments.length;
+  $('#plan-gpx').disabled = !track || pending || failed;
   for (const b of $$('#plan-route-mode [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === routeMode()));
   // Start „Airbnb | Standort“: nur bei einer neuen Etappe (beim Bearbeiten bleibt der Start der Etappe)
   $('#plan-start-mode').hidden = !!plan.source;
@@ -4600,6 +4601,17 @@ function takeLoop(i) {
   // Sprechblase bleibt offen, damit sich die Varianten nacheinander ansehen lassen; Knopf dafür bleibt erhalten
   renderLoopPop();
 }
+// Strecke im Planer direkt als GPX laden (ohne Speichern) – mit eigenen Cafés & Hotspots als Wegpunkten
+$('#plan-gpx').innerHTML = icon('download', { size: 18, stroke: 2 });
+$('#plan-gpx').addEventListener('click', () => {
+  const track = planTrack();
+  if (!track) return;
+  const name = $('#plan-name').value.trim() || 'Etappe';
+  const stops = stopsAlong({ points: track.map(([lat, lng]) => [lat, lng]) })
+    .map((s) => ({ name: s.place.name, lat: s.place.lat, lng: s.place.lng, type: s.place.category === 'kaffee' ? 'Food' : 'Generic' }));
+  downloadText(buildGpx(name, track, stops), gpxFileName({ name }), 'application/gpx+xml');
+  toast('GPX geladen – z. B. in Garmin Connect: Strecken → Importieren.');
+});
 $('#plan-start-mode [data-start="home"]').innerHTML = icon('home', { size: 16, stroke: 2.2 });
 $('#plan-start-mode [data-start="here"]').innerHTML = icon('locate', { size: 16, stroke: 2.2 });
 $('#plan-start-mode').addEventListener('click', (e) => {
@@ -4994,7 +5006,7 @@ const INTRO = [
         'Kilometer, Höhenmeter, Fahrzeit und Höhenprofil laufend. Steile Stücke farbig: gelb ab 5 %, rot ab 8 %, violett ab 10 % – darunter die Anstiege, antippen zeigt sie auf der Karte.',
         'Knöpfe unter dem Profil: <strong>„Rundtour vorschlagen“</strong> (Länge und Richtung wählen), <strong>„Kaffee-Stopp“</strong> (eigenes Café an einer Stelle einbauen) und <strong>Schnell/Ruhig vergleichen</strong>.',
         'Gespeichert zeigt jede Etappe Wetter, Kaffee-Stopps, Wasser & Velo – und lässt sich als GPX laden.',
-        'Unterwegs: bei einer Etappe <strong>„Ab hier“</strong> – der gefahrene Teil fällt weg, vom Standort geht es zurück auf die Strecke (als Kopie speichern, dann „Für Garmin“).',
+        'Unterwegs: bei einer Etappe <strong>„Ab hier“</strong> – der gefahrene Teil fällt weg, vom Standort geht es zurück auf die Strecke (als Kopie speichern oder direkt als GPX laden).',
         'Oder eine GPX aus Strava/Komoot über <strong>„+ Importieren“</strong> – Start und Ziel werden ans Airbnb angeschlossen.',
       ] },
     { icon: 'wallet', color: 'var(--orange)', name: 'Ausgaben', text: 'Rechnungen erfassen und teilen – <strong>„Ausgaben“</strong> oben auf der Karte.',
@@ -5026,7 +5038,7 @@ const INTRO = [
         'Der Kreis links neben der Etappe markiert sie als gefahren.',
         'In den Details: Tour-Link (Strava, Komoot) – nach dem Haken auch die gefahrene Aktivität.',
         `${icon('download', { size: 14, stroke: 2.2, cls: 'intro-inline' })} lädt die Etappe als GPX – z. B. für Garmin oder Wahoo.`,
-        '<strong>„Für Garmin“</strong> lädt die Strecke mit Kaffee-Stopps und Trinkwasser als Hinweisen (TCX) und öffnet Garmin Connect – dort <strong>Importieren</strong>.',
+        '<strong>„Für Garmin“</strong> lädt die Strecke als GPX (mit Kaffee-Stopps und Trinkwasser als Wegpunkten) und öffnet Garmin Connect – dort <strong>Importieren</strong>. Auch im Planer lässt sich die Strecke direkt als GPX laden.',
       ] },
   ] },
   { title: 'Außerdem', items: [
