@@ -4200,11 +4200,12 @@ function renderPlan() {
   $('#plan-remove').hidden = plan.selected == null || plan.waypoints.length <= 2;
   $('#plan-reverse').disabled = !plan.segments.length || pending;
   const loop = $('#plan-loop');
-  const atHome = state.airbnb && samePoint(plan.waypoints[0], [state.airbnb.lat, state.airbnb.lng]);
-  const loopLabel = atHome ? 'Zurück zum Airbnb' : 'Zurück zum Start';
+  const loopLabel = state.airbnb ? 'Nach Hause (zum Airbnb)' : 'Zurück zum Start';
   loop.title = loopLabel;
   loop.setAttribute('aria-label', loopLabel);
-  loop.disabled = plan.waypoints.length < 2 || samePoint(plan.waypoints.at(-1), plan.waypoints[0]);
+  const goal = planHomeGoal();
+  loop.disabled = !goal || !plan.waypoints.length || (plan.waypoints.length < 2 && samePoint(plan.waypoints[0], goal))
+    || samePoint(plan.waypoints.at(-1), goal);
   $('#plan-name').hidden = $('#plan-save').hidden = $('#plan-save-row').hidden = !plan.segments.length;
   $('#plan-save').disabled = !track || pending || failed;
   $('#plan-gpx').hidden = !plan.segments.length;
@@ -4309,8 +4310,12 @@ $('#plan-remove').innerHTML = icon('trash', { size: 18, stroke: 2 });
 $('#plan-remove').addEventListener('click', removePlanPoint);
 $('#plan-reverse').innerHTML = icon('swap', { size: 18, stroke: 2 });
 $('#plan-reverse').addEventListener('click', reversePlan);
+// Home-Knopf: immer zum Airbnb („nach Hause“) – auch wenn die Planung am eigenen Standort begann;
+// ohne Airbnb zurück zum Startpunkt
+const planHomeGoal = () => (state.airbnb ? [state.airbnb.lat, state.airbnb.lng] : plan.waypoints[0] || null);
 $('#plan-loop').addEventListener('click', () => {
-  if (plan.waypoints.length) addPlanPoint(plan.waypoints[0]);
+  const goal = planHomeGoal();
+  if (goal && plan.waypoints.length) addPlanPoint(goal);
 });
 $('#plan-cancel').addEventListener('click', cancelPlan);
 // ⓘ neben „Schnell | Ruhig“: Erklärung als Sprechblase unter dem Planer, Spitze auf das ⓘ.
@@ -5000,7 +5005,7 @@ const INTRO = [
     { icon: 'route', color: 'var(--mint)', name: 'Routen planen',
       text: '<strong>„Etappe planen“</strong> (Handy: grüner Knopf auf der Karte): Punkte tippen – die Strecke folgt Straßen fürs Rennrad.',
       info: [
-        `Start: links umschalten zwischen ${icon('home', { size: 14, stroke: 2.2, cls: 'intro-inline' })} Airbnb und ${icon('locate', { size: 14, stroke: 2.2, cls: 'intro-inline' })} deinem Standort (wird gemerkt). Oben führt ${icon('home', { size: 14, stroke: 2.2, cls: 'intro-inline' })} zurück zum Start, ${icon('undo', { size: 14, stroke: 2.2, cls: 'intro-inline' })} macht den letzten Schritt rückgängig.`,
+        `Start: links umschalten zwischen ${icon('home', { size: 14, stroke: 2.2, cls: 'intro-inline' })} Airbnb und ${icon('locate', { size: 14, stroke: 2.2, cls: 'intro-inline' })} deinem Standort (wird gemerkt). Oben führt ${icon('home', { size: 14, stroke: 2.2, cls: 'intro-inline' })} nach Hause zum Airbnb, ${icon('undo', { size: 14, stroke: 2.2, cls: 'intro-inline' })} macht den letzten Schritt rückgängig.`,
         `Punkte <strong>ziehen</strong>, auf die Linie tippen = Zwischenpunkt, Punkt antippen und ${icon('trash', { size: 14, stroke: 2.2, cls: 'intro-inline' })} = entfernen, ${icon('swap', { size: 14, stroke: 2.2, cls: 'intro-inline' })} dreht die Richtung um.`,
         '<strong>Schnell</strong>: direkte Wege. <strong>Ruhig</strong>: meidet Verkehr, dafür mit Umwegen – das <strong>ⓘ</strong> daneben erklärt den Unterschied.',
         'Kilometer, Höhenmeter, Fahrzeit und Höhenprofil laufend. Steile Stücke farbig: gelb ab 5 %, rot ab 8 %, violett ab 10 % – darunter die Anstiege, antippen zeigt sie auf der Karte.',
