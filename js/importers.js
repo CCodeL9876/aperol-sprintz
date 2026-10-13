@@ -262,8 +262,7 @@ const escapeXml = (s) =>
 // einer BRouter-Strecke, vom Nachbarpunkt). Bewusst ohne Zeitstempel: sonst könnte Garmin die Datei als gefahrene
 // Aktivität übernehmen und die Statistik verfälschen.
 // waypoints (optional): [{ name, lat, lng, type: 'Food'|'Water'|'Generic' }] – Kaffee-Stopps, Trinkwasser …
-// als <wpt> mit Höhe, Name, Symbol und Typ (Garmin verlangt diese Angaben; für Garmin selbst ist TCX zuverlässiger,
-// siehe tcx.js – Komoot, Wahoo & Co. lesen die Wegpunkte aus der GPX).
+// als <wpt> mit Höhe, Name, Symbol und Typ (Garmin verlangt diese Angaben; Komoot, Wahoo & Co. lesen sie ebenso).
 const WPT_SYMBOL = { Food: 'Restaurant', Water: 'Drinking Water', Generic: 'Bike Trail' };
 export function buildGpx(name, points, waypoints = []) {
   const eles = points.map((p) => (Number.isFinite(p[2]) ? p[2] : null));

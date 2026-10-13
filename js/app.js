@@ -11,7 +11,6 @@ import { expandMapsLinks, hasShortMapsLinks,
 import { createMap, routeAttrs } from './map.js';
 import { TRAVEL_MODES, computeRoute, navUrl } from './directions.js';
 import { roadKm, loadRoadDistances } from './road-distance.js';
-import { buildTcx } from './tcx.js';
 import { SKUS, setUsageSink, localUsage, pendingUsage, usageCost, usageMonth } from './usage.js';
 import { WIKI_CATEGORIES, cachedWiki, loadWiki } from './wiki.js';
 import { GRADE_CLASSES, steepRuns, findClimbs, climbName } from './climbs.js';
@@ -1425,6 +1424,7 @@ function renderRoutes() {
           ${garminReadyId === r.id
             ? `<a class="btn btn-small btn-primary garmin-open" href="${GARMIN_COURSES_URL}" target="_blank" rel="noopener" title="Garmin Connect öffnen – dort Importieren und die geladene Datei wählen">Garmin öffnen ↗</a>`
             : `<button type="button" class="btn btn-small" data-action="garmin-route" title="GPX laden und Garmin Connect (Strecken → Importieren) öffnen">${icon('share', { size: 14, stroke: 2 })}Für Garmin</button>`}
+          <button type="button" class="btn btn-small" data-action="resume-route" title="Etappe ab deinem Standort: der gefahrene Teil fällt weg, vom Standort zurück auf die Strecke">${icon('navigation', { size: 14, stroke: 2 })}Ab hier</button>
           <button type="button" class="route-action" data-action="edit-route" aria-label="Etappe „${escapeHtml(r.name)}“ bearbeiten" title="Bearbeiten (als Kopie)">${icon('pencil', { size: 15, stroke: 1.9 })}</button>
           <button type="button" class="route-action" data-action="download-route" aria-label="Etappe „${escapeHtml(r.name)}“ als GPX herunterladen" title="Als GPX herunterladen – z. B. für connect.garmin.com → Strecken → Importieren">${icon('download', { size: 15, stroke: 1.9 })}</button>
           <button type="button" class="route-action is-danger" data-action="delete-route" aria-label="Etappe „${escapeHtml(r.name)}“ entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
@@ -1566,11 +1566,11 @@ const GARMIN_COURSES_URL = 'https://connect.garmin.com/modern/courses';
 const touchDevice = matchMedia('(hover: none) and (pointer: coarse)').matches;
 let garminReadyId = null; // Handy: Etappe, deren Datei schon geladen ist (Knopf zeigt „Garmin öffnen“)
 
-// Für Garmin als TCX: Kaffee-Stopps, Trinkwasser und Velo-Werkstätten kommen als Streckenpunkte mit (siehe tcx.js)
+// Für Garmin als GPX (wie überall in der App): Kaffee-Stopps, Trinkwasser und Velo-Werkstätten als Wegpunkte
 async function garminExport(route) {
   if (!touchDevice) window.open(GARMIN_COURSES_URL, '_blank', 'noopener'); // gleich im Klick, sonst blockiert
   const { track, reduced } = await routeTrack(route);
-  downloadText(buildTcx(route.name, track, exportStops(route), bikeSpeed()), gpxFileName(route).replace(/\.gpx$/, '.tcx'), 'application/vnd.garmin.tcx+xml');
+  downloadText(buildGpx(route.name, track, exportStops(route)), gpxFileName(route), 'application/gpx+xml');
   if (reduced) toast(REDUCED_GPX_HINT);
   if (touchDevice) {
     garminReadyId = route.id;
@@ -2818,6 +2818,7 @@ $('#route-list')?.addEventListener('click', async (e) => {
   if (action === 'download-route') await downloadRouteGpx(route);
   if (action === 'garmin-route') await garminExport(route);
   if (action === 'edit-route') await editRoute(route);
+  if (action === 'resume-route') await resumeRouteFromHere(route);
   if (action === 'delete-route') {
     if (!confirm(`Etappe „${route.name}“ entfernen?`)) return;
     state.routes = state.routes.filter((r) => r.id !== id);
@@ -3820,11 +3821,12 @@ $('#dir-panel').addEventListener('click', (e) => {
 
 const EDIT_STEP_KM = 5;
 
-function startPlan() {
+function startPlan({ edit = false } = {}) {
   if (pickMode) setPickMode(false);
   if (dir.on) closeDir();
   plan.on = true;
-  plan.waypoints = state.airbnb ? [[state.airbnb.lat, state.airbnb.lng]] : [];
+  // Start beim Airbnb; „Start an meinem Standort“ setzt ihn, sobald der Standort da ist (siehe unten)
+  plan.waypoints = state.airbnb && (edit || planStart() === 'home') ? [[state.airbnb.lat, state.airbnb.lng]] : [];
   plan.segments = [];
   plan.history = [];
   plan.selected = null;
@@ -3844,6 +3846,54 @@ function startPlan() {
   }
   if (state.airbnb) mapView.centerOn([state.airbnb.lat, state.airbnb.lng], Math.max(mapView.map.getZoom(), 11));
   renderPlan();
+  // Neue Etappe ab dem eigenen Standort (Umschalter „Airbnb | Standort“); beim Bearbeiten bleibt der Start
+  if (!edit && planStart() === 'here') setPlanStart('here', { initial: true });
+}
+
+// Start der Planung: „home“ (Airbnb) oder „here“ (eigener Standort) – jedes Gerät merkt sich seine Wahl.
+// Ohne Airbnb gibt es nur den Standort (oder einen getippten Startpunkt).
+const planStart = () => (readPref('planStart') === 'here' || !state.airbnb ? 'here' : 'home');
+let planStartSeq = 0;
+
+// initial: beim Öffnen des Planers – wurde inzwischen schon ein Punkt getippt, wird der Standort davor gesetzt
+async function setPlanStart(kind, { initial = false } = {}) {
+  if (kind === 'home' && !state.airbnb) return;
+  writePref('planStart', kind);
+  const seq = ++planStartSeq;
+  renderPlan();
+  let p;
+  if (kind === 'home') {
+    p = [state.airbnb.lat, state.airbnb.lng];
+  } else {
+    toast('Standort wird gesucht …');
+    try {
+      p = await myPosition();
+    } catch (err) {
+      if (seq !== planStartSeq) return;
+      if (state.airbnb) writePref('planStart', 'home');
+      // Planer eben geöffnet und noch nichts getippt: wie gewohnt beim Airbnb beginnen
+      if (initial && plan.on && !plan.waypoints.length && state.airbnb) plan.waypoints = [[state.airbnb.lat, state.airbnb.lng]];
+      renderPlan();
+      return toast(`Start am Standort nicht möglich (${err.message})${state.airbnb ? ' – Start bleibt beim Airbnb.' : ' – Start auf die Karte tippen.'}`);
+    }
+    hideToast();
+  }
+  // Inzwischen beendet, bearbeitet oder anders entschieden: nichts mehr ändern
+  if (seq !== planStartSeq || !plan.on || plan.source) return;
+  if (!plan.waypoints.length) {
+    plan.waypoints = [p];
+    renderPlan();
+  } else if (initial) {
+    planSnapshot();
+    plan.segments.unshift(planSegment(p, plan.waypoints[0]));
+    plan.waypoints.unshift(p);
+    renderPlan();
+  } else {
+    movePlanPoint(0, p); // nur der erste Abschnitt wird neu berechnet; „Rückgängig“ geht
+    plan.selected = null;
+    renderPlan();
+  }
+  if (plan.waypoints.length === 1) mapView.centerOn(p, Math.max(mapView.map.getZoom(), 13));
 }
 
 function endPlan() {
@@ -4020,7 +4070,7 @@ async function editRoute(route) {
   const noEle = !track?.some((p) => Number.isFinite(p[2]));
   if (!track?.length) track = (route.points || []).map(([lat, lng]) => [lat, lng, null]);
   if (track.length < 2) return toast('Diese Etappe hat zu wenige Punkte zum Bearbeiten.');
-  startPlan();
+  startPlan({ edit: true });
   plan.source = route;
   plan.noEle = noEle;
   // Wegpunkte alle EDIT_STEP_KM; ein Rest unter 1 km hängt am letzten Abschnitt
@@ -4045,6 +4095,68 @@ async function editRoute(route) {
   renderPlan();
   requestAnimationFrame(() => mapView.fitToRoute(route)); // erst wenn das Planer-Feld seine Höhe hat
   toast('Punkte ziehen · Linie antippen = neuer Punkt · Punkt + Papierkorb = weg. Gespeichert wird eine Kopie.');
+  return true;
+}
+
+// „Ab hier weiterfahren“: Etappe ab der nächstgelegenen Stelle zum eigenen Standort. Der gefahrene Teil fällt weg,
+// vom Standort führt ein neu berechneter Abschnitt zurück auf die Strecke (gut 200 m nach der nächsten Stelle,
+// damit es nicht zurückgeht). Wie beim Bearbeiten entsteht eine Kopie – zum Speichern, für Garmin usw.
+const RESUME_AHEAD_KM = 0.2;
+const RESUME_MAX_KM = 30;
+
+async function resumeRouteFromHere(route) {
+  toast('Standort wird gesucht …');
+  let here;
+  try {
+    here = await myPosition();
+  } catch (err) {
+    return toast(`„Ab hier“ braucht deinen Standort (${err.message}).`);
+  }
+  if (!await editRoute(route)) return;
+  // Nächste Stelle der Strecke (über alle Abschnitte)
+  let best = null;
+  plan.segments.forEach((seg, si) => seg.track.forEach((p, k) => {
+    const d = haversineKm(here[0], here[1], p[0], p[1]);
+    if (!best || d < best.d) best = { si, k, d };
+  }));
+  if (!best || best.d > RESUME_MAX_KM) {
+    endPlan();
+    return toast(`Du bist ${best ? `${Math.round(best.d)} km` : 'zu weit'} von dieser Etappe entfernt – „Ab hier“ geht bis ${RESUME_MAX_KM} km.`);
+  }
+  // Ein Stück weiter in Fahrtrichtung wieder einsteigen
+  let { si, k } = best;
+  for (let km = 0; km < RESUME_AHEAD_KM;) {
+    const t = plan.segments[si].track;
+    if (k < t.length - 1) {
+      km += haversineKm(t[k][0], t[k][1], t[k + 1][0], t[k + 1][1]);
+      k++;
+    } else if (si < plan.segments.length - 1) {
+      si++;
+      k = 0;
+    } else break;
+  }
+  const seg = plan.segments[si];
+  const atEnd = si === plan.segments.length - 1 && k >= seg.track.length - 1;
+  if (atEnd) {
+    endPlan();
+    return toast('Du bist schon am Ende dieser Etappe.');
+  }
+  // Abschnitt si an der Stelle k teilen, alles davor weglassen
+  const rest = seg.track.slice(k);
+  const join = [rest[0][0], rest[0][1]];
+  plan.segments = [{ points: rest.map(([lat, lng]) => [lat, lng]), track: rest, pending: false, error: false, orig: true }, ...plan.segments.slice(si + 1)];
+  plan.waypoints = [join, ...plan.waypoints.slice(si + 1)];
+  // Vom Standort zur Einstiegsstelle (sehr nah dran: direkt dort beginnen)
+  if (haversineKm(here[0], here[1], join[0], join[1]) > 0.03) {
+    plan.waypoints.unshift(here);
+    plan.segments.unshift(planSegment(here, join));
+  }
+  plan.history = [];
+  plan.selected = null;
+  $('#plan-name').value = `${route.name} (ab hier)`.slice(0, 120);
+  renderPlan();
+  mapView.centerOn(here, Math.max(mapView.map.getZoom(), 13));
+  toast(`Ab hier ${best.d < 0.05 ? 'auf der Strecke' : `– ${formatKm(best.d)} bis zur Strecke`}. Speichern oder unten direkt als GPX laden.`);
 }
 
 const samePoint = (a, b) => a && b && Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
@@ -4088,13 +4200,22 @@ function renderPlan() {
   $('#plan-remove').hidden = plan.selected == null || plan.waypoints.length <= 2;
   $('#plan-reverse').disabled = !plan.segments.length || pending;
   const loop = $('#plan-loop');
-  const loopLabel = state.airbnb ? 'Zurück zum Airbnb' : 'Zurück zum Start';
+  const atHome = state.airbnb && samePoint(plan.waypoints[0], [state.airbnb.lat, state.airbnb.lng]);
+  const loopLabel = atHome ? 'Zurück zum Airbnb' : 'Zurück zum Start';
   loop.title = loopLabel;
   loop.setAttribute('aria-label', loopLabel);
   loop.disabled = plan.waypoints.length < 2 || samePoint(plan.waypoints.at(-1), plan.waypoints[0]);
   $('#plan-name').hidden = $('#plan-save').hidden = $('#plan-save-row').hidden = !plan.segments.length;
   $('#plan-save').disabled = !track || pending || failed;
+  $('#plan-gpx').hidden = !plan.segments.length;
+  $('#plan-gpx').disabled = !track || pending || failed;
   for (const b of $$('#plan-route-mode [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === routeMode()));
+  // Start „Airbnb | Standort“: nur bei einer neuen Etappe (beim Bearbeiten bleibt der Start der Etappe)
+  $('#plan-start-mode').hidden = !!plan.source;
+  for (const b of $$('#plan-start-mode [data-start]')) {
+    b.setAttribute('aria-pressed', String(b.dataset.start === planStart()));
+    b.disabled = b.dataset.start === 'home' && !state.airbnb;
+  }
   // Während ein Abschnitt berechnet wird, bleibt das bisherige Profil stehen; ohne Strecke weg
   if (!plan.segments.length) renderPlanProfile(null);
 }
@@ -4480,6 +4601,23 @@ function takeLoop(i) {
   // Sprechblase bleibt offen, damit sich die Varianten nacheinander ansehen lassen; Knopf dafür bleibt erhalten
   renderLoopPop();
 }
+// Strecke im Planer direkt als GPX laden (ohne Speichern) – mit eigenen Cafés & Hotspots als Wegpunkten
+$('#plan-gpx').innerHTML = icon('download', { size: 18, stroke: 2 });
+$('#plan-gpx').addEventListener('click', () => {
+  const track = planTrack();
+  if (!track) return;
+  const name = $('#plan-name').value.trim() || 'Etappe';
+  const stops = stopsAlong({ points: track.map(([lat, lng]) => [lat, lng]) })
+    .map((s) => ({ name: s.place.name, lat: s.place.lat, lng: s.place.lng, type: s.place.category === 'kaffee' ? 'Food' : 'Generic' }));
+  downloadText(buildGpx(name, track, stops), gpxFileName({ name }), 'application/gpx+xml');
+  toast('GPX geladen – z. B. in Garmin Connect: Strecken → Importieren.');
+});
+$('#plan-start-mode [data-start="home"]').innerHTML = icon('home', { size: 16, stroke: 2.2 });
+$('#plan-start-mode [data-start="here"]').innerHTML = icon('locate', { size: 16, stroke: 2.2 });
+$('#plan-start-mode').addEventListener('click', (e) => {
+  const kind = e.target.closest('[data-start]')?.dataset.start;
+  if (kind) setPlanStart(kind);
+});
 // Eigene ID: „.plan-mode“ trägt auch die Verkehrsmittel-Wahl der Routen-Vorschau (steht im HTML davor)
 $('#plan-route-mode').addEventListener('click', (e) => {
   const mode = e.target.closest('[data-mode]')?.dataset.mode;
@@ -4588,6 +4726,11 @@ function toast(msg, { sticky = false } = {}) {
   clearTimeout(toastTimer);
   // Lesezeit: mindestens gut 3 s, bei langen Texten länger (max. 9 s)
   if (!sticky) toastTimer = setTimeout(() => el.classList.remove('is-visible'), Math.min(9000, Math.max(3200, msg.length * 60)));
+}
+
+function hideToast() {
+  clearTimeout(toastTimer);
+  $('#toast').classList.remove('is-visible');
 }
 
 // --- Start ------------------------------------------------------------------------------------
@@ -4857,12 +5000,13 @@ const INTRO = [
     { icon: 'route', color: 'var(--mint)', name: 'Routen planen',
       text: '<strong>„Etappe planen“</strong> (Handy: grüner Knopf auf der Karte): Punkte tippen – die Strecke folgt Straßen fürs Rennrad.',
       info: [
-        `Start ist euer Airbnb. ${icon('home', { size: 14, stroke: 2.2, cls: 'intro-inline' })} führt zurück, ${icon('undo', { size: 14, stroke: 2.2, cls: 'intro-inline' })} macht den letzten Schritt rückgängig.`,
+        `Start: links umschalten zwischen ${icon('home', { size: 14, stroke: 2.2, cls: 'intro-inline' })} Airbnb und ${icon('locate', { size: 14, stroke: 2.2, cls: 'intro-inline' })} deinem Standort (wird gemerkt). Oben führt ${icon('home', { size: 14, stroke: 2.2, cls: 'intro-inline' })} zurück zum Start, ${icon('undo', { size: 14, stroke: 2.2, cls: 'intro-inline' })} macht den letzten Schritt rückgängig.`,
         `Punkte <strong>ziehen</strong>, auf die Linie tippen = Zwischenpunkt, Punkt antippen und ${icon('trash', { size: 14, stroke: 2.2, cls: 'intro-inline' })} = entfernen, ${icon('swap', { size: 14, stroke: 2.2, cls: 'intro-inline' })} dreht die Richtung um.`,
         '<strong>Schnell</strong>: direkte Wege. <strong>Ruhig</strong>: meidet Verkehr, dafür mit Umwegen – das <strong>ⓘ</strong> daneben erklärt den Unterschied.',
         'Kilometer, Höhenmeter, Fahrzeit und Höhenprofil laufend. Steile Stücke farbig: gelb ab 5 %, rot ab 8 %, violett ab 10 % – darunter die Anstiege, antippen zeigt sie auf der Karte.',
         'Knöpfe unter dem Profil: <strong>„Rundtour vorschlagen“</strong> (Länge und Richtung wählen), <strong>„Kaffee-Stopp“</strong> (eigenes Café an einer Stelle einbauen) und <strong>Schnell/Ruhig vergleichen</strong>.',
         'Gespeichert zeigt jede Etappe Wetter, Kaffee-Stopps, Wasser & Velo – und lässt sich als GPX laden.',
+        'Unterwegs: bei einer Etappe <strong>„Ab hier“</strong> – der gefahrene Teil fällt weg, vom Standort geht es zurück auf die Strecke (als Kopie speichern oder direkt als GPX laden).',
         'Oder eine GPX aus Strava/Komoot über <strong>„+ Importieren“</strong> – Start und Ziel werden ans Airbnb angeschlossen.',
       ] },
     { icon: 'wallet', color: 'var(--orange)', name: 'Ausgaben', text: 'Rechnungen erfassen und teilen – <strong>„Ausgaben“</strong> oben auf der Karte.',
@@ -4894,7 +5038,7 @@ const INTRO = [
         'Der Kreis links neben der Etappe markiert sie als gefahren.',
         'In den Details: Tour-Link (Strava, Komoot) – nach dem Haken auch die gefahrene Aktivität.',
         `${icon('download', { size: 14, stroke: 2.2, cls: 'intro-inline' })} lädt die Etappe als GPX – z. B. für Garmin oder Wahoo.`,
-        '<strong>„Für Garmin“</strong> lädt die Strecke mit Kaffee-Stopps und Trinkwasser als Hinweisen (TCX) und öffnet Garmin Connect – dort <strong>Importieren</strong>.',
+        '<strong>„Für Garmin“</strong> lädt die Strecke als GPX (mit Kaffee-Stopps und Trinkwasser als Wegpunkten) und öffnet Garmin Connect – dort <strong>Importieren</strong>. Auch im Planer lässt sich die Strecke direkt als GPX laden.',
       ] },
   ] },
   { title: 'Außerdem', items: [

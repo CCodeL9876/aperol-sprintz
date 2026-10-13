@@ -1070,7 +1070,8 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   background: transparent; color: var(--green); font: 700 13px var(--font-body);
 }
 .plan-mode button[aria-pressed="true"] { background: var(--green); color: #FFFFFF; cursor: default; }
-.plan-save input[hidden], .plan-save .btn[hidden] { display: none; }
+.plan-save input[hidden], .plan-save .btn[hidden], .plan-save .plan-tool[hidden] { display: none; }
+.plan-save .plan-tool { flex: none; }
 .plan-save[hidden] { display: none; }
 .plan-save .btn { min-height: 36px; padding: 0 14px; }
 /* ⓘ neben „Schnell | Ruhig“: Erklärung als Sprechblase unter dem Planer wie das Fenster eines Orts,
@@ -2027,3 +2028,8 @@ button.popup-link { padding: 5px 0; border: 0; background: none; cursor: pointer
 .usage-row small b { color: var(--red); }
 .usage-links { display: flex; gap: 16px; flex-wrap: wrap; margin: 0; font-size: 13px; font-weight: 600; }
 .usage-links a { color: var(--green); }
+
+/* Planer: Start „Airbnb | Standort“ als zwei Symbole in einer Pille (wie „Schnell | Ruhig“) */
+.plan-start[hidden] { display: none; }
+.plan-start button { display: inline-grid; place-items: center; padding: 0 9px; }
+.plan-start button:disabled { opacity: 0.35; cursor: not-allowed; }
