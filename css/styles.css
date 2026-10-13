@@ -396,7 +396,10 @@ select {
   flex: none; align-self: center; margin-left: auto;
   color: var(--muted); transition: transform 0.2s;
 }
-details.panel[open] .panel-chevron { transform: rotate(180deg); }
+/* Zugeklappt nach rechts, aufgeklappt nach unten – wie bei den Listen und den Ausgaben-Gruppen.
+   Der Pfeil der Ausgaben-Box (kein Aufklappen, sondern ein Fenster) bleibt davon unberuehrt. */
+details.panel > .panel-summary .panel-chevron { transform: rotate(-90deg); }
+details.panel[open] > .panel-summary .panel-chevron { transform: none; }
 
 /* Inhalt unterhalb der Kopfzeile – bei beiden Boxen mit gestrichelter Trennlinie abgesetzt */
 .airbnb-details,
@@ -631,6 +634,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 /* Google-Karte: Standort-Knopf über den Zoom-Knöpfen; Standort-Punkt mittig verankert (Google setzt
    Marker sonst mit der Unterkante auf die Position) */
 .locate-btn.gmap-locate { position: absolute; z-index: 900; right: 10px; bottom: 120px; margin: 0 !important; }
+.locate-btn.gmap-north { position: absolute; z-index: 900; right: 10px; bottom: 178px; margin: 0 !important; }
 .gmap-me { transform: translateY(50%); pointer-events: none; }
 
 .popup-star, .popup-visited, .popup-res, .popup-gf {
@@ -997,14 +1001,21 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .locate-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--edge); }
 .locate-btn[aria-pressed="true"] { background: var(--blue); color: #FFFFFF; }
 .locate-btn.is-waiting .icon { animation: locate-spin 1.2s linear infinite; }
+/* Karte drehen: Die Nadel steht über dem Standort-Knopf und zeigt, wo Norden liegt. Sie erscheint erst,
+   wenn die Karte gedreht ist (--rose = Richtung Norden, aus map.js bzw. map-google.js). */
+.map-north .rose { transform: rotate(var(--rose, 0deg)); transition: transform 0.15s linear; }
+.map-north .rose-n { fill: var(--red); }
+.map-north .rose-s { fill: var(--muted); opacity: 0.35; }
+.map-north.is-north { display: none; }
 /* „Etappe planen“ als Knopf auf der Karte – nur auf dem Handy (siehe Media Query), grün als Hauptaktion */
 .map-plan-btn { display: none; }
 @keyframes locate-spin { to { transform: rotate(360deg); } }
-/* Punkt mit Blickrichtungs-Kegel: der Kegel dreht sich um die Mitte (--heading aus dem Kompass) */
+/* Punkt mit Blickrichtungs-Kegel: der Kegel dreht sich um die Mitte (--heading aus dem Kompass).
+   --map-rot zieht die Drehung der Karte ab, damit der Kegel auch auf der gedrehten Karte stimmt. */
 .me-wrap { position: relative; width: 120px; height: 120px; pointer-events: none; }
 .me-heading {
   position: absolute; inset: 0; width: 120px; height: 120px; display: none;
-  transform: rotate(var(--heading, 0deg)); transform-origin: 50% 50%;
+  transform: rotate(calc(var(--heading, 0deg) - var(--map-rot, 0deg))); transform-origin: 50% 50%;
   transition: transform 0.12s linear;
 }
 .me-wrap.has-heading .me-heading { display: block; }
@@ -1720,6 +1731,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   .gmap-tools .gplace-pills .gplace-gf .icon { display: none; }
   /* OpenStreetMap: rechts liegen Zoom- und Standort-Knopf, der Schalter daher links */
   .locate-btn.gmap-locate { right: 10px; bottom: calc(var(--sheet-h) + 60px); transition: bottom 0.25s ease; }
+  .locate-btn.gmap-north { right: 10px; bottom: calc(var(--sheet-h) + 118px); transition: bottom 0.25s ease; }
 
   .sidebar {
     position: absolute; z-index: 950;

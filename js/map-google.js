@@ -5,7 +5,7 @@
 /* global google */
 
 import { hasCoords, haversineKm } from './geo.js';
-import { icon, categoryIcon, categoryStyle } from './icons.js';
+import { icon, categoryIcon, categoryStyle, compassRose } from './icons.js';
 import { ROUTE_CATEGORY } from './categories.js';
 import { MALLORCA, autoLocateAllowed, nearMallorca, popupHtml, routePopupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl, pinHtml, pinFlags, poiPinHtml, poiPopupHtml, poiTitle, PLAN_COLOR, planPinHtml, planPinLabels, ROUTE_LINE_COLOR } from './map.js';
 import { hoursFromGoogle } from './hours.js';
@@ -141,6 +141,11 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_BOTTOM },
     clickableIcons: true, // Restaurants, Cafés usw. von Google antippbar
     gestureHandling: 'greedy', // auf dem Handy mit einem Finger verschieben
+    // Vektor-Karte (WebGL): nur sie lässt sich mit zwei Fingern drehen. Kann das Gerät sie nicht,
+    // zeichnet Google wie bisher die Raster-Karte – dann bleibt die Karte nach Norden ausgerichtet.
+    renderingType: google.maps.RenderingType?.VECTOR || 'VECTOR',
+    headingInteractionEnabled: true,
+    tiltInteractionEnabled: false, // nur drehen, nicht kippen
   });
   await new Promise((resolve) => gEvent.addListenerOnce(map, 'idle', resolve));
 
@@ -248,6 +253,34 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     locateBtn.title = state === 'off' ? 'Mein Standort' : 'Standort: nochmals tippen zum Zentrieren bzw. Ausschalten';
   };
   setLocateState('off');
+
+  // --- Karte drehen ----------------------------------------------------------------------------
+  // Zwei Finger auf der Karte drehen sie. Sobald sie nicht mehr nach Norden zeigt, erscheint über dem
+  // Standort-Knopf eine Kompassnadel; ein Tipp stellt zurück. Ohne Vektor-Karte gibt es den Knopf nicht.
+  // --map-rot sagt dem Blickrichtungs-Kegel beim eigenen Standort, wie die Karte steht (siehe styles.css).
+  const canRotate = map.getRenderingType?.() === (google.maps.RenderingType?.VECTOR || 'VECTOR')
+    && typeof map.setHeading === 'function';
+  let northBtn = null;
+  function syncMapHeading() {
+    const rot = canRotate ? map.getHeading() || 0 : 0;
+    el.parentElement.style.setProperty('--map-rot', `${rot}deg`);
+    if (!northBtn) return;
+    const off = ((rot % 360) + 360) % 360;
+    northBtn.classList.toggle('is-north', off < 0.5 || off > 359.5);
+    northBtn.style.setProperty('--rose', `${-rot}deg`);
+  }
+  if (canRotate) {
+    northBtn = document.createElement('button');
+    northBtn.type = 'button';
+    northBtn.className = 'locate-btn map-north gmap-north is-north';
+    northBtn.setAttribute('aria-label', 'Karte nach Norden ausrichten');
+    northBtn.title = 'Karte nach Norden ausrichten';
+    northBtn.innerHTML = compassRose(24);
+    northBtn.addEventListener('click', () => map.setHeading(0));
+    el.parentElement.append(northBtn);
+    map.addListener('heading_changed', syncMapHeading);
+    syncMapHeading();
+  }
 
   let headingOn = false;
   let headingAngle = null;

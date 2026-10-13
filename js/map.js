@@ -2,7 +2,7 @@
 /* global L */
 
 import { hasCoords, haversineKm, formatKm, formatReservation, routeUrl, homeRouteUrl } from './geo.js';
-import { icon, categoryIcon, categoryStyle } from './icons.js';
+import { icon, categoryIcon, categoryStyle, compassRose } from './icons.js';
 import { ROUTE_CATEGORY } from './categories.js';
 import { hoursStatus, hoursToday } from './hours.js';
 import { POI_TYPES } from './pois.js';
@@ -133,7 +133,15 @@ function createFallbackMap(el) {
 
 export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMessage, routePopup }) {
   if (typeof L === 'undefined') return createFallbackMap(el);
-  const map = L.map(el, { zoomControl: false, attributionControl: true }).setView(MALLORCA.center, MALLORCA.zoom);
+  // Drehen: kommt aus vendor/leaflet/leaflet-rotate.js. Fehlt die Datei, bleibt die Karte wie bisher
+  // fest nach Norden ausgerichtet – alles andere funktioniert unverändert.
+  const canRotate = typeof L.Map.prototype.setBearing === 'function';
+  const map = L.map(el, {
+    zoomControl: false,
+    attributionControl: true,
+    // rotateControl: der mitgelieferte Knopf des Plugins; wir haben einen eigenen (siehe NorthControl)
+    ...(canRotate ? { rotate: true, rotateControl: false, touchRotate: true, bearing: 0 } : {}),
+  }).setView(MALLORCA.center, MALLORCA.zoom);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
   // crossOrigin: damit der Service Worker (sw.js) gesehene Kacheln für unterwegs ohne Netz speichern kann
   L.tileLayer(TILES.url, { attribution: TILES.attribution, maxZoom: TILES.maxZoom, crossOrigin: true }).addTo(map);
@@ -188,10 +196,10 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
 
   function centerOn(latlng, zoom, { animate = true } = {}) {
     const { top, right, bottom, left } = insets();
-    const target = map.unproject(
-      map.project(latlng, zoom).subtract([(left - right) / 2, (top - bottom) / 2]),
-      zoom,
-    );
+    let off = L.point((left - right) / 2, (top - bottom) / 2);
+    // Gedrehte Karte: der Versatz gilt für den Bildschirm und muss in die Kartenrichtung zurückgerechnet werden
+    if (canRotate && map._bearing) off = off.rotate(-map._bearing);
+    const target = map.unproject(map.project(latlng, zoom).subtract(off), zoom);
     if (animate) map.flyTo(target, zoom, { duration: 0.6 });
     else map.setView(target, zoom);
   }
@@ -376,6 +384,40 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
   });
   // Unten rechts stapelt Leaflet neue Knöpfe über die bestehenden: Standort liegt also über dem Zoom
   new LocateControl().addTo(map);
+
+  // --- Karte drehen -----------------------------------------------------------------------------
+  // Mit zwei Fingern auf der Karte drehen (am Rechner: Umschalttaste + Mausrad). Sobald die Karte nicht
+  // mehr nach Norden zeigt, erscheint über dem Standort-Knopf eine Kompassnadel; ein Tipp stellt zurück.
+  // --map-rot sagt dem Blickrichtungs-Kegel beim eigenen Standort, wie die Karte steht (siehe styles.css).
+  let northBtn = null;
+  function syncBearing() {
+    const rot = canRotate ? -map.getBearing() : 0;
+    el.parentElement?.style.setProperty('--map-rot', `${rot}deg`);
+    if (!northBtn) return;
+    const off = ((rot % 360) + 360) % 360;
+    northBtn.classList.toggle('is-north', off < 0.5 || off > 359.5);
+    northBtn.style.setProperty('--rose', `${-rot}deg`);
+  }
+
+  const NorthControl = L.Control.extend({
+    options: { position: 'bottomright' },
+    onAdd() {
+      northBtn = L.DomUtil.create('button', 'locate-btn map-north');
+      northBtn.type = 'button';
+      northBtn.setAttribute('aria-label', 'Karte nach Norden ausrichten');
+      northBtn.title = 'Karte nach Norden ausrichten';
+      northBtn.innerHTML = compassRose(24);
+      L.DomEvent.disableClickPropagation(northBtn);
+      L.DomEvent.on(northBtn, 'click', () => map.setBearing(0));
+      syncBearing();
+      return northBtn;
+    },
+  });
+  if (canRotate) {
+    new NorthControl().addTo(map);
+    map.on('rotate', syncBearing);
+  }
+
   autoLocateAllowed().then((ok) => { if (ok && !locating) toggleLocate(true); });
 
   function fitPoints(pts, maxZoom) {
