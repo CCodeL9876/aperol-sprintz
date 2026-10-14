@@ -1932,11 +1932,14 @@ const LIVE_SEND_MS = 15000;
 const LIVE_HEARTBEAT_MS = 60000;
 const LIVE_POLL_MS = 15000;
 const LIVE_STALE_MS = 3 * 60000; // länger nichts gehört: Punkt blass („zuletzt vor …“)
+// Ältere Positionen nicht mehr senden: sonst erschiene eine alte Stelle (Tunnel, Standort entzogen) als „gerade eben“
+const LIVE_MAX_AGE_MS = 2 * 60000;
 const LIVE_HOURS = [1, 2, 4, 8];
 const liveDialog = $('#live-dialog');
 const live = { on: false, until: 0, routeId: null, watchId: null, pos: null, sentAt: 0, sentPos: null, timer: null, wake: null, error: '' };
 let liveOthers = [];
 const liveSeen = new Set();
+const liveStale = (x) => Date.now() - x.updatedAt > LIVE_STALE_MS;
 
 const liveSupported = () => backend.kind === 'shared' && !backend.offline && typeof backend.liveList === 'function';
 const fmtAgo = (t) => {
@@ -1956,13 +1959,15 @@ async function keepAwake() {
 async function sendLive(force = false) {
   if (!live.on || !live.pos || !liveSupported()) return;
   const now = Date.now();
+  if (now - live.pos.at > LIVE_MAX_AGE_MS) return;
   const moved = live.sentPos ? haversineKm(live.sentPos.lat, live.sentPos.lng, live.pos.lat, live.pos.lng) : Infinity;
   if (!force && now - live.sentAt < LIVE_SEND_MS && moved < 0.1) return;
   if (!force && now - live.sentAt < 5000) return;
   live.sentAt = now;
   live.sentPos = live.pos;
   try {
-    await backend.shareLive({ personId: me().id, name: me().name, ...live.pos, routeId: live.routeId, until: live.until });
+    const { lat, lng, accuracy, speed } = live.pos;
+    await backend.shareLive({ personId: me().id, name: me().name, lat, lng, accuracy, speed, routeId: live.routeId, until: live.until });
     live.error = '';
   } catch (err) {
     live.error = err.missing ? 'In Supabase fehlt noch die Tabelle für den Live-Standort (supabase/schema.sql ausführen).' : `Senden klappt gerade nicht (${err.message}) – neuer Versuch läuft.`;
@@ -1971,26 +1976,39 @@ async function sendLive(force = false) {
   renderLive();
 }
 
+const LIVE_GEO_OPTS = { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 };
+function liveOnPos(p) {
+  if (!live.on) return;
+  live.pos = {
+    lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy,
+    speed: Number.isFinite(p.coords.speed) ? p.coords.speed * 3.6 : null, at: p.timestamp || Date.now(),
+  };
+  sendLive();
+}
+function liveOnErr(err) {
+  if (!live.on || (live.pos && err.code !== 1)) return; // kurze Aussetzer unterwegs nicht melden
+  live.error = err.code === 1 ? 'Kein Zugriff auf den Standort – im Browser erlauben.' : 'Standort gerade nicht verfügbar.';
+  renderLive();
+}
+// Frische Position anfordern (Lebenszeichen, Rückkehr in die App) – gesendet wird sie über liveOnPos
+const requestLivePos = () => navigator.geolocation?.getCurrentPosition(liveOnPos, liveOnErr, LIVE_GEO_OPTS);
+
 function startLiveWatch() {
   if (live.watchId != null || !navigator.geolocation) return;
-  const onPos = (p) => {
-    if (!live.on) return;
-    live.pos = { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy, speed: Number.isFinite(p.coords.speed) ? p.coords.speed * 3.6 : null };
-    sendLive();
-  };
-  const onErr = (err) => {
-    if (!live.on || (live.pos && err.code !== 1)) return; // kurze Aussetzer unterwegs nicht melden
-    live.error = err.code === 1 ? 'Kein Zugriff auf den Standort – im Browser erlauben.' : 'Standort gerade nicht verfügbar.';
-    renderLive();
-  };
-  const opts = { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 };
   // Erste Position sofort abfragen (eine weitere Beobachtung neben dem blauen Punkt meldet sich sonst teils erst
   // bei der nächsten Bewegung), danach laufend
-  navigator.geolocation.getCurrentPosition(onPos, onErr, opts);
-  live.watchId = navigator.geolocation.watchPosition(onPos, onErr, opts);
+  requestLivePos();
+  live.watchId = navigator.geolocation.watchPosition(liveOnPos, liveOnErr, LIVE_GEO_OPTS);
   live.timer = setInterval(() => {
     if (Date.now() >= live.until) return stopLive({ expired: true });
-    if (Date.now() - live.sentAt >= LIVE_HEARTBEAT_MS) sendLive(true);
+    // Lebenszeichen nur mit frischer Position: im Stillstand meldet watchPosition teils nichts mehr
+    if (Date.now() - live.sentAt >= LIVE_HEARTBEAT_MS) {
+      if (live.pos && Date.now() - live.pos.at <= LIVE_MAX_AGE_MS) sendLive(true);
+      else requestLivePos();
+    }
+    if (live.pos && Date.now() - live.pos.at > LIVE_MAX_AGE_MS && !live.error) {
+      live.error = 'Gerade kein aktueller Standort – die anderen sehen dich als „zuletzt vor …“.';
+    }
     renderLive();
   }, 10000);
   keepAwake();
@@ -2004,9 +2022,11 @@ async function startLive(hours, routeId) {
   live.until = Date.now() + hours * 3600000;
   live.routeId = routeId || null;
   live.sentAt = 0;
-  live.sentPos = null;
+  live.pos = live.sentPos = null;
   live.error = '';
-  writePref('liveShare', { key: backend.key, until: live.until, routeId: live.routeId });
+  // Ein noch ausstehendes Löschen der eigenen Position erübrigt sich – sie wird gleich überschrieben
+  if (readPref('liveDeletePending')?.personId === me().id) writePref('liveDeletePending', null);
+  writePref('liveShare', { key: backend.key, personId: me().id, until: live.until, routeId: live.routeId });
   startLiveWatch();
   renderLive();
   toast(`Live-Standort geteilt bis ${hhmm(new Date(live.until))} – die anderen sehen dich auf der Karte.`);
@@ -2014,6 +2034,8 @@ async function startLive(hours, routeId) {
 
 async function stopLive({ expired = false, silent = false } = {}) {
   if (!live.on) return;
+  const person = me(); // vor dem ersten await festhalten (Personenwechsel, siehe setMe)
+  const until = live.until;
   live.on = false;
   if (live.watchId != null) navigator.geolocation.clearWatch(live.watchId);
   clearInterval(live.timer);
@@ -2021,16 +2043,45 @@ async function stopLive({ expired = false, silent = false } = {}) {
   live.wake?.release().catch(() => {});
   live.wake = null;
   live.pos = live.sentPos = null;
+  live.error = '';
   writePref('liveShare', null);
   renderLive();
-  try { if (me() && liveSupported()) await backend.stopLive(me().id); } catch { /* läuft ohnehin ab */ }
-  if (!silent) toast(expired ? 'Live-Standort beendet (Zeit abgelaufen).' : 'Live-Standort beendet – deine Position ist gelöscht.');
+  let deleted = false;
+  if (person) {
+    try {
+      if (liveSupported()) {
+        await backend.stopLive(person.id);
+        deleted = true;
+      }
+    } catch { /* unten: später nochmals */ }
+    // Ohne Netz: merken und erneut versuchen (retryLiveDelete), solange die Position noch sichtbar wäre
+    if (!deleted && until > Date.now()) writePref('liveDeletePending', { key: backend.key, personId: person.id, until });
+  }
+  if (silent) return;
+  if (expired) toast('Live-Standort beendet (Zeit abgelaufen).');
+  else if (deleted || !person) toast('Live-Standort beendet – deine Position ist gelöscht.');
+  else toast(`Live-Standort beendet. Löschen klappt gerade nicht (kein Netz?) – die anderen sehen deinen letzten Punkt höchstens bis ${hhmm(new Date(until))}. Die App versucht es weiter.`);
+}
+
+// Beim Beenden ohne Netz: die letzte Position löschen, sobald es wieder geht
+async function retryLiveDelete() {
+  const p = readPref('liveDeletePending');
+  if (!p) return;
+  if (!(p.until > Date.now())) return writePref('liveDeletePending', null); // ohnehin abgelaufen
+  if (live.on && me()?.id === p.personId) return writePref('liveDeletePending', null); // teilt wieder
+  if (p.key !== backend.key || !liveSupported()) return;
+  try {
+    await backend.stopLive(p.personId);
+    writePref('liveDeletePending', null);
+    toast('Deine letzte Live-Position ist jetzt gelöscht.');
+  } catch { /* nächster Versuch beim nächsten Abgleich */ }
 }
 
 // Nach dem Neuladen weiterteilen, solange die gewählte Zeit läuft (gleiche Reise)
 function resumeLive() {
   const s = readPref('liveShare');
   if (!s || s.key !== backend.key || !(s.until > Date.now()) || !liveSupported() || !me()) return;
+  if (s.personId && s.personId !== me().id) return writePref('liveShare', null); // inzwischen andere Person
   live.on = true;
   live.until = s.until;
   live.routeId = s.routeId || null;
@@ -2062,6 +2113,7 @@ function livePopupHtml(x) {
 
 async function pollLive() {
   if (!liveSupported() || document.visibilityState !== 'visible') return;
+  retryLiveDelete();
   try {
     const list = await backend.liveList();
     const mine = me()?.id;
@@ -2072,7 +2124,7 @@ async function pollLive() {
   for (const x of liveOthers) {
     if (!liveSeen.has(x.personId)) {
       liveSeen.add(x.personId);
-      toast(`${x.name || 'Jemand'} teilt den Standort live – Menü „•••“ → Name antippen.`);
+      toast(`${x.name || 'Jemand'} teilt den Standort live – oben auf der Karte antippen.`);
     }
   }
   mapView.setLive(liveOthers.map((x) => ({
@@ -2088,6 +2140,14 @@ function renderLive() {
   if (live.on) banner.innerHTML = `<span class="live-dot" aria-hidden="true"></span>Live geteilt bis ${hhmm(new Date(live.until))}${live.error ? ' · ⚠' : ''}`;
   $('#menu-live').textContent = live.on ? `Live-Standort: bis ${hhmm(new Date(live.until))}` : 'Live-Standort teilen';
   $('#menu-live').hidden = !liveSupported() && !live.on;
+  // Wer sonst live ist, bleibt oben auf der Karte stehen (der Toast beim ersten Erscheinen geht leicht unter)
+  const others = $('#live-others');
+  others.hidden = !liveOthers.length;
+  others.innerHTML = liveOthers.slice(0, 3).map((x) => {
+    const stale = liveStale(x);
+    return `<button type="button" class="live-other" data-live-show="${escapeHtml(x.personId)}" title="Auf der Karte zeigen">
+      <span class="live-dot${stale ? ' is-stale' : ''}" aria-hidden="true"></span>${escapeHtml(x.name || 'Jemand')} ist live${stale ? ` <small>· ${fmtAgo(x.updatedAt)}</small>` : ''}</button>`;
+  }).join('') + (liveOthers.length > 3 ? `<button type="button" class="live-other" data-live-all>+${liveOthers.length - 3}</button>` : '');
   $('#menu-live-list').innerHTML = liveOthers.map((x) => `<button type="button" data-live-show="${escapeHtml(x.personId)}">
       <span class="live-dot${Date.now() - x.updatedAt > LIVE_STALE_MS ? ' is-stale' : ''}" aria-hidden="true"></span>${escapeHtml(x.name)} live · ${fmtAgo(x.updatedAt)}</button>`).join('');
   if (liveDialog.open) renderLiveDialog();
@@ -2132,24 +2192,32 @@ $('#live-body').addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-live-extend]')) {
     live.until = Math.min(live.until + 3600000, Date.now() + 12 * 3600000);
-    writePref('liveShare', { key: backend.key, until: live.until, routeId: live.routeId });
+    writePref('liveShare', { key: backend.key, personId: me()?.id, until: live.until, routeId: live.routeId });
     sendLive(true);
     renderLive();
   }
 });
 $('#live-banner').addEventListener('click', openLiveDialog);
-$('#menu-live-list').addEventListener('click', (e) => {
-  const id = e.target.closest('[data-live-show]')?.dataset.liveShow;
+function showLivePerson(id) {
   const x = id && liveOthers.find((o) => o.personId === id);
   if (!x) return;
   $('.menu').open = false;
   if (isMobile()) setSheet('hidden');
   mapView.centerOn([x.lat, x.lng], Math.max(mapView.map.getZoom(), 14));
+}
+$('#menu-live-list').addEventListener('click', (e) => showLivePerson(e.target.closest('[data-live-show]')?.dataset.liveShow));
+$('#live-others').addEventListener('click', (e) => {
+  if (e.target.closest('[data-live-all]')) {
+    // Alle, die live sind, in den Ausschnitt holen
+    if (isMobile()) setSheet('hidden');
+    return mapView.fitToRoute({ points: liveOthers.map((x) => [x.lat, x.lng]) });
+  }
+  showLivePerson(e.target.closest('[data-live-show]')?.dataset.liveShow);
 });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   keepAwake(); // Wake Lock fällt beim Wechsel in den Hintergrund weg
-  if (live.on) sendLive(true);
+  if (live.on) requestLivePos(); // die letzte Position ist evtl. alt – erst eine frische holen, dann senden
   pollLive();
 });
 setInterval(pollLive, LIVE_POLL_MS);
@@ -5230,11 +5298,15 @@ whoDialog.addEventListener('close', () => {
 });
 
 function setMe(person) {
+  // Live-Standort gehört der bisherigen Person: beenden und ihre Position löschen, sonst bliebe sie als
+  // „Geist“ stehen und das Teilen liefe unter dem neuen Namen weiter
+  const stoppedLive = live.on && me() && me().id !== person.id;
+  if (stoppedLive) stopLive({ silent: true });
   writePref(meKey(), person.id);
   renderMe();
   if (shareDialog.open) renderShareDialog();
   whoDialog.close();
-  toast(`Hallo ${person.name}! Dieses Gerät ist jetzt dir zugeordnet.`);
+  toast(`Hallo ${person.name}! Dieses Gerät ist jetzt dir zugeordnet.${stoppedLive ? ' Das Teilen des Live-Standorts ist beendet.' : ''}`);
 }
 
 $('#who-list').addEventListener('click', (e) => {

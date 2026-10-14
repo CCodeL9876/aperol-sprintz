@@ -128,7 +128,7 @@ function createFallbackMap(el) {
   el.innerHTML = '<div class="map-error"><strong>Karte nicht verfügbar</strong><span>Die Kartenbibliothek konnte nicht geladen werden. Liste und Filter funktionieren trotzdem – Seite neu laden versuchen.</span></div>';
   const noop = () => {};
   const fakeMap = { flyTo: noop, getZoom: () => 9, setView: noop, fitBounds: noop };
-  return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, centerOn: noop, setPois: noop, setDraft: noop, setCursor: noop, setRouteLine: noop, setRouteSteep: noop, invalidate: noop };
+  return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, centerOn: noop, setPois: noop, setDraft: noop, setCursor: noop, setRouteLine: noop, setRouteSteep: noop, setLive: noop, closePopup: noop, invalidate: noop };
 }
 
 export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMessage, routePopup, pinPopup }) {
