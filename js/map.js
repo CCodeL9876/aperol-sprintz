@@ -131,7 +131,7 @@ function createFallbackMap(el) {
   return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, setRoutes: noop, fitToRoute: noop, centerOn: noop, setPois: noop, setDraft: noop, setCursor: noop, setRouteLine: noop, setRouteSteep: noop, invalidate: noop };
 }
 
-export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMessage, routePopup }) {
+export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMessage, routePopup, pinPopup }) {
   if (typeof L === 'undefined') return createFallbackMap(el);
   // Drehen: kommt aus vendor/leaflet/leaflet-rotate.js. Fehlt die Datei, bleibt die Karte wie bisher
   // fest nach Norden ausgerichtet – alles andere funktioniert unverändert.
@@ -155,7 +155,15 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
   let airbnbMarker = null;
   let activeId = null;
 
-  map.on('click', (e) => onMapClick?.(e.latlng));
+  // Tipp auf ein leeres Kartenstück: kleines Fenster „Als Ort speichern“ (pinPopup aus app.js). Schliesst der
+  // Tipp nur ein offenes Fenster, bleibt es dabei (Leaflet schliesst es kurz vor dem „click“).
+  let lastPopupClose = 0;
+  map.on('popupclose', () => { lastPopupClose = Date.now(); });
+  map.on('click', (e) => {
+    if (onMapClick?.(e.latlng)) return;
+    if (!pinPopup || Date.now() - lastPopupClose < 400) return;
+    L.popup({ closeButton: false, className: 'llocs-popup' }).setLatLng(e.latlng).setContent(pinPopup(e.latlng)).openOn(map);
+  });
 
   // Geöffnete Detailfenster in den freien Kartenteil schieben: nicht unter die Boxen oben, das Listen-Blatt
   // unten oder die Knopfreihe (Google | OSM) – Leaflet selbst kennt nur den Kartenrand.
@@ -730,5 +738,5 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     }
   }
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, setRouteLine, setRouteSteep, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => map.invalidateSize() };
+  return { map, closePopup: () => map.closePopup(), setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, setRouteLine, setRouteSteep, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => map.invalidateSize() };
 }
