@@ -355,6 +355,45 @@ export class SharedBackend {
     if (error) throw new Error(error.message);
   }
 
+  // Live-Standort (siehe live_positions in supabase/schema.sql): nur die letzte Position je Person, bis „until“.
+  // Fehlt die Tabelle (SQL noch nicht ausgeführt), wirft es mit err.missing.
+  #liveError(error) {
+    return Object.assign(new Error(error.message), { missing: ['42P01', 'PGRST205', 'PGRST204'].includes(error.code) || /live_positions/.test(error.message) });
+  }
+
+  async shareLive({ personId, name, lat, lng, accuracy, speed, routeId, until }) {
+    const { error } = await this.db.from('live_positions').upsert({
+      trip_key: this.key,
+      person_id: personId,
+      name: String(name || '').slice(0, 80),
+      lat, lng,
+      accuracy: Number.isFinite(accuracy) ? Math.min(100000, Math.round(accuracy)) : null,
+      speed: Number.isFinite(speed) ? Math.min(200, Math.max(0, speed)) : null,
+      route_id: routeId || null,
+      expires_at: new Date(until).toISOString(),
+    }, { onConflict: 'trip_key,person_id' });
+    if (error) throw this.#liveError(error);
+  }
+
+  async stopLive(personId) {
+    const { error } = await this.db.from('live_positions').delete().eq('trip_key', this.key).eq('person_id', personId);
+    if (error) throw this.#liveError(error);
+  }
+
+  // Rückgabe: [{ personId, name, lat, lng, accuracy, speed, routeId, updatedAt, until }] – nur noch laufende
+  async liveList() {
+    const { data, error } = await this.db.from('live_positions')
+      .select('person_id,name,lat,lng,accuracy,speed,route_id,updated_at,expires_at')
+      .eq('trip_key', this.key)
+      .gt('expires_at', new Date().toISOString());
+    if (error) throw this.#liveError(error);
+    return (data || []).filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng)).map((r) => ({
+      personId: String(r.person_id), name: String(r.name || ''), lat: r.lat, lng: r.lng,
+      accuracy: r.accuracy, speed: r.speed, routeId: r.route_id || null,
+      updatedAt: Date.parse(r.updated_at) || 0, until: Date.parse(r.expires_at) || 0,
+    }));
+  }
+
   // Google-Verbrauch (siehe usage.js): Zähler hochzählen bzw. als Admin lesen. Fehlt die Funktion (SQL noch
   // nicht ausgeführt), wirft es mit err.missing.
   async bumpGoogleUsage(counts) {

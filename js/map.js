@@ -150,6 +150,8 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
   const routeLayer = L.layerGroup().addTo(map);
   const poiLayer = L.layerGroup().addTo(map);
   const draftLayer = L.layerGroup().addTo(map);
+  const liveLayer = L.layerGroup().addTo(map);
+  const liveMarkers = new Map(); // Live-Standort anderer (siehe setLive)
   let drafting = false; // „Etappe planen“ läuft: Tipps setzen Wegpunkte statt Popups zu öffnen
   const markers = new Map();
   let airbnbMarker = null;
@@ -738,5 +740,26 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     }
   }
 
-  return { map, closePopup: () => map.closePopup(), setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, setRouteLine, setRouteSteep, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => map.invalidateSize() };
+  // Live-Standort anderer Teilnehmender: [{ id, initials, lat, lng, stale, title, popup }]
+  function setLive(list) {
+    const keep = new Set();
+    for (const x of list || []) {
+      keep.add(x.id);
+      const html = `<div class="live-pin${x.stale ? ' is-stale' : ''}"><span>${escapeHtml(x.initials)}</span></div>`;
+      let m = liveMarkers.get(x.id);
+      if (!m) {
+        m = L.marker([x.lat, x.lng], { icon: L.divIcon({ className: '', html, iconSize: [36, 36], iconAnchor: [18, 18] }), zIndexOffset: 1500, title: x.title })
+          .bindPopup(x.popup, { closeButton: false, className: 'llocs-popup' }).addTo(liveLayer);
+        m.html = html;
+        liveMarkers.set(x.id, m);
+      } else {
+        m.setLatLng([x.lat, x.lng]);
+        if (m.html !== html) { m.setIcon(L.divIcon({ className: '', html, iconSize: [36, 36], iconAnchor: [18, 18] })); m.html = html; }
+        m.setPopupContent(x.popup);
+      }
+    }
+    for (const [id, m] of liveMarkers) if (!keep.has(id)) { m.remove(); liveMarkers.delete(id); }
+  }
+
+  return { map, closePopup: () => map.closePopup(), setLive, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, setRouteLine, setRouteSteep, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => map.invalidateSize() };
 }

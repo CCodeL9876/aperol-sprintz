@@ -288,6 +288,12 @@ Google (Strände und Aussichtspunkte ausgenommen), nach 30 Tagen erneut. Jeder O
 Places-Abfrage; Google gewährt dafür ein monatliches Gratis-Kontingent (nach aktuellem Stand 1 000 Abfragen).
 Zeiten aus OpenStreetMap sind im Kartenfenster mit „© OpenStreetMap“ gekennzeichnet.
 
+**Live-Standort:** Im Menü **„•••“ → „Live-Standort teilen“** gibt eine Person ihren Standort für 1, 2, 4 oder 8 Stunden
+frei (optional mit Etappe – dann sehen die anderen „km 34 von 82“). Die anderen der gemeinsamen Reise sehen sie als
+orangen Punkt mit Initialen; im Menü steht, wer gerade live ist. Gespeichert wird nur die letzte Position, „Beenden“
+löscht sie. Die App muss dabei offen und der Bildschirm an sein (gesperrt sendet das iPhone keinen Standort).
+Einmalig nötig: `supabase/schema.sql` erneut im SQL Editor ausführen (Tabelle `live_positions`).
+
 **Google-Verbrauch (Admin):** Im Menü **„•••“ → „Google-Verbrauch“** zeigt die App, wie viele Google-Abfragen sie
 diesen Monat gemacht hat – je Preisstufe mit Balken gegen das Gratis-Kontingent und geschätzten Kosten darüber.
 In der gemeinsamen Reise zählen alle Geräte zusammen (dafür einmal `supabase/schema.sql` erneut ausführen), sonst
