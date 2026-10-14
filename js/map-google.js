@@ -118,7 +118,7 @@ export async function lookupHours(apiKey, places, onResult) {
   }
 }
 
-export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerClick, getInsets, onAddPlace, onError, onNotice, routePopup, onLocateMessage }) {
+export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerClick, getInsets, onAddPlace, onError, onNotice, routePopup, onLocateMessage, pinPopup }) {
   // Ungültiger Schlüssel oder nicht freigegebene Adresse: Google ruft diese globale Funktion auf
   window.gm_authFailure = () => onError?.('Google Maps lehnt den API-Schlüssel ab – Einschränkungen (Website-Adressen) in der Google Cloud Console prüfen.');
   await loadGoogleMaps(apiKey);
@@ -434,8 +434,14 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       showGooglePlace(e.placeId, e.latLng);
       return;
     }
+    // Tipp auf ein leeres Kartenstück: kleines Fenster „Als Ort speichern“ – ausser der Tipp schliesst nur ein
+    // offenes Fenster oder gehört zur Planung bzw. zum Setzen des Airbnb
+    const wasOpen = info.isOpen === true;
     info.close();
-    onMapClick?.(ll);
+    if (onMapClick?.(ll) || wasOpen || !pinPopup) return;
+    setInfo(pinPopup(ll));
+    info.setPosition(e.latLng);
+    info.open({ shouldFocus: false, map });
   });
 
   async function showGooglePlace(placeId, latLng) {
@@ -1153,5 +1159,5 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     });
   }
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, setRouteLine, setRouteSteep, searchPlaces, openSearchResult, clearSearchMarker, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
+  return { map, closePopup: () => info.close(), setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, setRouteLine, setRouteSteep, searchPlaces, openSearchResult, clearSearchMarker, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
 }

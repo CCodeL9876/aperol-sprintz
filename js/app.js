@@ -261,6 +261,8 @@ async function refresh({ fit = false } = {}) {
 const mapOptions = {
   // Popup beim Antippen einer eingeblendeten Etappe: alle Angaben wie in der aufgeklappten Liste
   routePopup: (r, color) => routePopupHtml(r, color),
+  // Tipp auf ein leeres Kartenstück: eigenen Ort dort speichern (siehe openPinDialog)
+  pinPopup: (ll) => pinPopupHtml(ll),
   // true = Klick verarbeitet (die Google-Variante zeigt sonst Details zu angetippten Google-Orten)
   onMapClick: (latlng) => {
     if (plan.on) {
@@ -311,7 +313,7 @@ document.body.dataset.map = mapVariant; // Knöpfe auf der Karte sitzen je nach 
 function createGoogleMapView(el) {
   let impl = null;
   const view = { map: { getZoom: () => impl?.map.getZoom() ?? 9 } };
-  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'setPois', 'setDraft', 'setCursor', 'setRouteLine', 'setRouteSteep', 'searchPlaces', 'openSearchResult', 'clearSearchMarker', 'locate', 'invalidate']) {
+  for (const k of ['closePopup', 'setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'setPois', 'setDraft', 'setCursor', 'setRouteLine', 'setRouteSteep', 'searchPlaces', 'openSearchResult', 'clearSearchMarker', 'locate', 'invalidate']) {
     view[k] = (...args) => impl?.[k](...args);
   }
   const ready = (m, shown) => {
@@ -1919,6 +1921,56 @@ function closeAirbnbForm() {
   $('#airbnb-view').hidden = false;
   if (pickMode) setPickMode(false);
 }
+
+// --- Eigener Ort per Pin ------------------------------------------------------------------------
+// Tipp auf ein leeres Kartenstück (kein Google-Ort, kein eigener Pin): kleines Fenster mit „Als Ort speichern“,
+// dann Name, Art und Notiz. Für Stellen ohne Eintrag bei Google: Aussichtspunkt, Brunnen, Treffpunkt …
+function pinPopupHtml(ll) {
+  return `<div class="popup">
+    <span class="popup-cat" style="--c:#C0392B;--ci:#C0392B">Markierter Punkt</span>
+    <span class="popup-addr">${ll.lat.toFixed(5)}, ${ll.lng.toFixed(5)}</span>
+    <button type="button" class="popup-link pin-save" data-pin-save="${ll.lat},${ll.lng}">${icon('pin', { size: 13, stroke: 2.2 })} Als Ort speichern</button>
+  </div>`;
+}
+
+const pinDialog = $('#pin-dialog');
+let pinAt = null;
+
+function openPinDialog(lat, lng) {
+  pinAt = { lat, lng };
+  $('#pin-name').value = '';
+  $('#pin-note').value = '';
+  $('#pin-category').innerHTML = '<option value="auto">Automatisch (aus dem Namen)</option>'
+    + displayCategories().map((c) => `<option value="${c.id}">${optionLabel(c)}</option>`).join('');
+  const dist = state.airbnb ? ` · ${formatKm(haversineKm(state.airbnb.lat, state.airbnb.lng, lat, lng))} Luftlinie vom Airbnb` : '';
+  $('#pin-coords').textContent = `Position ${lat.toFixed(5)}, ${lng.toFixed(5)}${dist}`;
+  pinDialog.showModal();
+  $('#pin-name').focus();
+}
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-pin-save]');
+  if (!btn) return;
+  const [lat, lng] = btn.dataset.pinSave.split(',').map(Number);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  mapView.closePopup?.();
+  openPinDialog(lat, lng);
+});
+
+$('#pin-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = $('#pin-name').value.trim();
+  if (!name || !pinAt) return;
+  pinDialog.close();
+  const { added, dupes } = await addPlaces([{ name, note: $('#pin-note').value.trim(), lat: pinAt.lat, lng: pinAt.lng }], $('#pin-category').value || 'auto');
+  if (added.length) {
+    toast(`„${added[0].name}“ gespeichert – steht unter „Unsere Orte“.`);
+    selectPlace(added[0].id, { fly: false, scrollList: true });
+  } else if (dupes) {
+    toast('An dieser Stelle gibt es schon einen gespeicherten Ort.');
+  }
+  pinAt = null;
+});
 
 function setPickMode(on) {
   if (on && plan.on) endPlan(); // Airbnb setzen beendet eine laufende Planung
@@ -4998,6 +5050,7 @@ const INTRO = [
         { demo: false, html: 'Suchen: <strong>Lupe</strong> oben auf der Karte.' },
         '<strong>Cafés · Bars · Essen</strong> unten auf der Karte zeigen passende Google-Orte im Ausschnitt (weiße Kreise).',
         { demo: false, html: '<strong>GF</strong> daneben: nur Orte mit Hinweis auf glutenfreies Angebot (Google-Suche, OpenStreetMap). Antippen zeigt Zitate aus Bewertungen – ohne Gewähr, vor Ort nachfragen.' },
+        'Ohne Eintrag bei Google (Aussicht, Brunnen, Treffpunkt): auf eine <strong>leere Stelle</strong> der Karte tippen → <strong>„Als Ort speichern“</strong>.',
         'Aus Google Maps: Ort → <strong>Teilen → Kopieren</strong>, hier <strong>„+ Importieren“</strong> und einfügen.',
         'Ganze Listen (Takeout, CSV, KML) ebenfalls über <strong>„+ Importieren“</strong>.',
         'Die Art (Kaffee, Restaurant …) wird erkannt und lässt sich in der Liste ändern.',
