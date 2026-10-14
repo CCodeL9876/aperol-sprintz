@@ -948,6 +948,31 @@ function renderAirbnb() {
 // wächst mit dem Tempo (25 km/h → 750 Hm/h). Grobe Faustregel; Abfahrten werden nicht abgezogen.
 const BIKE_SPEEDS = [18, 20, 22, 25, 28, 30, 32];
 const bikeSpeed = () => { const v = Number(readPref('bikeSpeed')); return BIKE_SPEEDS.includes(v) ? v : 25; };
+// Reihenfolge der Etappen in der Liste (jedes Gerät merkt sich seine). Die Farben bleiben an den Etappen.
+const ROUTE_SORTS = ['added', 'recent', 'short', 'long', 'flat', 'climb', 'rating', 'open', 'name'];
+const routeSort = () => (ROUTE_SORTS.includes(readPref('routeSort')) ? readPref('routeSort') : 'added');
+function sortedRoutes() {
+  const list = state.routes.map((r, i) => ({ r, i }));
+  const num = (v, missing) => (Number.isFinite(v) ? v : missing);
+  const by = {
+    added: (a, b) => a.i - b.i,
+    recent: (a, b) => b.i - a.i,
+    short: (a, b) => num(a.r.distanceKm, Infinity) - num(b.r.distanceKm, Infinity),
+    long: (a, b) => num(b.r.distanceKm, -1) - num(a.r.distanceKm, -1),
+    flat: (a, b) => num(a.r.elevationGainM, Infinity) - num(b.r.elevationGainM, Infinity),
+    climb: (a, b) => num(b.r.elevationGainM, -1) - num(a.r.elevationGainM, -1),
+    // Unbewertete ans Ende; bei gleichem Schnitt die mit mehr Bewertungen zuerst
+    rating: (a, b) => num(ratingAverage(b.r), -1) - num(ratingAverage(a.r), -1) || ratingValues(b.r).length - ratingValues(a.r).length,
+    open: (a, b) => Number(Boolean(a.r.ridden)) - Number(Boolean(b.r.ridden)),
+    name: (a, b) => a.r.name.localeCompare(b.r.name, 'de', { sensitivity: 'base', numeric: true }),
+  }[routeSort()];
+  return list.sort((a, b) => by(a, b) || a.i - b.i);
+}
+$('#route-sort')?.addEventListener('change', (e) => {
+  writePref('routeSort', e.target.value);
+  renderRoutes();
+});
+
 function rideHours(r, speed = bikeSpeed()) {
   if (!Number.isFinite(r.distanceKm) || r.distanceKm <= 0) return null;
   const climb = Number.isFinite(r.elevationGainM) ? r.elevationGainM / (speed * 30) : 0;
@@ -1396,7 +1421,9 @@ function renderRoutes() {
   const linkHtml = (url, label, action) => `<a class="route-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">${label} ↗</a>
     <button class="btn-link muted" type="button" data-action="${action}">Ändern</button>`;
 
-  list.innerHTML = state.routes.map((r, i) => {
+  $('#route-sort').value = routeSort();
+  // i bleibt der Platz in state.routes – davon hängt die Farbe ab (gleich wie die Linie auf der Karte)
+  list.innerHTML = sortedRoutes().map(({ r, i }) => {
     const on = visible.has(r.id);
     const open = expandedRouteId === r.id;
     const colors = { ...ROUTE_CATEGORY, ...routeColor(i) }; // gleiche Farbe wie die Linie auf der Karte
@@ -2452,6 +2479,7 @@ const extrasBlocked = () => backend.kind === 'shared' && state.cashExtrasMissing
 let fx = cachedRate();
 let fxLoading = false;
 let cashSettleOpen = false;
+let settling = false; // „bezahlt?“ wird gerade geprüft – ein zweiter Tipp wartet
 let cashSplitSig = '';
 const longDate = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${Number(m[3])}.${Number(m[2])}.${m[1]}` : iso; };
 const centsText = (cents) => (cents / 100).toFixed(2).replace('.', ',');
@@ -2638,17 +2666,13 @@ function renderCashSummary() {
         ${transfers.length
           ? `<ul>${transfers.map((t) => `<li>
               <span class="cash-settle-who"><strong>${escapeHtml(personName(t.from))}</strong> ${icon('arrow-right', { size: 14, stroke: 2.4 })} <strong>${escapeHtml(personName(t.to))}</strong></span>
-              <span class="cash-settle-amount">${fx ? formatChf(toRappen(t.cents, fx.rate)) : formatEuro(t.cents)}</span>
-              ${fx ? `<span class="cash-eur">
-                <button type="button" class="cash-eur-btn" aria-expanded="false" aria-label="Betrag in Euro anzeigen" title="In Euro">€</button>
-                <span class="cash-eur-pop" hidden>${formatEuro(t.cents)}</span>
-              </span>` : ''}
+              <span class="cash-settle-amount">${formatEuro(t.cents)}${fx ? `<small class="cash-settle-chf">≈ ${formatChf(toRappen(t.cents, fx.rate))}</small>` : ''}</span>
               ${paidBtn(t)}
             </li>`).join('')}</ul>`
           : '<p class="hint">Alles ausgeglichen – niemand schuldet jemandem etwas.</p>'}
         <p class="hint cash-fx">${fx
-          ? `In Franken zum EZB-Referenzkurs vom ${longDate(fx.date)}: 1 € = ${fx.rate.toFixed(4)} CHF.${fx.fetched === todayIso() ? '' : fxLoading ? ' Tageskurs wird aktualisiert …' : ' Gerade kein Internet – letzter bekannter Kurs.'} Mit € den Euro-Betrag anzeigen.`
-          : fxLoading ? 'Wechselkurs wird geladen …' : 'Wechselkurs gerade nicht abrufbar – Beträge in Euro.'}
+          ? `Abgerechnet wird in Euro wie in der Tabelle; Franken nur zur Orientierung zum EZB-Referenzkurs vom ${longDate(fx.date)}: 1 € = ${fx.rate.toFixed(4)} CHF.${fx.fetched === todayIso() ? '' : fxLoading ? ' Tageskurs wird aktualisiert …' : ' Gerade kein Internet – letzter bekannter Kurs.'}`
+          : fxLoading ? 'Wechselkurs wird geladen …' : 'Abgerechnet wird in Euro wie in der Tabelle.'}
           ${transfers.length ? ' Nach der Überweisung auf „bezahlt?“ tippen – der Saldo wird für alle angepasst.' : ''}</p>
       </div>
     </details>`;
@@ -2776,14 +2800,6 @@ cashDialog.addEventListener('input', (e) => {
 });
 
 cashDialog.addEventListener('click', async (e) => {
-  // Euro-Sprechblase: € zeigt/versteckt sie, jeder andere Klick schliesst offene Blasen
-  const eurBtn = e.target.closest('.cash-eur-btn');
-  $$('.cash-eur-btn', cashDialog).forEach((b) => {
-    const open = b === eurBtn && b.getAttribute('aria-expanded') !== 'true';
-    b.setAttribute('aria-expanded', String(open));
-    b.nextElementSibling.hidden = !open;
-  });
-  if (eurBtn) return;
   const btn = e.target.closest('button');
   if (!btn) return;
 
@@ -2855,15 +2871,36 @@ cashDialog.addEventListener('click', async (e) => {
   if (btn.dataset.settleFrom) {
     // Ausgleich als bezahlt markieren: nur, wenn die Zahlung noch genau so offen ist
     const { settleFrom: from, settleTo: to } = btn.dataset;
-    const t = settle(computeBalances(state.expenses, state.participants)).find((x) => x.from === from && x.to === to);
+    const open = () => settle(computeBalances(state.expenses, state.participants)).find((x) => x.from === from && x.to === to);
+    let t = open();
     if (!t) return renderCashDialog();
     if (extrasBlocked()) return toast('Dafür bitte zuerst das SQL aus supabase/schema.sql nochmals ausführen (siehe Hinweis oben).');
-    const shown = fx ? formatChf(toRappen(t.cents, fx.rate)) : formatEuro(t.cents);
-    if (!confirm(`${personName(from)} hat ${personName(to)} ${shown} bezahlt?\n\nDer Saldo wird für alle angepasst; rückgängig machen geht in der Liste „Rechnungen“.`)) return;
+    if (settling) return;
+    if (!confirm(`${personName(from)} hat ${personName(to)} ${formatEuro(t.cents)} bezahlt?\n\nDer Saldo wird für alle angepasst; rückgängig machen geht in der Liste „Rechnungen“.`)) return;
+    // Erst den neuesten Stand holen: Hat jemand die Zahlung gerade auf einem anderen Gerät als bezahlt markiert
+    // (z. B. Schuldner und Empfänger gleichzeitig), würde sie sonst doppelt abgezogen und die Schuld kehrte sich um
+    settling = true;
+    btn.disabled = true;
+    try {
+      if (backend.kind === 'shared') {
+        lastSignature = '';
+        await refresh();
+      }
+    } finally {
+      settling = false;
+    }
+    const fresh = open();
+    if (!fresh || fresh.cents !== t.cents) {
+      renderCashDialog();
+      return toast(fresh
+        ? `Die Zahlung hat sich inzwischen geändert (jetzt ${formatEuro(fresh.cents)}) – bitte nochmals prüfen.`
+        : `${personName(from)} → ${personName(to)} wurde inzwischen schon als bezahlt markiert.`);
+    }
+    t = fresh;
+    // Abgerechnet wird in Euro – die Rückzahlung daher ohne Franken-Angabe
     const exp = {
       id: newId(), kind: 'transfer', title: 'Ausgleich', amountCents: t.cents, paidBy: from, sharedWith: [to],
       date: todayIso(), addedBy: memberName(), addedAt: Date.now(),
-      ...(fx ? { orig: { currency: 'CHF', cents: toRappen(t.cents, fx.rate), rate: fx.rate } } : {}),
     };
     state.expenses.push(exp);
     render();

@@ -1488,24 +1488,6 @@ details.panel[open] > .panel-summary .panel-chevron { transform: none; }
 .cash-settle li { position: relative; }
 .cash-settle-who { flex: 1; min-width: 0; }
 .cash-fx { margin: 0; font-size: 12px; }
-/* € neben dem Franken-Betrag: Sprechblase mit dem Euro-Betrag */
-.cash-eur { position: relative; flex: none; display: inline-flex; }
-.cash-eur-btn {
-  width: 28px; height: 28px; padding: 0; display: grid; place-items: center;
-  border: 2px solid var(--edge); border-radius: 50%; background: var(--card); color: var(--ink);
-  font: 800 13px var(--font-display); cursor: pointer;
-}
-.cash-eur-btn[aria-expanded="true"] { background: var(--ink); color: var(--yellow); }
-.cash-eur-pop {
-  position: absolute; right: -6px; bottom: calc(100% + 8px); z-index: 2;
-  padding: 4px 10px; border-radius: 10px; white-space: nowrap;
-  background: var(--ink); color: var(--yellow); font: 800 13px var(--font-display);
-  box-shadow: 3px 3px 0 var(--pink);
-}
-.cash-eur-pop::after {
-  content: ''; position: absolute; right: 14px; top: 100%;
-  border: 6px solid transparent; border-top-color: var(--ink);
-}
 .cash-settle h4 { margin: 0 0 6px; font-family: var(--font-display); font-weight: 800; font-size: 15px; }
 .cash-settle .hint { margin: 0; }
 .cash-settle ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
@@ -1515,6 +1497,7 @@ details.panel[open] > .panel-summary .panel-chevron { transform: none; }
 }
 .cash-settle li > span:first-child { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .cash-settle-amount { font-family: var(--font-display); font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cash-settle-chf { display: block; font-family: var(--font-body); font-weight: 600; font-size: 11.5px; color: var(--muted); text-align: right; }
 
 .cash-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .cash-list:empty { display: none; }
@@ -1866,7 +1849,6 @@ details.panel[open] > .panel-summary .panel-chevron { transform: none; }
   .panel-row .cash-total { font-size: 15px; }
   .cash-icon-btn { width: 40px; height: 40px; }
   .cash-person-x { width: 32px; height: 32px; }
-  .cash-eur-btn { width: 34px; height: 34px; }
   .panel-row .panel-summary { gap: 10px; align-items: center; }
   .panel-row .arch-badge { width: 30px; height: 36px; }
   .panel-row .arch-badge .icon { width: 15px; height: 15px; }
