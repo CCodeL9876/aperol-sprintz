@@ -608,7 +608,15 @@ export class SharedBackend {
 
   async addExpenses(expenses) {
     for (let i = 0; i < expenses.length; i += 500) {
-      check(await this.db.from('expenses').insert(expenses.slice(i, i + 500).map((e) => toExpenseRow(e, this.key))));
+      const batch = expenses.slice(i, i + 500);
+      const res = await this.db.from('expenses').insert(batch.map((e) => toExpenseRow(e, this.key)));
+      // Gibt es die Rechnung schon (erster Versuch kam an, nur die Antwort ging bei schwachem Netz verloren):
+      // nicht doppelt anlegen, sondern mit dem aktuellen Inhalt überschreiben
+      if (res.error?.code === '23505' && batch.length === 1) {
+        await this.updateExpense(batch[0].id, batch[0]);
+        continue;
+      }
+      check(res);
     }
   }
 

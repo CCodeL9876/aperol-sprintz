@@ -196,7 +196,13 @@ function applyData(data) {
 
 // Führt eine Speicher-Operation aus. Schlägt sie in einer gemeinsamen Reise fehl,
 // wird der Serverstand neu geladen, damit die Anzeige nicht von der Datenbank abweicht.
-async function persist(op, failMsg = 'Änderung konnte nicht gespeichert werden') {
+// Verbindung abgebrochen (Safari: „Load failed“, Chrome: „Failed to fetch“, Firefox: „NetworkError …“)
+const isNetworkError = (err) => /load failed|failed to fetch|networkerror|network connection was lost/i.test(err?.message || '');
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// retries: bei abgebrochener Verbindung so oft erneut versuchen (nur für Vorgänge, die sich gefahrlos
+// wiederholen lassen – z. B. Rechnungen mit fester ID, siehe addExpenses)
+async function persist(op, failMsg = 'Änderung konnte nicht gespeichert werden', { retries = 0 } = {}) {
   if (!dataLoaded) {
     toast('Die Orte werden noch geladen – bitte kurz warten und noch einmal versuchen.');
     return false;
@@ -204,13 +210,23 @@ async function persist(op, failMsg = 'Änderung konnte nicht gespeichert werden'
   pendingWrites++;
   let failed = false;
   try {
-    await op(backend);
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await op(backend);
+        break;
+      } catch (err) {
+        if (attempt >= retries || !isNetworkError(err) || backend.offline) throw err;
+        await wait(1500 * (attempt + 1));
+      }
+    }
     lastSync = new Date();
     return true;
   } catch (err) {
     toast(backend.offline ? 'Ohne Netz lässt sich nichts ändern – sobald wieder Verbindung besteht, klappt es.'
       : /row-level security/i.test(err.message)
       ? `${failMsg}: Zugriff abgelehnt – vermutlich wurde der Zugangscode geändert.`
+      : isNetworkError(err)
+      ? `${failMsg}: keine Verbindung (Netz zu schwach?) – bitte nochmals versuchen.`
       : `${failMsg}: ${err.message}`);
     failed = true;
     return false;
@@ -2424,7 +2440,9 @@ function resetFilters() {
 const cashDialog = $('#cash-dialog');
 // Auswahl im Formular – bleibt beim Neuzeichnen (z. B. Abgleich alle 20 s) erhalten.
 // splitValues: Eingaben je Person als Text (Anteile bzw. Beträge in der gewählten Währung)
-const cashForm = { editingId: null, payer: null, shared: new Set(), currency: 'EUR', splitMode: 'equal', splitValues: {} };
+// pendingId: ID einer neuen Rechnung, deren Speichern fehlschlug – ein erneuter Versuch nutzt sie wieder,
+// damit nichts doppelt entsteht, falls der erste Versuch doch angekommen war (siehe addExpenses)
+const cashForm = { editingId: null, pendingId: null, payer: null, shared: new Set(), currency: 'EUR', splitMode: 'equal', splitValues: {} };
 const todayIso = () => new Date().toLocaleDateString('sv-SE'); // JJJJ-MM-TT in Ortszeit
 const personName = (id) => state.participants.find((p) => p.id === id)?.name || 'Unbekannt';
 const cashBlocked = () => backend.kind === 'shared' && state.cashMissing;
@@ -2455,6 +2473,7 @@ function renderCash() {
 
 function resetCashForm() {
   cashForm.editingId = null;
+  cashForm.pendingId = null;
   cashForm.payer = me()?.id || null; // vorausgewählt: wer dieses Gerät nutzt („Wer bist du?“) – änderbar
   cashForm.shared = new Set(state.participants.map((p) => p.id));
   cashForm.currency = 'EUR';
@@ -2848,7 +2867,7 @@ cashDialog.addEventListener('click', async (e) => {
     };
     state.expenses.push(exp);
     render();
-    const ok = await persist((b) => b.addExpenses([exp]), 'Ausgleich konnte nicht gespeichert werden');
+    const ok = await persist((b) => b.addExpenses([exp]), 'Ausgleich konnte nicht gespeichert werden', { retries: 2 });
     if (!ok) { state.expenses = state.expenses.filter((x) => x.id !== exp.id); render(); return; }
     toast(`Als bezahlt markiert: ${personName(from)} → ${personName(to)}`);
     return;
@@ -2893,7 +2912,7 @@ cashDialog.addEventListener('click', async (e) => {
     state.expenses = state.expenses.filter((x) => x.id !== exp.id);
     if (cashForm.editingId === exp.id) resetCashForm();
     render();
-    const ok = await persist((b) => b.deleteExpense(exp.id), 'Eintrag konnte nicht gelöscht werden');
+    const ok = await persist((b) => b.deleteExpense(exp.id), 'Eintrag konnte nicht gelöscht werden', { retries: 2 });
     if (!ok) { if (!state.expenses.some((x) => x.id === exp.id)) state.expenses.push(exp); render(); return; }
     toast(isTransfer(exp) ? 'Ausgleich rückgängig gemacht' : 'Rechnung gelöscht');
   }
@@ -2918,6 +2937,28 @@ function showCashSuccess(text) {
     btn.textContent = cashForm.editingId ? 'Änderungen speichern' : 'Rechnung speichern';
   }, 1400);
   cashSuccessTimer = setTimeout(() => { box.textContent = ''; }, 6000);
+}
+
+// Eingaben merken, bevor das Formular geleert wird – schlägt das Speichern fehl, kommen sie zurück
+function cashDraft() {
+  return {
+    form: { ...cashForm, shared: new Set(cashForm.shared), splitValues: { ...cashForm.splitValues } },
+    amount: $('#cash-amount').value, what: $('#cash-what').value, date: $('#cash-date').value,
+  };
+}
+function restoreCashDraft(d, pendingId = null) {
+  if ($('#cash-amount').value.trim()) return; // inzwischen etwas Neues angefangen – nicht überschreiben
+  Object.assign(cashForm, d.form, pendingId ? { pendingId } : {});
+  cashSplitSig = '';
+  $('#cash-amount').value = d.amount;
+  $('#cash-what').value = d.what;
+  $('#cash-date').value = d.date;
+  const editing = Boolean(cashForm.editingId);
+  $('#cash-form-title').textContent = editing ? 'Rechnung bearbeiten' : 'Rechnung erfassen';
+  $('#cash-submit').textContent = editing ? 'Änderungen speichern' : 'Rechnung speichern';
+  $('#cash-cancel').hidden = !editing;
+  if (cashDialog.open) renderCashDialog();
+  $('#cash-error').textContent = 'Nicht gespeichert (keine Verbindung?). Deine Eingaben sind noch da – bitte nochmals „Speichern“ tippen. Doppelt erfasst wird dabei nichts.';
 }
 
 $('#cash-form').addEventListener('submit', async (e) => {
@@ -2962,27 +3003,35 @@ $('#cash-form').addEventListener('submit', async (e) => {
     renderCashDialog();
     return;
   }
+  const draft = cashDraft();
   if (editing) {
     const before = { ...editing };
     Object.assign(editing, data);
     resetCashForm();
     render();
-    const ok = await persist((b) => b.updateExpense(editing.id, editing), 'Rechnung konnte nicht gespeichert werden');
+    const ok = await persist((b) => b.updateExpense(editing.id, editing), 'Rechnung konnte nicht gespeichert werden', { retries: 2 });
     if (!ok) {
       for (const k of Object.keys(editing)) if (!(k in before)) delete editing[k];
       Object.assign(editing, before);
       render();
+      restoreCashDraft(draft);
       return;
     }
     showCashSuccess(`✓ Änderung gespeichert: ${editing.title || 'Rechnung'} · ${enteredMoney(editing)}`);
     return;
   }
-  const exp = { id: newId(), ...data, addedBy: memberName(), addedAt: Date.now() };
+  const exp = { id: cashForm.pendingId || newId(), ...data, addedBy: memberName(), addedAt: Date.now() };
+  state.expenses = state.expenses.filter((x) => x.id !== exp.id); // erneuter Versuch: nicht doppelt anzeigen
   state.expenses.push(exp);
   resetCashForm();
   render();
-  const ok = await persist((b) => b.addExpenses([exp]), 'Rechnung konnte nicht gespeichert werden');
-  if (!ok) { state.expenses = state.expenses.filter((x) => x.id !== exp.id); render(); return; }
+  const ok = await persist((b) => b.addExpenses([exp]), 'Rechnung konnte nicht gespeichert werden', { retries: 2 });
+  if (!ok) {
+    state.expenses = state.expenses.filter((x) => x.id !== exp.id);
+    render();
+    restoreCashDraft(draft, exp.id);
+    return;
+  }
   showCashSuccess(`✓ Rechnung erfasst: ${exp.title || 'Rechnung'} · ${enteredMoney(exp)} (bezahlt von ${personName(exp.paidBy)})`);
 });
 
