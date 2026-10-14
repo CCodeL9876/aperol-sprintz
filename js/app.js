@@ -313,7 +313,7 @@ document.body.dataset.map = mapVariant; // Knöpfe auf der Karte sitzen je nach 
 function createGoogleMapView(el) {
   let impl = null;
   const view = { map: { getZoom: () => impl?.map.getZoom() ?? 9 } };
-  for (const k of ['closePopup', 'setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'setPois', 'setDraft', 'setCursor', 'setRouteLine', 'setRouteSteep', 'searchPlaces', 'openSearchResult', 'clearSearchMarker', 'locate', 'invalidate']) {
+  for (const k of ['closePopup', 'setLive', 'setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'setRoutes', 'fitToRoute', 'centerOn', 'setPois', 'setDraft', 'setCursor', 'setRouteLine', 'setRouteSteep', 'searchPlaces', 'openSearchResult', 'clearSearchMarker', 'locate', 'invalidate']) {
     view[k] = (...args) => impl?.[k](...args);
   }
   const ready = (m, shown) => {
@@ -324,6 +324,7 @@ function createGoogleMapView(el) {
     document.body.dataset.map = shown;
     if (shown === 'google') initMapSearch();
     render({ fit: true });
+    pollLive(); // Live-Standorte anderer gleich auf die fertige Karte
   };
   import('./map-google.js')
     .then(({ createGoogleMap, categoryFromGoogleTypes }) => createGoogleMap(el, {
@@ -1921,6 +1922,237 @@ function closeAirbnbForm() {
   $('#airbnb-view').hidden = false;
   if (pickMode) setPickMode(false);
 }
+
+// --- Live-Standort ------------------------------------------------------------------------------
+// Wer es einschaltet, ist für die anderen der gemeinsamen Reise bis zum gewählten Ende auf der Karte zu sehen
+// (Punkt mit Initialen; optional mit Etappe und km). In Supabase liegt nur die letzte Position (live_positions),
+// „Beenden“ löscht sie. Gesendet wird höchstens alle LIVE_SEND_MS bzw. bei 100 m Bewegung, sonst ein Lebenszeichen
+// pro Minute. Der Bildschirm bleibt dabei an (Wake Lock): im Hintergrund oder gesperrt liefert Safari keinen Standort.
+const LIVE_SEND_MS = 15000;
+const LIVE_HEARTBEAT_MS = 60000;
+const LIVE_POLL_MS = 15000;
+const LIVE_STALE_MS = 3 * 60000; // länger nichts gehört: Punkt blass („zuletzt vor …“)
+const LIVE_HOURS = [1, 2, 4, 8];
+const liveDialog = $('#live-dialog');
+const live = { on: false, until: 0, routeId: null, watchId: null, pos: null, sentAt: 0, sentPos: null, timer: null, wake: null, error: '' };
+let liveOthers = [];
+const liveSeen = new Set();
+
+const liveSupported = () => backend.kind === 'shared' && !backend.offline && typeof backend.liveList === 'function';
+const fmtAgo = (t) => {
+  const min = Math.round((Date.now() - t) / 60000);
+  return min < 1 ? 'gerade eben' : min < 60 ? `vor ${min} Min.` : `vor ${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`;
+};
+
+async function keepAwake() {
+  try {
+    if (live.on && !live.wake && document.visibilityState === 'visible') {
+      live.wake = await navigator.wakeLock?.request('screen');
+      live.wake?.addEventListener('release', () => { live.wake = null; });
+    }
+  } catch { /* nicht unterstützt oder verweigert – dann eben ohne */ }
+}
+
+async function sendLive(force = false) {
+  if (!live.on || !live.pos || !liveSupported()) return;
+  const now = Date.now();
+  const moved = live.sentPos ? haversineKm(live.sentPos.lat, live.sentPos.lng, live.pos.lat, live.pos.lng) : Infinity;
+  if (!force && now - live.sentAt < LIVE_SEND_MS && moved < 0.1) return;
+  if (!force && now - live.sentAt < 5000) return;
+  live.sentAt = now;
+  live.sentPos = live.pos;
+  try {
+    await backend.shareLive({ personId: me().id, name: me().name, ...live.pos, routeId: live.routeId, until: live.until });
+    live.error = '';
+  } catch (err) {
+    live.error = err.missing ? 'In Supabase fehlt noch die Tabelle für den Live-Standort (supabase/schema.sql ausführen).' : `Senden klappt gerade nicht (${err.message}) – neuer Versuch läuft.`;
+    if (err.missing) stopLive({ silent: true });
+  }
+  renderLive();
+}
+
+function startLiveWatch() {
+  if (live.watchId != null || !navigator.geolocation) return;
+  const onPos = (p) => {
+    if (!live.on) return;
+    live.pos = { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy, speed: Number.isFinite(p.coords.speed) ? p.coords.speed * 3.6 : null };
+    sendLive();
+  };
+  const onErr = (err) => {
+    if (!live.on || (live.pos && err.code !== 1)) return; // kurze Aussetzer unterwegs nicht melden
+    live.error = err.code === 1 ? 'Kein Zugriff auf den Standort – im Browser erlauben.' : 'Standort gerade nicht verfügbar.';
+    renderLive();
+  };
+  const opts = { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 };
+  // Erste Position sofort abfragen (eine weitere Beobachtung neben dem blauen Punkt meldet sich sonst teils erst
+  // bei der nächsten Bewegung), danach laufend
+  navigator.geolocation.getCurrentPosition(onPos, onErr, opts);
+  live.watchId = navigator.geolocation.watchPosition(onPos, onErr, opts);
+  live.timer = setInterval(() => {
+    if (Date.now() >= live.until) return stopLive({ expired: true });
+    if (Date.now() - live.sentAt >= LIVE_HEARTBEAT_MS) sendLive(true);
+    renderLive();
+  }, 10000);
+  keepAwake();
+}
+
+async function startLive(hours, routeId) {
+  if (!liveSupported()) return toast('Live-Standort geht nur in einer gemeinsamen Reise mit Netz.');
+  if (!me()) await askWho();
+  if (!me()) return;
+  live.on = true;
+  live.until = Date.now() + hours * 3600000;
+  live.routeId = routeId || null;
+  live.sentAt = 0;
+  live.sentPos = null;
+  live.error = '';
+  writePref('liveShare', { key: backend.key, until: live.until, routeId: live.routeId });
+  startLiveWatch();
+  renderLive();
+  toast(`Live-Standort geteilt bis ${hhmm(new Date(live.until))} – die anderen sehen dich auf der Karte.`);
+}
+
+async function stopLive({ expired = false, silent = false } = {}) {
+  if (!live.on) return;
+  live.on = false;
+  if (live.watchId != null) navigator.geolocation.clearWatch(live.watchId);
+  clearInterval(live.timer);
+  live.watchId = live.timer = null;
+  live.wake?.release().catch(() => {});
+  live.wake = null;
+  live.pos = live.sentPos = null;
+  writePref('liveShare', null);
+  renderLive();
+  try { if (me() && liveSupported()) await backend.stopLive(me().id); } catch { /* läuft ohnehin ab */ }
+  if (!silent) toast(expired ? 'Live-Standort beendet (Zeit abgelaufen).' : 'Live-Standort beendet – deine Position ist gelöscht.');
+}
+
+// Nach dem Neuladen weiterteilen, solange die gewählte Zeit läuft (gleiche Reise)
+function resumeLive() {
+  const s = readPref('liveShare');
+  if (!s || s.key !== backend.key || !(s.until > Date.now()) || !liveSupported() || !me()) return;
+  live.on = true;
+  live.until = s.until;
+  live.routeId = s.routeId || null;
+  startLiveWatch();
+  renderLive();
+}
+
+// Fortschritt auf der Etappe: „km 34 von 82“ (null, wenn nicht auf der Strecke)
+function liveProgress(x) {
+  const r = x.routeId && state.routes.find((rt) => rt.id === x.routeId);
+  if (!r?.points?.length) return null;
+  const hit = nearRoute(r.points, [{ lat: x.lat, lng: x.lng }])[0];
+  const total = Number.isFinite(r.distanceKm) ? r.distanceKm : null;
+  return { name: r.name, km: hit ? progressAt(r, hit.along).km : null, total };
+}
+
+function livePopupHtml(x) {
+  const prog = liveProgress(x);
+  const speed = Number.isFinite(x.speed) && x.speed >= 3 ? ` · ${Math.round(x.speed)} km/h` : '';
+  const stale = Date.now() - x.updatedAt > LIVE_STALE_MS;
+  return `<div class="popup">
+    <span class="popup-cat" style="--c:#E8733A;--ci:#E8733A">${stale ? 'Zuletzt gesehen' : 'Live'}</span>
+    <strong class="popup-name">${escapeHtml(x.name || 'Unbekannt')}</strong>
+    <span class="popup-addr">${fmtAgo(x.updatedAt)}${speed} · teilt bis ${hhmm(new Date(x.until))}</span>
+    ${prog ? `<span class="popup-addr">Etappe „${escapeHtml(prog.name)}“${prog.km != null ? ` · km ${Math.round(prog.km)}${prog.total ? ` von ${Math.round(prog.total)}` : ''}` : ' · gerade neben der Strecke'}</span>` : ''}
+    <a class="popup-link" href="https://www.google.com/maps/dir/?api=1&destination=${x.lat},${x.lng}" target="_blank" rel="noopener">${icon('navigation', { size: 13, stroke: 2.2 })} Route dorthin</a>
+  </div>`;
+}
+
+async function pollLive() {
+  if (!liveSupported() || document.visibilityState !== 'visible') return;
+  try {
+    const list = await backend.liveList();
+    const mine = me()?.id;
+    liveOthers = list.filter((x) => x.personId !== mine);
+  } catch {
+    return; // Tabelle fehlt oder kein Netz: nichts anzeigen
+  }
+  for (const x of liveOthers) {
+    if (!liveSeen.has(x.personId)) {
+      liveSeen.add(x.personId);
+      toast(`${x.name || 'Jemand'} teilt den Standort live – Menü „•••“ → Name antippen.`);
+    }
+  }
+  mapView.setLive(liveOthers.map((x) => ({
+    id: x.personId, initials: initials(x.name), lat: x.lat, lng: x.lng,
+    stale: Date.now() - x.updatedAt > LIVE_STALE_MS, title: `${x.name} · live`, popup: livePopupHtml(x),
+  })));
+  renderLive();
+}
+
+function renderLive() {
+  const banner = $('#live-banner');
+  banner.hidden = !live.on;
+  if (live.on) banner.innerHTML = `<span class="live-dot" aria-hidden="true"></span>Live geteilt bis ${hhmm(new Date(live.until))}${live.error ? ' · ⚠' : ''}`;
+  $('#menu-live').textContent = live.on ? `Live-Standort: bis ${hhmm(new Date(live.until))}` : 'Live-Standort teilen';
+  $('#menu-live').hidden = !liveSupported() && !live.on;
+  $('#menu-live-list').innerHTML = liveOthers.map((x) => `<button type="button" data-live-show="${escapeHtml(x.personId)}">
+      <span class="live-dot${Date.now() - x.updatedAt > LIVE_STALE_MS ? ' is-stale' : ''}" aria-hidden="true"></span>${escapeHtml(x.name)} live · ${fmtAgo(x.updatedAt)}</button>`).join('');
+  if (liveDialog.open) renderLiveDialog();
+}
+
+function renderLiveDialog() {
+  const body = $('#live-body');
+  if (live.on) {
+    body.innerHTML = `<p class="share-text">Du teilst deinen Standort bis <strong>${hhmm(new Date(live.until))}</strong>${live.routeId ? ` auf der Etappe „${escapeHtml(state.routes.find((r) => r.id === live.routeId)?.name || '')}“` : ''}.
+      ${live.sentAt ? `Zuletzt gesendet ${fmtAgo(live.sentAt)}.` : 'Warte auf den ersten Standort …'}</p>
+      ${live.error ? `<p class="code-error">${escapeHtml(live.error)}</p>` : ''}
+      <p class="hint">Lass die App offen und den Bildschirm an – gesperrt oder im Hintergrund kann das iPhone keinen Standort senden.</p>
+      <div class="live-actions">
+        <button type="button" class="btn btn-small" data-live-extend>+ 1 Stunde</button>
+        <button type="button" class="btn btn-small btn-primary" data-live-stop>Beenden</button>
+      </div>`;
+    return;
+  }
+  const routes = state.routes.filter((r) => r.points?.length);
+  body.innerHTML = `<p class="share-text">Die anderen dieser Reise sehen dich als Punkt mit deinen Initialen auf der Karte – bis zur gewählten Zeit oder bis du beendest.</p>
+    <label class="field"><span>Etappe <span class="field-opt">(optional – zeigt „km 34 von 82“)</span></span>
+      <select id="live-route"><option value="">keine</option>${routes.map((r) => `<option value="${escapeHtml(r.id)}"${r.id === expandedRouteId ? ' selected' : ''}>${escapeHtml(r.name)}</option>`).join('')}</select></label>
+    <div class="live-actions">${LIVE_HOURS.map((h) => `<button type="button" class="btn btn-small${h === 4 ? ' btn-primary' : ''}" data-live-start="${h}">${h} ${h === 1 ? 'Stunde' : 'Stunden'}</button>`).join('')}</div>
+    <p class="hint">Datenschutz: gespeichert wird nur deine letzte Position, sichtbar nur für diese Reise; beim Beenden wird sie gelöscht. Lass die App offen und den Bildschirm an.</p>`;
+}
+
+function openLiveDialog() {
+  if (!liveSupported() && !live.on) return toast('Live-Standort geht nur in einer gemeinsamen Reise mit Netz (Menü „Teilen“).');
+  renderLiveDialog();
+  liveDialog.showModal();
+}
+
+$('#live-body').addEventListener('click', (e) => {
+  const start = e.target.closest('[data-live-start]');
+  if (start) {
+    liveDialog.close();
+    startLive(Number(start.dataset.liveStart), $('#live-route')?.value || null);
+  }
+  if (e.target.closest('[data-live-stop]')) {
+    liveDialog.close();
+    stopLive();
+  }
+  if (e.target.closest('[data-live-extend]')) {
+    live.until = Math.min(live.until + 3600000, Date.now() + 12 * 3600000);
+    writePref('liveShare', { key: backend.key, until: live.until, routeId: live.routeId });
+    sendLive(true);
+    renderLive();
+  }
+});
+$('#live-banner').addEventListener('click', openLiveDialog);
+$('#menu-live-list').addEventListener('click', (e) => {
+  const id = e.target.closest('[data-live-show]')?.dataset.liveShow;
+  const x = id && liveOthers.find((o) => o.personId === id);
+  if (!x) return;
+  $('.menu').open = false;
+  if (isMobile()) setSheet('hidden');
+  mapView.centerOn([x.lat, x.lng], Math.max(mapView.map.getZoom(), 14));
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  keepAwake(); // Wake Lock fällt beim Wechsel in den Hintergrund weg
+  if (live.on) sendLive(true);
+  pollLive();
+});
+setInterval(pollLive, LIVE_POLL_MS);
 
 // --- Eigener Ort per Pin ------------------------------------------------------------------------
 // Tipp auf ein leeres Kartenstück (kein Google-Ort, kein eigener Pin): kleines Fenster mit „Als Ort speichern“,
@@ -4701,6 +4933,7 @@ $('.menu-panel').addEventListener('click', async (e) => {
   if (what === 'intro') openIntro();
   if (['categories', 'backup', 'hours', 'usage', 'reset'].includes(what) && !canAdmin()) return toast('Das kann nur der Admin.');
   if (what === 'usage') openUsage();
+  if (what === 'live') openLiveDialog();
   if (what === 'categories') {
     renderCategoryManager();
     categoryDialog.showModal();
@@ -4827,8 +5060,10 @@ async function boot() {
   if (!codeDialog.open) {
     if (backend.kind === 'shared') await refresh({ fit: true });
     else await startDemo();
-    welcome();
+    // Live-Standort: eigenes Teilen nach dem Neuladen fortsetzen, die anderen gleich zeigen
+    welcome().then(() => { resumeLive(); pollLive(); });
   }
+  renderLive();
 
   // Gemeinsame Reise: regelmäßig und beim Zurückkehren in die App abgleichen.
   setInterval(() => {
@@ -5127,6 +5362,7 @@ const INTRO = [
         'Der Standort (blauer Punkt) startet beim Öffnen von selbst, auf Mallorca springt die Karte dorthin. Er bleibt auf deinem Gerät.',
         'Standort-Knopf antippen: zentrieren und zeigen, wohin du schaust; nochmals tippen schaltet ihn aus.',
         '„Route“ zeigt die Strecke in der App – Auto, Velo, zu Fuß oder ÖV, ab deinem Standort oder dem Airbnb.',
+        { demo: false, html: '<strong>Live-Standort</strong> (Menü <strong>•••</strong>): für 1–8 Stunden teilen, die anderen sehen dich mit Initialen auf der Karte – optional mit Etappe und km. App offen und Bildschirm an lassen.' },
         '<strong>„Navigieren“</strong> übergibt an Google Maps (mit Sprachführung).',
         'Unter <strong>„Unser Airbnb“</strong> geht’s mit „Route zur Unterkunft“ zurück.',
       ] },

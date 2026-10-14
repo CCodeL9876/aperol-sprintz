@@ -1159,5 +1159,32 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     });
   }
 
-  return { map, closePopup: () => info.close(), setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, setRouteLine, setRouteSteep, searchPlaces, openSearchResult, clearSearchMarker, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
+  // Live-Standort anderer Teilnehmender: [{ id, initials, lat, lng, stale, title, popup }]
+  const liveMarkers = new Map();
+  function setLive(list) {
+    const keep = new Set();
+    for (const x of list || []) {
+      keep.add(x.id);
+      let m = liveMarkers.get(x.id);
+      if (!m) {
+        const content = document.createElement('div');
+        m = new AdvancedMarkerElement({ map, position: { lat: x.lat, lng: x.lng }, content, zIndex: 2500, title: x.title });
+        m.addListener('click', () => {
+          setInfo(m.popup);
+          info.open({ anchor: m, map, shouldFocus: false });
+        });
+        liveMarkers.set(x.id, m);
+      } else {
+        m.position = { lat: x.lat, lng: x.lng };
+        m.title = x.title;
+      }
+      m.content.className = `live-pin${x.stale ? ' is-stale' : ''}`;
+      m.content.innerHTML = `<span>${escapeHtml(x.initials)}</span>`;
+      m.content.style.transform = 'translateY(50%)'; // mittig auf den Punkt
+      m.popup = x.popup;
+    }
+    for (const [id, m] of liveMarkers) if (!keep.has(id)) { m.map = null; liveMarkers.delete(id); }
+  }
+
+  return { map, closePopup: () => info.close(), setLive, setPlaces, setAirbnb, setActive, focusPlace, fitTo, setRoutes, fitToRoute, centerOn, setPois, setDraft, setCursor, setRouteLine, setRouteSteep, searchPlaces, openSearchResult, clearSearchMarker, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => {} };
 }

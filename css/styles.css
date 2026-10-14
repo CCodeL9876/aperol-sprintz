@@ -2045,3 +2045,34 @@ button.popup-link { padding: 5px 0; border: 0; background: none; cursor: pointer
 .plan-start[hidden] { display: none; }
 .plan-start button { display: inline-grid; place-items: center; padding: 0 9px; }
 .plan-start button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Live-Standort: andere Teilnehmende als oranger Punkt mit Initialen und pulsierendem Ring; länger ohne Meldung blass */
+.live-pin {
+  width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%;
+  background: var(--orange); color: #FFFFFF; border: 3px solid #FFFFFF; cursor: pointer;
+  font: 800 12px/1 var(--font-body); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  animation: live-pulse 2s ease-out infinite;
+}
+.live-pin.is-stale { background: #9AA096; animation: none; }
+@keyframes live-pulse {
+  0% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(232, 115, 58, 0.55); }
+  100% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 0 0 16px rgba(232, 115, 58, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .live-pin { animation: none; } }
+/* Eigener Live-Standort läuft: Hinweis oben auf der Karte (antippen = Einstellungen) */
+.live-banner {
+  position: absolute; left: 50%; top: 190px; transform: translateX(-50%); z-index: 950;
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border: 0; border-radius: 999px;
+  background: var(--orange); color: #FFFFFF; font: 700 13px var(--font-body); box-shadow: var(--shadow-lg);
+  cursor: pointer; white-space: nowrap;
+}
+.live-banner[hidden] { display: none; }
+.live-dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex: none; animation: live-blink 1.4s ease-in-out infinite; }
+.menu-live-list .live-dot { color: var(--orange); margin-right: 6px; display: inline-block; vertical-align: middle; }
+.live-dot.is-stale { color: #9AA096; animation: none; }
+@keyframes live-blink { 50% { opacity: 0.35; } }
+.live-body { display: flex; flex-direction: column; gap: 12px; }
+.live-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 899px) {
+  .live-banner { top: 132px; }
+}

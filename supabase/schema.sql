@@ -438,5 +438,47 @@ $$;
 
 grant execute on function public.bump_google_usage(jsonb), public.google_usage_overview(text) to anon, authenticated;
 
+-- Live-Standort (Menü „Live-Standort teilen“): Wer es einschaltet, ist für die anderen der Reise bis zum gewählten
+-- Ende auf der Karte zu sehen. Gespeichert wird nur die letzte Position je Person (kein Verlauf); „Beenden“ löscht
+-- sie, abgelaufene Einträge räumt der Trigger beim nächsten Schreiben weg. Zeiten setzt die Datenbank selbst,
+-- höchstens 12 Stunden im Voraus.
+create table if not exists public.live_positions (
+  trip_key    text not null check (char_length(trip_key) between 32 and 128),
+  person_id   text not null check (char_length(person_id) between 1 and 64),
+  name        text not null default '' check (char_length(name) <= 80),
+  lat         double precision not null check (lat between -90 and 90),
+  lng         double precision not null check (lng between -180 and 180),
+  accuracy    real check (accuracy is null or accuracy between 0 and 100000),
+  speed       real check (speed is null or speed between 0 and 200),
+  route_id    text check (route_id is null or char_length(route_id) <= 64),
+  updated_at  timestamptz not null default now(),
+  expires_at  timestamptz not null,
+  primary key (trip_key, person_id)
+);
+
+create or replace function public.live_positions_stamp()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at := now();
+  new.expires_at := least(greatest(new.expires_at, now()), now() + interval '12 hours');
+  delete from public.live_positions where trip_key = new.trip_key and person_id <> new.person_id and expires_at < now();
+  return new;
+end
+$$;
+drop trigger if exists live_positions_stamp on public.live_positions;
+create trigger live_positions_stamp before insert or update on public.live_positions
+  for each row execute function public.live_positions_stamp();
+
+alter table public.live_positions enable row level security;
+drop policy if exists "Nur mit Reise-Schlüssel" on public.live_positions;
+create policy "Nur mit Reise-Schlüssel" on public.live_positions
+  for all to anon, authenticated
+  using (trip_key = (select public.request_trip_key()) and (select public.trip_code_ok()))
+  with check (trip_key = (select public.request_trip_key()) and (select public.trip_code_ok()));
+grant select, insert, update, delete on public.live_positions to anon, authenticated;
+
 -- Supabase die neuen Funktionen und Tabellen sofort bekannt machen (sonst ggf. erst nach einigen Minuten)
 notify pgrst, 'reload schema';
