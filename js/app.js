@@ -4743,6 +4743,43 @@ $('#btn-plan').addEventListener('click', () => (plan.on ? cancelPlan() : startPl
 // Handy: derselbe Start als Knopf auf der Karte (in der Liste liegt „Etappe planen“ weit unten)
 $('#map-plan').innerHTML = icon('route', { size: 20, stroke: 2.2 });
 $('#map-plan').addEventListener('click', () => { if (!plan.on) startPlan(); });
+
+// Handy: „Etappe planen“ immer 10 px über dem obersten Knopf am rechten Kartenrand. Wie hoch dieser Stapel ist,
+// hängt von der Karte ab (OSM: Zoom + Standort, Google: Standort) und davon, ob die Kompassnadel gerade zu sehen
+// ist – feste Abstände führten zu Überschneidungen. Gemessen wird bei jeder Änderung, während das Blatt bzw. die
+// Knöpfe noch gleiten bis zu PLAN_BTN_FOLLOW_MS lang in jedem Bild.
+const PLAN_BTN_FOLLOW_MS = 450;
+function placeMapPlanBtn() {
+  const btn = $('#map-plan');
+  const wrap = $('#map').parentElement;
+  if (!isMobile() || !btn.offsetParent) return btn.style.removeProperty('bottom');
+  const pr = btn.offsetParent.getBoundingClientRect();
+  let top = Infinity;
+  for (const el of wrap.querySelectorAll('.locate-btn, .leaflet-control-zoom')) {
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height || getComputedStyle(el).display === 'none') continue;
+    if (pr.right - r.right < 60) top = Math.min(top, r.top); // nur die Spalte am rechten Rand
+  }
+  if (top !== Infinity) btn.style.bottom = `${Math.round(pr.bottom - top + 10)}px`;
+}
+let planBtnUntil = 0;
+function schedulePlanBtn() {
+  const looping = planBtnUntil > performance.now();
+  planBtnUntil = performance.now() + PLAN_BTN_FOLLOW_MS;
+  if (looping) return;
+  const step = () => {
+    placeMapPlanBtn();
+    if (performance.now() < planBtnUntil) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+// Auslöser: Blatt hoch/runter, Kompassnadel ein/aus, Knöpfe der Karte kommen dazu, Fenstergrösse
+new MutationObserver(schedulePlanBtn).observe($('.layout'), { attributes: true, attributeFilter: ['data-sheet'] });
+new MutationObserver((list) => {
+  if (list.some((m) => m.type === 'childList' || m.target.classList?.contains('locate-btn'))) schedulePlanBtn();
+}).observe($('#map').parentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+addEventListener('resize', schedulePlanBtn);
+schedulePlanBtn();
 $('#plan-undo').addEventListener('click', undoPlanPoint);
 $('#plan-remove').innerHTML = icon('trash', { size: 18, stroke: 2 });
 $('#plan-remove').addEventListener('click', removePlanPoint);
