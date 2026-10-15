@@ -2078,3 +2078,22 @@ button.popup-link { padding: 5px 0; border: 0; background: none; cursor: pointer
 @media (max-width: 899px) {
   .live-hints { top: 132px; }
 }
+
+/* Reise-Rückblick: drei Abschnitte mit grossen Zahlen-Kacheln */
+.recap-body { display: flex; flex-direction: column; gap: 18px; }
+.recap-section h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 20px; }
+.recap-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.recap-tile {
+  display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: 14px;
+  background: var(--card); border: 1px solid var(--line);
+}
+.recap-tile strong { font: 400 26px/1.1 var(--font-marker); color: var(--orange-ink); }
+.recap-tile span { font-size: 13px; font-weight: 700; color: var(--text); }
+.recap-tile small { font-size: 12px; color: var(--muted); }
+.recap-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--text-soft); }
+.recap-list b { color: var(--text); }
+.recap-cats { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+.recap-cat {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px 4px 8px; border-radius: 999px;
+  background: color-mix(in srgb, var(--c) 30%, var(--card)); color: var(--text); font-size: 13px; font-weight: 700;
+}

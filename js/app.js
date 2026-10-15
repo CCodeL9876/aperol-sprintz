@@ -1966,6 +1966,111 @@ function closeAirbnbForm() {
   if (pickMode) setPickMode(false);
 }
 
+// --- Reise-Rückblick --------------------------------------------------------------------------
+// Alles aus den vorhandenen Daten gerechnet, nichts wird zusätzlich gespeichert oder gesendet. „Teilen“ gibt nur
+// die Zusammenfassung als Text weiter (Teilen-Menü des Handys, sonst Zwischenablage).
+const SA_CALOBRA_HM = 680; // Höhenmeter des Klassikers – als anschaulicher Vergleich
+const recapDialog = $('#recap-dialog');
+let recapText = '';
+
+function recapData() {
+  const ridden = state.routes.filter((r) => r.ridden);
+  const km = ridden.reduce((s, r) => s + (Number.isFinite(r.distanceKm) ? r.distanceKm : 0), 0);
+  const hm = ridden.reduce((s, r) => s + (Number.isFinite(r.elevationGainM) ? r.elevationGainM : 0), 0);
+  const top = (list, val) => list.filter((r) => Number.isFinite(val(r))).sort((a, b) => val(b) - val(a))[0] || null;
+  const rated = state.routes.filter((r) => ratingAverage(r) != null);
+  const visited = state.places.filter((p) => p.visited);
+  const byCat = new Map();
+  for (const p of visited) byCat.set(p.category, (byCat.get(p.category) || 0) + 1);
+  const costs = state.expenses.filter((e) => !isTransfer(e));
+  const total = expenseTotal(state.expenses);
+  const paid = computeBalances(state.expenses, state.participants).filter((b) => b.paid > 0).sort((a, b) => b.paid - a.paid);
+  const dates = [...state.expenses.map((e) => e.date).filter(Boolean)].sort();
+  return {
+    ridden, planned: state.routes.length, km, hm,
+    longest: top(ridden, (r) => r.distanceKm), steepest: top(ridden, (r) => r.elevationGainM),
+    best: rated.sort((a, b) => ratingAverage(b) - ratingAverage(a))[0] || null,
+    places: state.places.length, visited, starred: state.places.filter((p) => p.starred).length,
+    glutenFree: state.places.filter((p) => p.glutenFree).length,
+    topCats: [...byCat.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4),
+    costs, total, perHead: state.participants.length ? Math.round(total / state.participants.length) : null,
+    topPayer: paid[0] || null, biggest: [...costs].sort((a, b) => b.amountCents - a.amountCents)[0] || null,
+    from: dates[0] || '', to: dates.at(-1) || '',
+  };
+}
+
+function renderRecap() {
+  const d = recapData();
+  const day = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('de-DE', { day: 'numeric', month: 'long' });
+  $('#recap-period').textContent = d.from ? `Mallorca · ${day(d.from)}${d.to !== d.from ? ` – ${day(d.to)}` : ''}` : 'Mallorca';
+  const tile = (value, label, sub = '') => `<div class="recap-tile"><strong>${value}</strong><span>${label}</span>${sub ? `<small>${sub}</small>` : ''}</div>`;
+  const kmText = d.km ? formatKm(d.km) : '0 km';
+  const hmText = d.hm ? formatHm(d.hm) : '0 Hm';
+  const calobra = d.hm >= SA_CALOBRA_HM ? `≈ ${(d.hm / SA_CALOBRA_HM).toLocaleString('de-DE', { maximumFractionDigits: 1 })}× Sa Calobra hoch` : '';
+  const bike = d.ridden.length
+    ? `<div class="recap-tiles">
+        ${tile(d.ridden.length, d.ridden.length === 1 ? 'Etappe gefahren' : 'Etappen gefahren', `von ${d.planned} geplant`)}
+        ${tile(kmText, 'auf dem Rennrad')}
+        ${tile(hmText, 'bergauf', calobra)}
+      </div>
+      <ul class="recap-list">
+        ${d.longest ? `<li>🏁 Längste Etappe: <b>${escapeHtml(d.longest.name)}</b> · ${formatKm(d.longest.distanceKm)}</li>` : ''}
+        ${d.steepest && d.steepest !== d.longest ? `<li>⛰️ Meiste Höhenmeter: <b>${escapeHtml(d.steepest.name)}</b> · ${formatHm(d.steepest.elevationGainM)}</li>` : ''}
+        ${d.best ? `<li>⭐ Beliebteste Etappe: <b>${escapeHtml(d.best.name)}</b> · ${ratingAverage(d.best).toLocaleString('de-DE', { maximumFractionDigits: 1 })} Sterne</li>` : ''}
+      </ul>`
+    : '<p class="hint">Noch keine Etappe als gefahren markiert – in der Etappen-Liste das Häkchen setzen.</p>';
+  const places = `<div class="recap-tiles">
+      ${tile(d.visited.length, 'Orte besucht', `von ${d.places} gespeichert`)}
+      ${tile(d.starred, d.starred === 1 ? 'Favorit' : 'Favoriten')}
+      ${d.glutenFree ? tile(d.glutenFree, 'glutenfrei markiert') : ''}
+    </div>
+    ${d.topCats.length ? `<p class="recap-cats">${d.topCats.map(([id, n]) => `<span class="recap-cat" style="${categoryStyle(catOf(id))}">${categoryIcon(catOf(id), { size: 14, stroke: 2 })}${n} ${escapeHtml(catOf(id).label)}</span>`).join('')}</p>` : ''}`;
+  const money = d.costs.length
+    ? `<div class="recap-tiles">
+        ${tile(formatEuro(d.total), 'ausgegeben', `${d.costs.length} ${d.costs.length === 1 ? 'Rechnung' : 'Rechnungen'}`)}
+        ${d.perHead != null ? tile(formatEuro(d.perHead), 'pro Person', `${state.participants.length} Personen`) : ''}
+      </div>
+      <ul class="recap-list">
+        ${d.topPayer ? `<li>💳 Am meisten bezahlt: <b>${escapeHtml(d.topPayer.name)}</b> · ${formatEuro(d.topPayer.paid)}</li>` : ''}
+        ${d.biggest ? `<li>🧾 Grösste Ausgabe: <b>${escapeHtml(d.biggest.title || 'ohne Titel')}</b> · ${formatEuro(d.biggest.amountCents)}</li>` : ''}
+      </ul>`
+    : '<p class="hint">Noch keine Ausgaben erfasst.</p>';
+  $('#recap-body').innerHTML = `
+    <section class="recap-section"><h3>${icon('bike', { size: 18, stroke: 2 })}Rennrad</h3>${bike}</section>
+    <section class="recap-section"><h3>${icon('pin', { size: 18, stroke: 2 })}Orte</h3>${places}</section>
+    <section class="recap-section"><h3>${icon('wallet', { size: 18, stroke: 2 })}Ausgaben</h3>${money}</section>
+    <footer class="dialog-foot"><button type="button" class="btn btn-primary" data-recap-share>${icon('share', { size: 15, stroke: 2 })}Rückblick teilen</button></footer>`;
+  // Textfassung zum Teilen
+  recapText = [
+    `🚴 Aperol Sprintz Mallorca${d.from ? ` (${day(d.from)}${d.to !== d.from ? ` – ${day(d.to)}` : ''})` : ''}`,
+    d.ridden.length ? `${d.ridden.length} Etappen · ${kmText} · ${hmText}${calobra ? ` (${calobra})` : ''}` : '',
+    d.longest ? `Längste Etappe: ${d.longest.name} (${formatKm(d.longest.distanceKm)})` : '',
+    d.best ? `Beliebteste Etappe: ${d.best.name}` : '',
+    `${d.visited.length} Orte besucht${d.topCats.length ? ` – ${d.topCats.map(([id, n]) => `${n} ${catOf(id).label}`).join(', ')}` : ''}`,
+    d.costs.length ? `Ausgaben: ${formatEuro(d.total)}${d.perHead != null ? ` (${formatEuro(d.perHead)} pro Person)` : ''}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+function openRecap() {
+  renderRecap();
+  recapDialog.showModal();
+}
+
+$('#recap-body').addEventListener('click', async (e) => {
+  if (!e.target.closest('[data-recap-share]')) return;
+  try {
+    if (navigator.share) return await navigator.share({ title: 'Reise-Rückblick', text: recapText });
+  } catch (err) {
+    if (err?.name === 'AbortError') return;
+  }
+  try {
+    await navigator.clipboard.writeText(recapText);
+    toast('Rückblick kopiert – z. B. in den Gruppenchat einfügen.');
+  } catch {
+    toast('Teilen klappt hier nicht – bitte am Handy versuchen.');
+  }
+});
+
 // --- Live-Standort ------------------------------------------------------------------------------
 // Wer es einschaltet, ist für die anderen der gemeinsamen Reise bis zum gewählten Ende auf der Karte zu sehen
 // (Punkt mit Initialen; optional mit Etappe und km). In Supabase liegt nur die letzte Position (live_positions),
@@ -5125,6 +5230,7 @@ $('.menu-panel').addEventListener('click', async (e) => {
   if (['categories', 'backup', 'hours', 'usage', 'reset'].includes(what) && !canAdmin()) return toast('Das kann nur der Admin.');
   if (what === 'usage') openUsage();
   if (what === 'live') openLiveDialog();
+  if (what === 'recap') openRecap();
   if (what === 'categories') {
     renderCategoryManager();
     categoryDialog.showModal();
@@ -5566,6 +5672,7 @@ const INTRO = [
         '<strong>„Fotos“</strong> öffnet die Fotos-App mit euren geteilten Alben (iPhone/iPad).',
         '<strong>„Bordkarten“</strong> öffnet Wallet, <strong>„Meine Flüge“</strong> die easyJet-App.',
         '<strong>„Check-in“</strong> zeigt eure Airbnb-Buchung mit der Anleitung.',
+        '<strong>„Reise-Rückblick“</strong>: gefahrene km und Höhenmeter, besuchte Orte und Ausgaben – zum Teilen im Gruppenchat.',
       ] },
     { icon: 'users', color: 'var(--pink)', name: 'Zusammen planen', text: 'Alle mit dem Reise-Link sehen dasselbe.',
       info: [
