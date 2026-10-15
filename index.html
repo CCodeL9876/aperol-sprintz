@@ -7,19 +7,19 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-15.1" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-15.1">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-15.2" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-15.2">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-15.1">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-15.2">
   <!-- Pinselschrift (Logo, Überschriften) gleich zu Beginn laden – sonst entdeckt der Browser sie erst in fonts.css
        und zeigt so lange eine Ersatzschrift. Gleiche Adresse wie in fonts.css; crossorigin ist bei Schriften Pflicht. -->
   <link rel="preload" href="fonts/permanent-marker-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-15.1">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-15.1">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-15.2">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-15.2">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -75,6 +75,7 @@
           <hr>
           <button type="button" data-menu="intro">So funktioniert's</button>
           <button type="button" data-menu="fit">Alle Orte zeigen</button>
+          <button type="button" data-menu="recap">Reise-Rückblick</button>
           <!-- Karte dauerhaft auf OpenStreetMap stellen (nur dieses Gerät); Beschriftung setzt app.js -->
           <button type="button" id="menu-map-choice" data-menu="map-choice">Auf OpenStreetMap umstellen</button>
           <!-- Zeigt, wie viele OpenStreetMap-Kacheln für unterwegs ohne Netz bereitliegen (siehe sw.js) -->
@@ -688,6 +689,20 @@
     </form>
   </dialog>
 
+  <!-- Reise-Rückblick: Kilometer, Höhenmeter, besuchte Orte und Ausgaben auf einen Blick (app.js, renderRecap) -->
+  <dialog id="recap-dialog" class="dialog recap-dialog" aria-labelledby="recap-title">
+    <div class="dialog-inner">
+      <header class="dialog-head">
+        <div>
+          <span class="eyebrow" id="recap-period">Mallorca</span>
+          <h2 id="recap-title">Reise-Rückblick</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="Schließen"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </header>
+      <div id="recap-body" class="recap-body"></div>
+    </div>
+  </dialog>
+
   <!-- Live-Standort teilen: Dauer und (optional) Etappe wählen; während des Teilens Ende und Verlängern -->
   <dialog id="live-dialog" class="dialog" aria-labelledby="live-title">
     <div class="dialog-inner">
@@ -770,38 +785,38 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-15.1"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-15.2"></script>
   <!-- Dreht die OpenStreetMap-Karte (zwei Finger); Lizenz GPL-3.0, siehe vendor/leaflet/LICENSE-leaflet-rotate.txt -->
-  <script src="vendor/leaflet/leaflet-rotate.js?v=2026-10-15.1"></script>
+  <script src="vendor/leaflet/leaflet-rotate.js?v=2026-10-15.2"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-15.1",
-      "./js/backend.js": "./js/backend.js?v=2026-10-15.1",
-      "./js/cash.js": "./js/cash.js?v=2026-10-15.1",
-      "./js/categories.js": "./js/categories.js?v=2026-10-15.1",
-      "./js/config.js": "./js/config.js?v=2026-10-15.1",
-      "./js/gluten.js": "./js/gluten.js?v=2026-10-15.1",
-      "./js/geo.js": "./js/geo.js?v=2026-10-15.1",
-      "./js/hours.js": "./js/hours.js?v=2026-10-15.1",
-      "./js/icons.js": "./js/icons.js?v=2026-10-15.1",
-      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-15.1",
-      "./js/importers.js": "./js/importers.js?v=2026-10-15.1",
-      "./js/map.js": "./js/map.js?v=2026-10-15.1",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-15.1",
-      "./js/directions.js": "./js/directions.js?v=2026-10-15.1",
-      "./js/road-distance.js": "./js/road-distance.js?v=2026-10-15.1",
-      "./js/osm-hours.js": "./js/osm-hours.js?v=2026-10-15.1",
-      "./js/wiki.js": "./js/wiki.js?v=2026-10-15.1",
-      "./js/climbs.js": "./js/climbs.js?v=2026-10-15.1",
-      "./js/profile.js": "./js/profile.js?v=2026-10-15.1",
-      "./js/pois.js": "./js/pois.js?v=2026-10-15.1",
-      "./js/usage.js": "./js/usage.js?v=2026-10-15.1",
-      "./js/store.js": "./js/store.js?v=2026-10-15.1"
+      "./js/app.js": "./js/app.js?v=2026-10-15.2",
+      "./js/backend.js": "./js/backend.js?v=2026-10-15.2",
+      "./js/cash.js": "./js/cash.js?v=2026-10-15.2",
+      "./js/categories.js": "./js/categories.js?v=2026-10-15.2",
+      "./js/config.js": "./js/config.js?v=2026-10-15.2",
+      "./js/gluten.js": "./js/gluten.js?v=2026-10-15.2",
+      "./js/geo.js": "./js/geo.js?v=2026-10-15.2",
+      "./js/hours.js": "./js/hours.js?v=2026-10-15.2",
+      "./js/icons.js": "./js/icons.js?v=2026-10-15.2",
+      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-15.2",
+      "./js/importers.js": "./js/importers.js?v=2026-10-15.2",
+      "./js/map.js": "./js/map.js?v=2026-10-15.2",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-15.2",
+      "./js/directions.js": "./js/directions.js?v=2026-10-15.2",
+      "./js/road-distance.js": "./js/road-distance.js?v=2026-10-15.2",
+      "./js/osm-hours.js": "./js/osm-hours.js?v=2026-10-15.2",
+      "./js/wiki.js": "./js/wiki.js?v=2026-10-15.2",
+      "./js/climbs.js": "./js/climbs.js?v=2026-10-15.2",
+      "./js/profile.js": "./js/profile.js?v=2026-10-15.2",
+      "./js/pois.js": "./js/pois.js?v=2026-10-15.2",
+      "./js/usage.js": "./js/usage.js?v=2026-10-15.2",
+      "./js/store.js": "./js/store.js?v=2026-10-15.2"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-15.1"></script>
+  <script type="module" src="js/app.js?v=2026-10-15.2"></script>
 </body>
 </html>
