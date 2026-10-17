@@ -1,5 +1,5 @@
 import { DEFAULT_CATEGORIES, FALLBACK_CATEGORY, ROUTE_CATEGORY, routeColor } from './categories.js';
-import { haversineKm, hasCoords, parseCoords, formatKm, geocode, formatReservation, routeUrl, homeRouteUrl } from './geo.js';
+import { haversineKm, hasCoords, parseCoords, formatKm, geocode, formatReservation, routeUrl, homeRouteUrl, googlePlaceUrl } from './geo.js';
 import { parseFile, parseGeoJSON, parseLinks, assignCategory, buildGpx, summarizeTrack, parseGpx } from './importers.js';
 import { elevationProfile, profileHtml, bindProfile } from './profile.js';
 import { loadUi, saveUi, readPref, writePref, downloadBackup, newId, newTripKey, loadLocalBackup, clearLocalBackup } from './store.js';
@@ -1819,6 +1819,7 @@ function placeItemHtml(p, i, cats) {
         </label>
         ${!hasCoords(p) ? '<button type="button" class="chip-btn" data-action="geocode">Standort suchen</button>' : ''}
         <a class="chip-btn route-btn" href="${escapeHtml(routeUrl(p))}" target="_blank" rel="noopener" title="Route anzeigen"${routeAttrs(p)}>${icon('navigation', { size: 14, stroke: 2.2 })}Route</a>
+        <a class="chip-btn" href="${escapeHtml(googlePlaceUrl(p))}" target="_blank" rel="noopener" title="Bei Google Maps öffnen – Bewertungen, Fotos, Öffnungszeiten">${icon('external', { size: 14, stroke: 2.2 })}Google</a>
         <button type="button" class="chip-btn" data-action="cash" title="Rechnung für diesen Ort in den Ausgaben erfassen">${icon('receipt', { size: 14, stroke: 2 })}Rechnung</button>
         <button type="button" class="chip-btn chip-btn-icon danger" data-action="delete" aria-label="Entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
       </div>

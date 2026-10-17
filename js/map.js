@@ -1,7 +1,7 @@
 // Leaflet-Karte: Orts-Marker, Airbnb-Marker, Radius-Kreis, Live-Standort und Rennrad-Routen (Linien statt Punkte).
 /* global L */
 
-import { hasCoords, haversineKm, formatKm, formatReservation, routeUrl, homeRouteUrl } from './geo.js';
+import { hasCoords, haversineKm, formatKm, formatReservation, routeUrl, homeRouteUrl, googlePlaceUrl } from './geo.js';
 import { icon, categoryIcon, categoryStyle, compassRose } from './icons.js';
 import { ROUTE_CATEGORY } from './categories.js';
 import { hoursStatus, hoursToday } from './hours.js';
@@ -75,6 +75,7 @@ export function popupHtml(p, cat) {
       ${dist}
       ${p.wiki?.extract ? `<span class="popup-wiki">${p.wiki.img ? `<img src="${escapeHtml(p.wiki.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}<span>${escapeHtml(p.wiki.extract.length > 140 ? `${p.wiki.extract.slice(0, 140).replace(/\s+\S*$/, '')} …` : p.wiki.extract)} <a href="${escapeHtml(safeHttpUrl(p.wiki.url))}" target="_blank" rel="noopener">Wikipedia</a></span></span>` : ''}
       <a class="popup-link" href="${escapeHtml(routeUrl(p))}" target="_blank" rel="noopener"${routeAttrs(p)}>${icon('navigation', { size: 13, stroke: 2.2 })} Route</a>
+      <a class="popup-link" href="${escapeHtml(googlePlaceUrl(p))}" target="_blank" rel="noopener">${icon('external', { size: 13, stroke: 2.2 })} Bei Google Maps</a>
       <button type="button" class="popup-link popup-cash" data-popup-cash="${escapeHtml(p.id)}">${icon('receipt', { size: 13, stroke: 2 })} Rechnung erfassen</button>
     </div>`;
 }

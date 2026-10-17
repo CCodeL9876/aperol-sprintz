@@ -17,6 +17,18 @@ export function formatReservation(r) {
 // Google-Maps-Route zum Ort. Ohne „origin“ startet Google beim aktuellen Standort des Geräts
 // (in der Maps-App bzw. im Browser nach Freigabe). Ziel: Name + Adresse ergibt einen sauber
 // benannten Ort; ohne Adresse die Koordinaten, notfalls nur der Name.
+// Der Ort bei Google Maps (Bewertungen, Fotos, Öffnungszeiten): der gespeicherte Google-Link, wenn er auf einen
+// bestimmten Google-Eintrag zeigt (aus der Karte hinzugefügt: „?cid=…“, aus einer Google-Liste: „/maps/place/…“,
+// Kurzlink), sonst eine Suche nach Name und Adresse – Google öffnet dann direkt den passenden Eintrag.
+// Links mit nur Koordinaten zeigten bloss einen Punkt.
+const GOOGLE_MAPS_LINK = /^https:\/\/((www\.)?google\.[a-z.]{2,6}\/maps|maps\.google\.[a-z.]{2,6}\/|maps\.app\.goo\.gl\/|goo\.gl\/maps\/)/i;
+const GOOGLE_PLACE_REF = /\/maps\/place\/|[?&](cid|query_place_id|place_id|ftid)=|maps\.app\.goo\.gl\/|goo\.gl\/maps\//i;
+export function googlePlaceUrl(p) {
+  if (GOOGLE_MAPS_LINK.test(p.url || '') && GOOGLE_PLACE_REF.test(p.url)) return p.url;
+  const query = p.address ? `${p.name}, ${p.address}` : hasCoords(p) ? `${p.lat},${p.lng}` : p.name;
+  return `https://www.google.com/maps/search/?${new URLSearchParams({ api: '1', query })}`;
+}
+
 export function routeUrl(p) {
   const destination = p.address ? `${p.name}, ${p.address}` : hasCoords(p) ? `${p.lat},${p.lng}` : p.name;
   return `https://www.google.com/maps/dir/?${new URLSearchParams({ api: '1', destination })}`;
