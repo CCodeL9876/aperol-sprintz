@@ -968,38 +968,54 @@ const MIN_RIDE_MIN = 10;
 const MAX_RIDE_MIN = 24 * 60;
 
 // Persönliches Modell aus den eigenen Fahrzeiten: Stunden = a × km + b × Hm (a = 1/Tempo in der Ebene,
-// b = Zeit pro Höhenmeter). Ab zwei unterschiedlich bergigen Fahrten werden beide Werte bestimmt (kleinste
-// Quadrate), sonst nur das Tempo mit dem Standard-Verhältnis für die Höhenmeter. Grenzen halten Ausreisser
-// (Tippfehler, Fahrt mit Panne) in einem vernünftigen Rahmen.
-function personalModel(personId) {
-  if (!personId) return null;
-  const rides = state.routes
-    .map((r) => ({ t: (r.rideTimes?.[personId] || 0) / 60, x: r.distanceKm, y: Number.isFinite(r.elevationGainM) ? r.elevationGainM : 0 }))
-    .filter((d) => d.t > 0 && Number.isFinite(d.x) && d.x > 0);
-  if (!rides.length) return null;
+// b = Zeit pro Höhenmeter). Ab zwei deutlich unterschiedlich bergigen Fahrten werden beide Werte bestimmt
+// (kleinste Quadrate), sonst nur das Tempo mit dem Standard-Verhältnis für die Höhenmeter.
+// Schutz vor schlechten Daten: unplausible Schnitte (Tippfehler) zählen nicht, Etappen ohne Höhenangaben nur,
+// wenn keine anderen da sind, und ab drei Fahrten bleiben stark abweichende (Panne, lange Pause) aussen vor.
+const RIDE_AVG_KMH = [6, 50]; // Schnitt ausserhalb: sicher ein Tippfehler
+const RIDE_OUTLIER = 0.25; // ab 25 % Abweichung vom Median gilt eine Fahrt als Ausreisser
+function fitRideModel(rides) {
   const sum = (f) => rides.reduce((s, d) => s + f(d), 0);
-  let a = null;
-  let b = null;
   if (rides.length >= 2) {
     const xx = sum((d) => d.x * d.x);
     const yy = sum((d) => d.y * d.y);
     const xy = sum((d) => d.x * d.y);
-    const xt = sum((d) => d.x * d.t);
-    const yt = sum((d) => d.y * d.t);
-    const det = xx * yy - xy * xy;
-    if (det > 1e-6 * xx * yy) {
-      a = (xt * yy - yt * xy) / det;
-      b = (yt * xx - xt * xy) / det;
+    // 1 − r²: wie verschieden bergig die Fahrten sind (0 = alle gleich steil → Höhenmeter nicht bestimmbar)
+    if (yy > 0 && 1 - (xy * xy) / (xx * yy) >= 0.02) {
+      const det = xx * yy - xy * xy;
+      const xt = sum((d) => d.x * d.t);
+      const yt = sum((d) => d.y * d.t);
+      const a = (xt * yy - yt * xy) / det;
+      const b = (yt * xx - xt * xy) / det;
+      const k = a / b; // Höhenmeter, die so viel kosten wie 1 km in der Ebene
+      if (a > 0 && b > 0 && 1 / a >= 10 && 1 / a <= 45 && k >= 8 && k <= 150) return { a, b };
     }
   }
-  // Nicht bestimmbar oder unplausibel: nur das Tempo anpassen, Höhenmeter im Standard-Verhältnis
-  if (!(a > 0) || !(b >= 0) || 1 / a < 10 || 1 / a > 45 || (b > 0 && a / b < 8)) {
-    const w = (d) => d.x + d.y / CLIMB_FACTOR;
-    a = sum((d) => d.t * w(d)) / sum((d) => w(d) * w(d));
-    b = a / CLIMB_FACTOR;
+  const w = (d) => d.x + d.y / CLIMB_FACTOR;
+  const a = Math.min(1 / 10, Math.max(1 / 45, sum((d) => d.t * w(d)) / sum((d) => w(d) * w(d))));
+  return { a, b: a / CLIMB_FACTOR };
+}
+function personalModel(personId) {
+  if (!personId) return null;
+  const all = state.routes
+    .map((r) => ({ t: (r.rideTimes?.[personId] || 0) / 60, x: r.distanceKm, y: Number.isFinite(r.elevationGainM) ? r.elevationGainM : null }))
+    .filter((d) => d.t > 0 && Number.isFinite(d.x) && d.x > 0 && d.x / d.t >= RIDE_AVG_KMH[0] && d.x / d.t <= RIDE_AVG_KMH[1]);
+  if (!all.length) return null;
+  const withEle = all.filter((d) => d.y != null);
+  let rides = (withEle.length ? withEle : all).map((d) => ({ ...d, y: d.y ?? 0 }));
+  // Ausreisser (ab drei Fahrten): pro Fahrt ein „Tempo-Äquivalent“ (km + Hm/30 je Stunde) mit dem Median aller
+  // vergleichen – ein einzelner Ausreisser verschiebt den Median nicht. Weicht eine Fahrt mehr als 25 % ab
+  // (Panne, lange Pause, falsche Etappe), zählt sie nicht.
+  if (rides.length >= 3) {
+    const eq = rides.map((d) => (d.x + d.y / CLIMB_FACTOR) / d.t);
+    const sorted = [...eq].sort((p, q) => p - q);
+    const mid = sorted.length >> 1;
+    const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    const kept = rides.filter((_, i) => Math.abs(eq[i] / median - 1) <= RIDE_OUTLIER);
+    if (kept.length) rides = kept;
   }
-  a = Math.min(1 / 10, Math.max(1 / 45, a)); // 10–45 km/h in der Ebene
-  return { a, b, n: rides.length, speed: 1 / a, per100: b * 100 * 60 }; // per100: Minuten pro 100 Hm
+  const m = fitRideModel(rides);
+  return { ...m, n: rides.length, skipped: all.length - rides.length, speed: 1 / m.a, per100: m.b * 100 * 60 }; // per100: Minuten pro 100 Hm
 }
 const speedMode = () => (readPref('bikeSpeed') === 'me' && personalModel(me()?.id) ? 'me' : 'fixed');
 // Rechenmodell für alle Fahrzeiten: { a, b } – Zahl als Argument = feste Geschwindigkeit
@@ -3602,6 +3618,9 @@ async function saveRideTime(form) {
   if (state.rideTimesMissing) return toast('Fahrzeiten sind in der Datenbank noch nicht eingerichtet – einmal supabase/schema.sql in Supabase ausführen.');
   const min = parseRideTime(form.elements.time.value);
   if (min === null || (min && (min < MIN_RIDE_MIN || min > MAX_RIDE_MIN))) return toast('Bitte als Stunden:Minuten eingeben, z. B. 2:45');
+  // Unplausibler Schnitt (z. B. 0:28 statt 2:48) – gar nicht erst speichern
+  const avg = min && Number.isFinite(route.distanceKm) ? route.distanceKm / (min / 60) : null;
+  if (avg && (avg < RIDE_AVG_KMH[0] || avg > RIDE_AVG_KMH[1])) return toast(`Das wären ${Math.round(avg)} km/h im Schnitt – bitte die Zeit prüfen (Stunden:Minuten, z. B. 2:45).`);
   const before = { ...(route.rideTimes || {}) };
   const after = { ...before };
   if (min) after[person.id] = min; else delete after[person.id];
@@ -3615,7 +3634,7 @@ async function saveRideTime(form) {
   if (!ok) { route.rideTimes = before; renderRoutes(); return; }
   const m = personalModel(person.id);
   toast(min
-    ? `Fahrzeit ${fmtMinutes(min)} gespeichert.${m ? ` Dein Tempo: ≈ ${Math.round(m.speed)} km/h in der Ebene, ${Math.round(m.per100)} min pro 100 Hm${m.n > 1 ? ` (aus ${m.n} Fahrten)` : ''}.` : ''}${!wasMe && speedMode() === 'me' ? ' Fahrzeiten rechnen jetzt mit deinem Tempo.' : ''}`
+    ? `Fahrzeit ${fmtMinutes(min)} gespeichert.${m ? ` Dein Tempo: ≈ ${Math.round(m.speed)} km/h in der Ebene, ${Math.round(m.per100)} min pro 100 Hm${m.n > 1 ? ` (aus ${m.n} Fahrten)` : ''}${m.skipped ? ` – ${m.skipped === 1 ? 'eine Fahrt weicht' : `${m.skipped} Fahrten weichen`} stark ab und ${m.skipped === 1 ? 'zählt' : 'zählen'} nicht` : ''}.` : ''}${!wasMe && speedMode() === 'me' ? ' Fahrzeiten rechnen jetzt mit deinem Tempo.' : ''}`
     : 'Deine Fahrzeit ist entfernt.');
 }
 $('#ride-start')?.addEventListener('change', (e) => {
