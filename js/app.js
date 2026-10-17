@@ -8,7 +8,7 @@ import { expandMapsLinks, hasShortMapsLinks,
   rememberedTripKey, rememberTripKey, forgetTripKey, shareUrl, rememberTripCode, forgetTripCode, validTripCodeChars,
   rememberedAdminPin, rememberAdminPin,
 } from './backend.js';
-import { createMap, routeAttrs } from './map.js';
+import { createMap, routeAttrs, planPinHtml, planPinLabels } from './map.js';
 import { TRAVEL_MODES, computeRoute, navUrl } from './directions.js';
 import { roadKm, loadRoadDistances } from './road-distance.js';
 import { SKUS, setUsageSink, localUsage, pendingUsage, usageCost, usageMonth } from './usage.js';
@@ -946,7 +946,7 @@ function renderAirbnb() {
 
 // Fahrzeit ohne Pausen: Strecke im gewählten Grundtempo plus Zuschlag fürs Klettern. Die Steigleistung
 // wächst mit dem Tempo (25 km/h → 750 Hm/h). Grobe Faustregel; Abfahrten werden nicht abgezogen.
-const BIKE_SPEEDS = [18, 20, 22, 25, 28, 30, 32];
+const BIKE_SPEEDS = [18, 20, 22, 25, 28, 30, 32, 35];
 const bikeSpeed = () => { const v = Number(readPref('bikeSpeed')); return BIKE_SPEEDS.includes(v) ? v : 25; };
 // Reihenfolge der Etappen in der Liste (jedes Gerät merkt sich seine). Die Farben bleiben an den Etappen.
 const ROUTE_SORTS = ['added', 'recent', 'short', 'long', 'flat', 'climb', 'rating', 'open', 'name'];
@@ -5062,9 +5062,12 @@ function renderPlanExtras(track, pending) {
     items.push(['loop', 'route', 'Rundtour vorschlagen']);
   }
   if (track && !pending) {
+    items.push(['speed', 'clock', `${bikeSpeed()} km/h`]);
     items.push(['coffee', 'coffee', 'Kaffee-Stopp']);
     items.push(['compare', 'swap', 'Vergleichen']);
   }
+  // Reihenfolge der Punkte ändern: ab Start + zwei weiteren Punkten
+  if (plan.waypoints.length >= 3 || planPop.kind === 'order') items.push(['order', 'pin', 'Reihenfolge']);
   // Anstiege kurz: „⛰ 7,4 km · 5,8 %“ – voller Name im Tooltip, antippen zeigt sie auf der Karte
   const climbs = track ? planClimbs.map((c, i) => `<button type="button" class="climb" data-climb="${i}" data-climb-src="plan" title="${escapeHtml(climbName(c, state.places))}: ${Math.round(c.gainM)} Hm">${icon('mountain', { size: 13, stroke: 2.2 })}<span>${formatKm(c.km)} · ${c.avgPct.toLocaleString('de-DE', { maximumFractionDigits: 1 })} %</span></button>`).join('') : '';
   box.hidden = !items.length && !climbs;
@@ -5072,6 +5075,9 @@ function renderPlanExtras(track, pending) {
   if (box.innerHTML !== html) box.innerHTML = html;
   // Knopf der offenen Sprechblase verschwunden (z. B. Strecke gelöscht): Sprechblase zu
   if (planPop.kind && !items.some(([k]) => k === planPop.kind)) closePlanPop();
+  // Offene Sprechblase mit Zahlen auffrischen (Abschnitt fertig berechnet, Punkt verschoben …)
+  if (planPop.kind === 'order') renderOrderPop();
+  if (planPop.kind === 'speed') renderSpeedPop();
 }
 
 $('#plan-extras').addEventListener('click', (e) => {
@@ -5082,6 +5088,8 @@ $('#plan-extras').addEventListener('click', (e) => {
   if (kind === 'coffee') openCoffeePop(btn);
   if (kind === 'compare') openComparePop(btn);
   if (kind === 'loop') openLoopPop(btn);
+  if (kind === 'speed') openSpeedPop(btn);
+  if (kind === 'order') openOrderPop(btn);
 });
 $('#plan-pop').addEventListener('click', (e) => {
   const t = e.target.closest('[data-pop]');
@@ -5094,7 +5102,97 @@ $('#plan-pop').addEventListener('click', (e) => {
   if (a === 'loop-dir') { loopOpts.dir = t.dataset.dir; renderLoopPop(); }
   if (a === 'loop-go') suggestLoops();
   if (a === 'loop-take') takeLoop(Number(t.dataset.i));
+  if (a === 'speed') setBikeSpeed(Number(t.dataset.speed));
+  if (a === 'order-up') movePlanOrder(Number(t.dataset.i), -1);
+  if (a === 'order-down') movePlanOrder(Number(t.dataset.i), 1);
+  if (a === 'order-remove') { plan.selected = Number(t.dataset.i); removePlanPoint(); renderOrderPop(); }
 });
+
+// --- Tempo: Fahrzeit der geplanten Strecke bei verschiedenen Geschwindigkeiten ------------------------
+// Gleiches Grundtempo wie bei den Etappen (Einstellung „in der Ebene“); Höhenmeter verlängern die Zeit wie dort.
+function openSpeedPop(btn) {
+  openPlanPop('speed', '<div id="speed-pop"></div>', btn);
+  renderSpeedPop();
+}
+function renderSpeedPop() {
+  const box = $('#speed-pop');
+  const track = planTrack();
+  if (!box || !track) return;
+  const sum = summarizeTrack('', track);
+  const cur = bikeSpeed();
+  box.innerHTML = `<strong class="plan-mode-pop-title">Tempo in der Ebene</strong>
+    <p class="muted">${formatKm(sum.distanceKm)} · ${formatHm(sum.elevationGainM) || '0 Hm'} – Fahrzeit ohne Pausen, Höhenmeter eingerechnet:</p>
+    <ul class="speed-list">${BIKE_SPEEDS.map((v) => `<li><button type="button" data-pop="speed" data-speed="${v}" aria-pressed="${v === cur}">
+      <span>${v} km/h</span><strong>${formatDuration(rideHours(sum, v)).replace('ca. ', '')}</strong></button></li>`).join('')}</ul>
+    <p class="muted">Gewähltes Tempo gilt auch für die Etappen (Ankunftszeiten, Kaffee-Stopps).</p>`;
+}
+function setBikeSpeed(v) {
+  if (!BIKE_SPEEDS.includes(v)) return;
+  writePref('bikeSpeed', v);
+  if ($('#bike-speed')) $('#bike-speed').value = String(v);
+  renderRoutes();
+  renderPlan();
+  renderSpeedPop();
+}
+
+// --- Reihenfolge: gesetzte Punkte nach oben/unten schieben ---------------------------------------------
+// Abschnitte zwischen Punkten, die nach dem Verschieben noch direkt aufeinander folgen, bleiben; nur die neuen
+// Verbindungen werden berechnet. „Rückgängig“ stellt die alte Reihenfolge wieder her.
+function openOrderPop(btn) {
+  openPlanPop('order', '<div id="order-pop"></div>', btn);
+  renderOrderPop();
+}
+function planPointName(w, i) {
+  if (w.coffee) return w.coffee;
+  if (state.airbnb && haversineKm(w[0], w[1], state.airbnb.lat, state.airbnb.lng) < 0.15) return 'Airbnb';
+  let best = null;
+  for (const p of state.places) {
+    if (!hasCoords(p)) continue;
+    const d = haversineKm(w[0], w[1], p.lat, p.lng);
+    if (d < 0.15 && (!best || d < best.d)) best = { p, d };
+  }
+  if (best) return best.p.name;
+  // sonst: bei km … (Summe der Abschnitte davor)
+  let km = 0;
+  for (let k = 0; k < i; k++) {
+    const t = plan.segments[k]?.points || [];
+    for (let j = 1; j < t.length; j++) km += haversineKm(t[j - 1][0], t[j - 1][1], t[j][0], t[j][1]);
+  }
+  return i === 0 ? 'Start' : `Punkt bei km ${Math.round(km)}`;
+}
+function renderOrderPop() {
+  const box = $('#order-pop');
+  if (!box) return;
+  if (plan.waypoints.length < 2) return closePlanPop();
+  const labels = planPinLabels(plan.waypoints);
+  const last = plan.waypoints.length - 1;
+  box.innerHTML = `<strong class="plan-mode-pop-title">Reihenfolge der Punkte</strong>
+    <ol class="order-list">${plan.waypoints.map((w, i) => `<li${plan.selected === i ? ' class="is-selected"' : ''}>
+      ${planPinHtml(labels[i])}<span class="order-name">${escapeHtml(planPointName(w, i))}</span>
+      <button type="button" class="order-btn" data-pop="order-up" data-i="${i}" aria-label="Nach oben"${i === 0 ? ' disabled' : ''}>${icon('chevron-up', { size: 15, stroke: 2.4 })}</button>
+      <button type="button" class="order-btn" data-pop="order-down" data-i="${i}" aria-label="Nach unten"${i === last ? ' disabled' : ''}>${icon('chevron-down', { size: 15, stroke: 2.4 })}</button>
+      <button type="button" class="order-btn" data-pop="order-remove" data-i="${i}" aria-label="Punkt entfernen"${plan.waypoints.length <= 2 ? ' disabled' : ''}>${icon('trash', { size: 14, stroke: 2.2 })}</button>
+    </li>`).join('')}</ol>
+    <p class="muted">Verschieben berechnet nur die neuen Verbindungen; „Rückgängig“ oben stellt die alte Reihenfolge wieder her.</p>`;
+}
+function movePlanOrder(i, dir) {
+  const j = i + dir;
+  const n = plan.waypoints.length;
+  if (j < 0 || j >= n) return;
+  const order = [...Array(n).keys()];
+  [order[i], order[j]] = [order[j], order[i]];
+  planSnapshot();
+  const old = plan.waypoints;
+  const oldSegs = plan.segments;
+  plan.waypoints = order.map((k) => old[k]);
+  plan.segments = order.slice(1).map((b, k) => {
+    const a = order[k];
+    return b === a + 1 && oldSegs[a] ? oldSegs[a] : planSegment(old[a], old[b]); // unverändert bleibt
+  });
+  plan.selected = j;
+  renderPlan();
+  renderOrderPop();
+}
 
 // Punkt bei km auf der Strecke: { point: [lat, lng], seg: Abschnitt-Index }
 function planPointAt(km) {
@@ -5704,6 +5802,7 @@ const INTRO = [
         '<strong>Schnell</strong>: direkte Wege. <strong>Ruhig</strong>: meidet Verkehr, dafür mit Umwegen – das <strong>ⓘ</strong> daneben erklärt den Unterschied.',
         'Kilometer, Höhenmeter, Fahrzeit und Höhenprofil laufend. Steile Stücke farbig: gelb ab 5 %, rot ab 8 %, violett ab 10 % – darunter die Anstiege, antippen zeigt sie auf der Karte.',
         'Knöpfe unter dem Profil: <strong>„Rundtour vorschlagen“</strong> (Länge und Richtung wählen), <strong>„Kaffee-Stopp“</strong> (eigenes Café an einer Stelle einbauen) und <strong>Schnell/Ruhig vergleichen</strong>.',
+        '<strong>„25 km/h“</strong> zeigt die Fahrzeit für 18–35 km/h und stellt das Tempo um; <strong>„Reihenfolge“</strong> schiebt gesetzte Punkte nach oben oder unten.',
         'Gespeichert zeigt jede Etappe Wetter, Kaffee-Stopps, Wasser & Velo – und lässt sich als GPX laden.',
         'Unterwegs: bei einer Etappe <strong>„Ab hier“</strong> – der gefahrene Teil fällt weg, vom Standort geht es zurück auf die Strecke (als Kopie speichern oder direkt als GPX laden).',
         'Oder eine GPX aus Strava/Komoot über <strong>„+ Importieren“</strong> – Start und Ziel werden ans Airbnb angeschlossen.',

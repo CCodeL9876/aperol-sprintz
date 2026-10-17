@@ -2114,3 +2114,27 @@ button.popup-link { padding: 5px 0; border: 0; background: none; cursor: pointer
   .copy-row { grid-template-columns: 1fr auto; }
   .copy-row code { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* Planer: Fahrzeit je Tempo (Sprechblase „25 km/h“) */
+.speed-list { list-style: none; margin: 8px 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.speed-list button {
+  width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 8px 10px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); cursor: pointer;
+  font: 600 13px var(--font-body);
+}
+.speed-list button strong { font-weight: 800; color: var(--green); }
+.speed-list button[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: #FFFFFF; }
+.speed-list button[aria-pressed="true"] strong { color: #FFFFFF; }
+/* Planer: Reihenfolge der Punkte (Sprechblase „Reihenfolge“) */
+.order-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 4px; max-height: 46vh; overflow-y: auto; }
+.order-list li {
+  display: grid; grid-template-columns: auto 1fr auto auto auto; align-items: center; gap: 6px;
+  padding: 4px 6px; border-radius: 10px; background: var(--card); border: 1px solid var(--line);
+}
+.order-list li.is-selected { border-color: var(--orange); }
+.order-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.order-btn {
+  width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px;
+  background: var(--chip); color: var(--green); cursor: pointer;
+}
+.order-btn:disabled { opacity: 0.3; cursor: default; }
