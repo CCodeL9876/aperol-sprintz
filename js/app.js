@@ -1466,14 +1466,19 @@ function renderRoutes() {
         ${r.ridden ? `<div class="route-detail"><span class="route-detail-label">Bewertung</span>
           <span class="route-rating-row">${ratingDetailHtml(r)}</span></div>` : ''}
         <div class="route-detail-actions">
-          <button type="button" class="btn btn-small" data-action="show-route">${icon('route', { size: 14, stroke: 2 })}Auf der Karte zeigen</button>
-          ${garminReadyId === r.id
-            ? `<a class="btn btn-small btn-primary garmin-open" href="${GARMIN_COURSES_URL}" target="_blank" rel="noopener" title="Garmin Connect öffnen – dort Importieren und die geladene Datei wählen">Garmin öffnen ↗</a>`
-            : `<button type="button" class="btn btn-small" data-action="garmin-route" title="GPX laden und Garmin Connect (Strecken → Importieren) öffnen">${icon('share', { size: 14, stroke: 2 })}Für Garmin</button>`}
-          <button type="button" class="btn btn-small" data-action="resume-route" title="Etappe ab deinem Standort: der gefahrene Teil fällt weg, vom Standort zurück auf die Strecke">${icon('navigation', { size: 14, stroke: 2 })}Ab hier</button>
-          <button type="button" class="route-action" data-action="edit-route" aria-label="Etappe „${escapeHtml(r.name)}“ bearbeiten" title="Bearbeiten (als Kopie)">${icon('pencil', { size: 15, stroke: 1.9 })}</button>
-          <button type="button" class="route-action" data-action="download-route" aria-label="Etappe „${escapeHtml(r.name)}“ als GPX herunterladen" title="Als GPX herunterladen – z. B. für connect.garmin.com → Strecken → Importieren">${icon('download', { size: 15, stroke: 1.9 })}</button>
-          <button type="button" class="route-action is-danger" data-action="delete-route" aria-label="Etappe „${escapeHtml(r.name)}“ entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
+          <!-- Drei Hauptaktionen gleich breit, darunter rechts die kleinen (bearbeiten, GPX, entfernen) -->
+          <div class="route-main-actions">
+            <button type="button" class="btn btn-small" data-action="show-route" title="Etappe auf der Karte zeigen">${icon('route', { size: 14, stroke: 2 })}Auf Karte</button>
+            <button type="button" class="btn btn-small" data-action="resume-route" title="Etappe ab deinem Standort: der gefahrene Teil fällt weg, vom Standort zurück auf die Strecke">${icon('navigation', { size: 14, stroke: 2 })}Ab hier</button>
+            ${garminReadyId === r.id
+              ? `<a class="btn btn-small btn-primary garmin-open" href="${GARMIN_COURSES_URL}" target="_blank" rel="noopener" title="Garmin Connect öffnen – dort Importieren und die geladene Datei wählen">Öffnen ↗</a>`
+              : `<button type="button" class="btn btn-small" data-action="garmin-route" title="GPX laden und Garmin Connect (Strecken → Importieren) öffnen">${icon('share', { size: 14, stroke: 2 })}Garmin</button>`}
+          </div>
+          <div class="route-icon-actions">
+            <button type="button" class="route-action" data-action="edit-route" aria-label="Etappe „${escapeHtml(r.name)}“ bearbeiten" title="Bearbeiten (als Kopie)">${icon('pencil', { size: 15, stroke: 1.9 })}</button>
+            <button type="button" class="route-action" data-action="download-route" aria-label="Etappe „${escapeHtml(r.name)}“ als GPX herunterladen" title="Als GPX herunterladen">${icon('download', { size: 15, stroke: 1.9 })}</button>
+            <button type="button" class="route-action is-danger" data-action="delete-route" aria-label="Etappe „${escapeHtml(r.name)}“ entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
+          </div>
         </div>
       </div>`;
     }
@@ -5037,7 +5042,7 @@ function openPlanPop(kind, html, btn) {
   planPop.kind = kind;
   pop.innerHTML = `<button type="button" class="plan-pop-close" data-pop="close" aria-label="Schliessen">${icon('close', { size: 16, stroke: 2.2 })}</button>${html}`;
   pop.hidden = false;
-  for (const b of $$('#plan-extras [data-extra]')) b.setAttribute('aria-expanded', String(b.dataset.extra === kind));
+  for (const b of $$('#plan-panel [data-extra]')) b.setAttribute('aria-expanded', String(b.dataset.extra === kind));
   placePop(pop, btn);
 }
 function closePlanPop() {
@@ -5047,7 +5052,7 @@ function closePlanPop() {
   const pop = $('#plan-pop');
   pop.hidden = true;
   pop.innerHTML = '';
-  for (const b of $$('#plan-extras [data-extra]')) b.setAttribute('aria-expanded', 'false');
+  for (const b of $$('#plan-panel [data-extra]')) b.setAttribute('aria-expanded', 'false');
   mapView.setCursor(null);
   if (wasCompare) plan.alt = null;
   if (plan.on) renderPlan(); // Knöpfe (z. B. „Rundtour“ nur am Anfang) und Vergleichslinie auffrischen
@@ -5062,7 +5067,6 @@ function renderPlanExtras(track, pending) {
     items.push(['loop', 'route', 'Rundtour vorschlagen']);
   }
   if (track && !pending) {
-    items.push(['speed', 'clock', `${bikeSpeed()} km/h`]);
     items.push(['coffee', 'coffee', 'Kaffee-Stopp']);
     items.push(['compare', 'swap', 'Vergleichen']);
   }
@@ -5074,12 +5078,23 @@ function renderPlanExtras(track, pending) {
   const html = items.map(([k, ic, label]) => `<button type="button" class="plan-extra" data-extra="${k}" aria-expanded="${planPop.kind === k}">${icon(ic, { size: 14, stroke: 2.2 })}${label}</button>`).join('') + climbs;
   if (box.innerHTML !== html) box.innerHTML = html;
   // Knopf der offenen Sprechblase verschwunden (z. B. Strecke gelöscht): Sprechblase zu
-  if (planPop.kind && !items.some(([k]) => k === planPop.kind)) closePlanPop();
+  // Tempo steht in der Einstellungszeile (neben Schnell/Ruhig), sobald es eine Strecke gibt
+  const speedBtn = $('#plan-speed');
+  const speedOk = Boolean(track && !pending) || planPop.kind === 'speed';
+  speedBtn.hidden = !speedOk;
+  const speedHtml = `${icon('clock', { size: 14, stroke: 2.2 })}${bikeSpeed()} km/h`;
+  if (speedBtn.innerHTML !== speedHtml) speedBtn.innerHTML = speedHtml;
+  speedBtn.title = 'Fahrzeit bei verschiedenen Geschwindigkeiten';
+  if (planPop.kind && !(planPop.kind === 'speed' ? speedOk : items.some(([k]) => k === planPop.kind))) closePlanPop();
   // Offene Sprechblase mit Zahlen auffrischen (Abschnitt fertig berechnet, Punkt verschoben …)
   if (planPop.kind === 'order') renderOrderPop();
   if (planPop.kind === 'speed') renderSpeedPop();
 }
 
+$('#plan-speed').addEventListener('click', (e) => {
+  if (planPop.kind === 'speed') return closePlanPop();
+  openSpeedPop(e.currentTarget);
+});
 $('#plan-extras').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-extra]');
   if (!btn) return;
