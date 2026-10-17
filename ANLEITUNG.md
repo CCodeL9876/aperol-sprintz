@@ -288,6 +288,12 @@ Google (Strände und Aussichtspunkte ausgenommen), nach 30 Tagen erneut. Jeder O
 Places-Abfrage; Google gewährt dafür ein monatliches Gratis-Kontingent (nach aktuellem Stand 1 000 Abfragen).
 Zeiten aus OpenStreetMap sind im Kartenfenster mit „© OpenStreetMap“ gekennzeichnet.
 
+**Mein Tempo:** Bei gefahrenen Etappen trägt jede Person unter „Fahrzeit“ ihre effektive Bewegungszeit ein
+(Garmin/Strava „moving time“, z. B. `2:45`). Daraus rechnet die App pro Person das Tempo in der Ebene und den
+Zuschlag pro Höhenmeter (ab zwei unterschiedlich bergigen Fahrten beides, sonst nur das Tempo) – wählbar als
+„Mein Tempo“ bei „Fahrzeit bei …“ und im Planer. Einmalig nötig: `supabase/schema.sql` erneut ausführen
+(Spalte `ride_times`).
+
 **Live-Standort:** Im Menü **„•••“ → „Live-Standort teilen“** gibt eine Person ihren Standort für 1, 2, 4 oder 8 Stunden
 frei (optional mit Etappe – dann sehen die anderen „km 34 von 82“). Die anderen der gemeinsamen Reise sehen sie als
 orangen Punkt mit Initialen; im Menü steht, wer gerade live ist. Gespeichert wird nur die letzte Position, „Beenden“

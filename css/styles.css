@@ -2156,3 +2156,18 @@ button.popup-link { padding: 5px 0; border: 0; background: none; cursor: pointer
   .plan-options .plan-mode button { padding: 0 7px; }
   .plan-options .plan-speed { padding: 0 9px; gap: 4px; }
 }
+
+/* Effektive Fahrzeit je Person (Etappen-Details) und „Mein Tempo“ in der Tempo-Sprechblase */
+.ride-time-row { display: flex; flex-direction: column; gap: 4px; }
+.ride-time-form { display: flex; gap: 6px; align-items: center; }
+.ride-time-form input { width: 92px; min-height: 34px; padding: 4px 10px; font-size: 14px; }
+.ride-time-form .btn { min-height: 34px; }
+.speed-mine {
+  width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; padding: 9px 10px;
+  border: 1px solid var(--orange); border-radius: 10px; background: var(--orange-tint); color: var(--text); cursor: pointer;
+  font: 700 13px var(--font-body); text-align: left;
+}
+.speed-mine small { display: block; font-weight: 500; color: var(--text-soft); }
+.speed-mine strong { font-weight: 800; color: var(--orange-ink); white-space: nowrap; }
+.speed-mine[aria-pressed="true"] { background: var(--orange); border-color: var(--orange); color: #FFFFFF; }
+.speed-mine[aria-pressed="true"] small, .speed-mine[aria-pressed="true"] strong { color: #FFFFFF; }

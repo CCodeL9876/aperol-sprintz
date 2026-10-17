@@ -186,12 +186,26 @@ function applyData(data) {
   state.participants = sanitizeParticipants(data.participants);
   // Erst nach den Personen: die Sterne hängen an deren IDs (siehe sanitizeRatings)
   for (const r of state.routes) r.ratings = sanitizeRatings(r.ratings, state.participants);
+  for (const r of state.routes) r.rideTimes = sanitizeRideTimes(r.rideTimes, state.participants);
   state.expenses = (data.expenses || []).map(sanitizeExpense).filter(Boolean);
   state.cashMissing = Boolean(data.cashMissing);
   state.cashExtrasMissing = Boolean(data.cashExtrasMissing);
   state.hoursMissing = Boolean(data.hoursMissing);
   state.poisMissing = Boolean(data.poisMissing);
   state.ratingsMissing = Boolean(data.ratingsMissing);
+  state.rideTimesMissing = Boolean(data.rideTimesMissing);
+}
+
+// Fahrzeiten je Person: nur ganze Minuten im sinnvollen Bereich, nur bekannte Personen
+function sanitizeRideTimes(value, participants) {
+  const out = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  const known = participants?.length ? new Set(participants.map((p) => p.id)) : null;
+  for (const [id, raw] of Object.entries(value)) {
+    const n = Math.round(Number(raw));
+    if ((!known || known.has(id)) && n >= MIN_RIDE_MIN && n <= MAX_RIDE_MIN) out[id] = n;
+  }
+  return out;
 }
 
 // Führt eine Speicher-Operation aus. Schlägt sie in einer gemeinsamen Reise fehl,
@@ -947,7 +961,55 @@ function renderAirbnb() {
 // Fahrzeit ohne Pausen: Strecke im gewählten Grundtempo plus Zuschlag fürs Klettern. Die Steigleistung
 // wächst mit dem Tempo (25 km/h → 750 Hm/h). Grobe Faustregel; Abfahrten werden nicht abgezogen.
 const BIKE_SPEEDS = [18, 20, 22, 25, 28, 30, 32, 35];
-const bikeSpeed = () => { const v = Number(readPref('bikeSpeed')); return BIKE_SPEEDS.includes(v) ? v : 25; };
+// Tempo in der Ebene: feste Wahl (18–35 km/h) oder „Mein Tempo“ ('me') aus den eigenen eingetragenen Fahrzeiten
+const fixedSpeed = () => { const v = Number(readPref('bikeSpeed')); return BIKE_SPEEDS.includes(v) ? v : 25; };
+const CLIMB_FACTOR = 30; // Standard: pro Höhenmeter 1/(Tempo × 30) Stunden dazu
+const MIN_RIDE_MIN = 10;
+const MAX_RIDE_MIN = 24 * 60;
+
+// Persönliches Modell aus den eigenen Fahrzeiten: Stunden = a × km + b × Hm (a = 1/Tempo in der Ebene,
+// b = Zeit pro Höhenmeter). Ab zwei unterschiedlich bergigen Fahrten werden beide Werte bestimmt (kleinste
+// Quadrate), sonst nur das Tempo mit dem Standard-Verhältnis für die Höhenmeter. Grenzen halten Ausreisser
+// (Tippfehler, Fahrt mit Panne) in einem vernünftigen Rahmen.
+function personalModel(personId) {
+  if (!personId) return null;
+  const rides = state.routes
+    .map((r) => ({ t: (r.rideTimes?.[personId] || 0) / 60, x: r.distanceKm, y: Number.isFinite(r.elevationGainM) ? r.elevationGainM : 0 }))
+    .filter((d) => d.t > 0 && Number.isFinite(d.x) && d.x > 0);
+  if (!rides.length) return null;
+  const sum = (f) => rides.reduce((s, d) => s + f(d), 0);
+  let a = null;
+  let b = null;
+  if (rides.length >= 2) {
+    const xx = sum((d) => d.x * d.x);
+    const yy = sum((d) => d.y * d.y);
+    const xy = sum((d) => d.x * d.y);
+    const xt = sum((d) => d.x * d.t);
+    const yt = sum((d) => d.y * d.t);
+    const det = xx * yy - xy * xy;
+    if (det > 1e-6 * xx * yy) {
+      a = (xt * yy - yt * xy) / det;
+      b = (yt * xx - xt * xy) / det;
+    }
+  }
+  // Nicht bestimmbar oder unplausibel: nur das Tempo anpassen, Höhenmeter im Standard-Verhältnis
+  if (!(a > 0) || !(b >= 0) || 1 / a < 10 || 1 / a > 45 || (b > 0 && a / b < 8)) {
+    const w = (d) => d.x + d.y / CLIMB_FACTOR;
+    a = sum((d) => d.t * w(d)) / sum((d) => w(d) * w(d));
+    b = a / CLIMB_FACTOR;
+  }
+  a = Math.min(1 / 10, Math.max(1 / 45, a)); // 10–45 km/h in der Ebene
+  return { a, b, n: rides.length, speed: 1 / a, per100: b * 100 * 60 }; // per100: Minuten pro 100 Hm
+}
+const speedMode = () => (readPref('bikeSpeed') === 'me' && personalModel(me()?.id) ? 'me' : 'fixed');
+// Rechenmodell für alle Fahrzeiten: { a, b } – Zahl als Argument = feste Geschwindigkeit
+function rideModel(speed = null) {
+  if (speed == null && speedMode() === 'me') return personalModel(me().id);
+  const v = speed ?? fixedSpeed();
+  return { a: 1 / v, b: 1 / (v * CLIMB_FACTOR) };
+}
+// Anzeige „25 km/h“ bzw. bei „Mein Tempo“ das daraus gerechnete Tempo in der Ebene
+const bikeSpeed = () => (speedMode() === 'me' ? Math.round(personalModel(me().id).speed) : fixedSpeed());
 // Reihenfolge der Etappen in der Liste (jedes Gerät merkt sich seine). Die Farben bleiben an den Etappen.
 const ROUTE_SORTS = ['added', 'recent', 'short', 'long', 'flat', 'climb', 'rating', 'open', 'name'];
 const routeSort = () => (ROUTE_SORTS.includes(readPref('routeSort')) ? readPref('routeSort') : 'added');
@@ -973,10 +1035,10 @@ $('#route-sort')?.addEventListener('change', (e) => {
   renderRoutes();
 });
 
-function rideHours(r, speed = bikeSpeed()) {
+function rideHours(r, model = rideModel()) {
   if (!Number.isFinite(r.distanceKm) || r.distanceKm <= 0) return null;
-  const climb = Number.isFinite(r.elevationGainM) ? r.elevationGainM / (speed * 30) : 0;
-  return r.distanceKm / speed + climb;
+  const m = typeof model === 'number' ? rideModel(model) : model;
+  return m.a * r.distanceKm + (Number.isFinite(r.elevationGainM) ? m.b * r.elevationGainM : 0);
 }
 function formatDuration(hours) {
   const min = Math.max(5, Math.round((hours * 60) / 5) * 5);
@@ -1064,7 +1126,7 @@ function routeProfile(pts) {
 }
 
 // Bis zur Stelle „along“ (siehe nearRoute): gefahrene Kilometer und Fahrzeit in Stunden (wie rideHours)
-function progressAt(r, along, speed = bikeSpeed()) {
+function progressAt(r, along, model = rideModel()) {
   const { km, up, hasEle } = routeProfile(r.points);
   const last = km.length - 1;
   const i = Math.max(0, Math.min(Math.floor(along), last));
@@ -1077,7 +1139,7 @@ function progressAt(r, along, speed = bikeSpeed()) {
   const climb = hasEle && up[last] > 0
     ? ((up[i] + t * (up[j] - up[i])) / up[last]) * (gain || up[last])
     : gain * (k / totalKm);
-  return { km: k, hours: k / speed + climb / (speed * 30) };
+  return { km: k, hours: model.a * k + model.b * climb };
 }
 
 // Startzeit für die Ankunftszeiten (jedes Gerät merkt sich seine); Fahrtag wie beim Wetter (ab 15 Uhr: morgen)
@@ -1397,7 +1459,7 @@ function renderRoutes() {
   const speedBox = $('#route-speed');
   if (speedBox) {
     speedBox.hidden = !state.routes.length;
-    $('#bike-speed').value = String(bikeSpeed());
+    renderSpeedSelect();
     const startInput = $('#ride-start');
     if (startInput && document.activeElement !== startInput) startInput.value = rideStart();
   }
@@ -1463,6 +1525,8 @@ function renderRoutes() {
           <span class="route-stop-list">${poiDetailHtml(r)}</span></div>
         <div class="route-detail"><span class="route-detail-label">Links</span>
           ${editing ? linkForm(r, editing) : `<span class="route-links">${tour}${ridden ? `<span class="route-meta-sep">·</span>${ridden}` : ''}</span>`}</div>
+        ${r.ridden ? `<div class="route-detail"><span class="route-detail-label">Fahrzeit</span>
+          <span class="ride-time-row">${rideTimeDetailHtml(r)}</span></div>` : ''}
         ${r.ridden ? `<div class="route-detail"><span class="route-detail-label">Bewertung</span>
           <span class="route-rating-row">${ratingDetailHtml(r)}</span></div>` : ''}
         <div class="route-detail-actions">
@@ -3482,9 +3546,78 @@ $('#route-list')?.addEventListener('click', async (e) => {
 });
 
 $('#bike-speed')?.addEventListener('change', (e) => {
-  writePref('bikeSpeed', Number(e.target.value));
+  writePref('bikeSpeed', e.target.value === 'me' ? 'me' : Number(e.target.value));
   renderRoutes();
 });
+
+// Auswahl „Fahrzeit bei …“: feste Geschwindigkeiten und – sobald eigene Fahrzeiten eingetragen sind – „Mein Tempo“
+function renderSpeedSelect() {
+  const sel = $('#bike-speed');
+  if (!sel) return;
+  const m = personalModel(me()?.id);
+  const html = (m ? `<option value="me">Mein Tempo (≈ ${Math.round(m.speed)} km/h)</option>` : '')
+    + BIKE_SPEEDS.map((v) => `<option value="${v}">${v} km/h</option>`).join('');
+  if (sel.innerHTML !== html) sel.innerHTML = html;
+  sel.value = speedMode() === 'me' ? 'me' : String(fixedSpeed());
+}
+
+// --- Effektive Fahrzeit je Person ------------------------------------------------------------------
+// Bei gefahrenen Etappen trägt jede Person ihre Bewegungszeit ein (Garmin/Strava „moving time“, ohne Pausen).
+// Daraus rechnet personalModel das eigene Tempo in der Ebene und den Zuschlag pro Höhenmeter.
+const fmtMinutes = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`;
+// „2:45“, „2h45“, „2 h 45 min“, „165“ (Minuten) oder „2,75“ (Stunden) → Minuten; null = ungültig, 0 = leer
+function parseRideTime(text) {
+  const t = String(text || '').trim().toLowerCase();
+  if (!t) return 0;
+  let m = t.match(/^(\d{1,2})\s*(?::|h|std\.?)\s*(\d{1,2})?\s*(?:min|m)?$/);
+  if (m) return Number(m[1]) * 60 + Number(m[2] || 0);
+  m = t.match(/^(\d+)[.,](\d+)$/);
+  if (m) return Math.round(Number(`${m[1]}.${m[2]}`) * 60);
+  m = t.match(/^(\d+)\s*(?:min|m)?$/);
+  if (m) return Number(m[1]);
+  return null;
+}
+function rideTimeDetailHtml(route) {
+  const person = me();
+  if (!person) return `<button class="btn-link muted route-link-add" type="button" data-action="who-for-rating">${icon('clock', { size: 13, stroke: 2 })}Wer bist du? – dann kannst du deine Zeit eintragen</button>`;
+  const mine = route.rideTimes?.[person.id] || 0;
+  const blocked = state.rideTimesMissing || backend.offline;
+  const others = Object.entries(route.rideTimes || {}).filter(([id]) => id !== person.id)
+    .map(([id, min]) => `${escapeHtml(personName(id))} ${fmtMinutes(min)}`);
+  const est = rideHours(route, rideModel());
+  const note = state.rideTimesMissing
+    ? 'in Supabase noch nicht eingerichtet (<code>supabase/schema.sql</code> ausführen)'
+    : backend.offline ? 'ohne Netz nicht änderbar'
+    : [mine && est ? `Schätzung jetzt: ${formatDuration(est).replace('ca. ', '')}` : '', others.join(', ')].filter(Boolean).join(' · ');
+  return `<form class="ride-time-form" autocomplete="off">
+      <input type="text" inputmode="text" name="time" value="${mine ? fmtMinutes(mine) : ''}" placeholder="z. B. 2:45" aria-label="Deine effektive Fahrzeit (h:mm, ohne Pausen)"${blocked ? ' disabled' : ''}>
+      <button type="submit" class="btn btn-small"${blocked ? ' disabled' : ''}>${mine ? 'Ändern' : 'Eintragen'}</button>
+    </form>
+    <span class="rating-note muted">${note || 'Bewegungszeit ohne Pausen (Garmin/Strava) – daraus lernt die App dein Tempo'}</span>`;
+}
+async function saveRideTime(form) {
+  const route = state.routes.find((r) => r.id === form.closest('[data-id]')?.dataset.id);
+  const person = me();
+  if (!route || !person) return;
+  if (state.rideTimesMissing) return toast('Fahrzeiten sind in der Datenbank noch nicht eingerichtet – einmal supabase/schema.sql in Supabase ausführen.');
+  const min = parseRideTime(form.elements.time.value);
+  if (min === null || (min && (min < MIN_RIDE_MIN || min > MAX_RIDE_MIN))) return toast('Bitte als Stunden:Minuten eingeben, z. B. 2:45');
+  const before = { ...(route.rideTimes || {}) };
+  const after = { ...before };
+  if (min) after[person.id] = min; else delete after[person.id];
+  route.rideTimes = after;
+  const wasMe = speedMode() === 'me';
+  // Erste eigene Zeit: gleich „Mein Tempo“ verwenden (lässt sich bei „Fahrzeit bei …“ wieder umstellen)
+  const firstOwn = min && !before[person.id] && !state.routes.some((r) => r !== route && r.rideTimes?.[person.id]);
+  if (firstOwn && readPref('bikeSpeed') !== 'me') writePref('bikeSpeed', 'me');
+  renderRoutes();
+  const ok = await persist((b) => b.setRideTime(route.id, person.id, min || null), 'Fahrzeit konnte nicht gespeichert werden (Spalte „ride_times“ in Supabase angelegt?)');
+  if (!ok) { route.rideTimes = before; renderRoutes(); return; }
+  const m = personalModel(person.id);
+  toast(min
+    ? `Fahrzeit ${fmtMinutes(min)} gespeichert.${m ? ` Dein Tempo: ≈ ${Math.round(m.speed)} km/h in der Ebene, ${Math.round(m.per100)} min pro 100 Hm${m.n > 1 ? ` (aus ${m.n} Fahrten)` : ''}.` : ''}${!wasMe && speedMode() === 'me' ? ' Fahrzeiten rechnen jetzt mit deinem Tempo.' : ''}`
+    : 'Deine Fahrzeit ist entfernt.');
+}
 $('#ride-start')?.addEventListener('change', (e) => {
   if (!/^\d{2}:\d{2}$/.test(e.target.value)) return;
   writePref('rideStart', e.target.value);
@@ -3493,6 +3626,7 @@ $('#ride-start')?.addEventListener('change', (e) => {
 
 $('#route-list')?.addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (e.target.closest('.ride-time-form')) return saveRideTime(e.target.closest('.ride-time-form'));
   const form = e.target.closest('.route-link-form');
   const route = state.routes.find((r) => r.id === form?.closest('[data-id]')?.dataset.id);
   if (!route) return;
@@ -5082,7 +5216,7 @@ function renderPlanExtras(track, pending) {
   const speedBtn = $('#plan-speed');
   const speedOk = Boolean(track && !pending) || planPop.kind === 'speed';
   speedBtn.hidden = !speedOk;
-  const speedHtml = `${icon('clock', { size: 14, stroke: 2.2 })}${bikeSpeed()} km/h`;
+  const speedHtml = `${icon('clock', { size: 14, stroke: 2.2 })}${speedMode() === 'me' ? 'Mein Tempo' : `${bikeSpeed()} km/h`}`;
   if (speedBtn.innerHTML !== speedHtml) speedBtn.innerHTML = speedHtml;
   speedBtn.title = 'Fahrzeit bei verschiedenen Geschwindigkeiten';
   if (planPop.kind && !(planPop.kind === 'speed' ? speedOk : items.some(([k]) => k === planPop.kind))) closePlanPop();
@@ -5117,7 +5251,7 @@ $('#plan-pop').addEventListener('click', (e) => {
   if (a === 'loop-dir') { loopOpts.dir = t.dataset.dir; renderLoopPop(); }
   if (a === 'loop-go') suggestLoops();
   if (a === 'loop-take') takeLoop(Number(t.dataset.i));
-  if (a === 'speed') setBikeSpeed(Number(t.dataset.speed));
+  if (a === 'speed') setBikeSpeed(t.dataset.speed === 'me' ? 'me' : Number(t.dataset.speed));
   if (a === 'order-up') movePlanOrder(Number(t.dataset.i), -1);
   if (a === 'order-down') movePlanOrder(Number(t.dataset.i), 1);
   if (a === 'order-remove') { plan.selected = Number(t.dataset.i); removePlanPoint(); renderOrderPop(); }
@@ -5134,17 +5268,22 @@ function renderSpeedPop() {
   const track = planTrack();
   if (!box || !track) return;
   const sum = summarizeTrack('', track);
-  const cur = bikeSpeed();
+  const mode = speedMode();
+  const cur = fixedSpeed();
+  const pm = personalModel(me()?.id);
   box.innerHTML = `<strong class="plan-mode-pop-title">Tempo in der Ebene</strong>
     <p class="muted">${formatKm(sum.distanceKm)} · ${formatHm(sum.elevationGainM) || '0 Hm'} – Fahrzeit ohne Pausen, Höhenmeter eingerechnet:</p>
-    <ul class="speed-list">${BIKE_SPEEDS.map((v) => `<li><button type="button" data-pop="speed" data-speed="${v}" aria-pressed="${v === cur}">
+    ${pm ? `<button type="button" class="speed-mine" data-pop="speed" data-speed="me" aria-pressed="${mode === 'me'}">
+      <span>Mein Tempo <small>≈ ${Math.round(pm.speed)} km/h · ${Math.round(pm.per100)} min/100 Hm · aus ${pm.n} ${pm.n === 1 ? 'Fahrt' : 'Fahrten'}</small></span>
+      <strong>${formatDuration(rideHours(sum, pm)).replace('ca. ', '')}</strong></button>` : ''}
+    <ul class="speed-list">${BIKE_SPEEDS.map((v) => `<li><button type="button" data-pop="speed" data-speed="${v}" aria-pressed="${mode !== 'me' && v === cur}">
       <span>${v} km/h</span><strong>${formatDuration(rideHours(sum, v)).replace('ca. ', '')}</strong></button></li>`).join('')}</ul>
-    <p class="muted">Gewähltes Tempo gilt auch für die Etappen (Ankunftszeiten, Kaffee-Stopps).</p>`;
+    <p class="muted">Gewähltes Tempo gilt auch für die Etappen (Ankunftszeiten, Kaffee-Stopps).${pm ? '' : ' Trägst du bei gefahrenen Etappen deine echte Fahrzeit ein, gibt es hier „Mein Tempo“.'}</p>`;
 }
 function setBikeSpeed(v) {
-  if (!BIKE_SPEEDS.includes(v)) return;
+  if (v !== 'me' && !BIKE_SPEEDS.includes(v)) return;
   writePref('bikeSpeed', v);
-  if ($('#bike-speed')) $('#bike-speed').value = String(v);
+  renderSpeedSelect();
   renderRoutes();
   renderPlan();
   renderSpeedPop();
@@ -5818,6 +5957,7 @@ const INTRO = [
         'Kilometer, Höhenmeter, Fahrzeit und Höhenprofil laufend. Steile Stücke farbig: gelb ab 5 %, rot ab 8 %, violett ab 10 % – darunter die Anstiege, antippen zeigt sie auf der Karte.',
         'Knöpfe unter dem Profil: <strong>„Rundtour vorschlagen“</strong> (Länge und Richtung wählen), <strong>„Kaffee-Stopp“</strong> (eigenes Café an einer Stelle einbauen) und <strong>Schnell/Ruhig vergleichen</strong>.',
         '<strong>„25 km/h“</strong> zeigt die Fahrzeit für 18–35 km/h und stellt das Tempo um; <strong>„Reihenfolge“</strong> schiebt gesetzte Punkte nach oben oder unten.',
+        'Bei gefahrenen Etappen unter <strong>„Fahrzeit“</strong> deine echte Bewegungszeit eintragen (z. B. 2:45) – daraus lernt die App <strong>„Mein Tempo“</strong> für alle Fahrzeiten.',
         'Gespeichert zeigt jede Etappe Wetter, Kaffee-Stopps, Wasser & Velo – und lässt sich als GPX laden.',
         'Unterwegs: bei einer Etappe <strong>„Ab hier“</strong> – der gefahrene Teil fällt weg, vom Standort geht es zurück auf die Strecke (als Kopie speichern oder direkt als GPX laden).',
         'Oder eine GPX aus Strava/Komoot über <strong>„+ Importieren“</strong> – Start und Ziel werden ans Airbnb angeschlossen.',
