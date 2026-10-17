@@ -7,19 +7,19 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte auf Mallorca – gefiltert nach Art und Entfernung zum Airbnb.">
   <meta name="theme-color" content="#F7F4EE">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-17.1" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-17.1">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-17.4" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-17.4">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Aperol Sprintz">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-17.1">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-17.4">
   <!-- Pinselschrift (Logo, Überschriften) gleich zu Beginn laden – sonst entdeckt der Browser sie erst in fonts.css
        und zeigt so lange eine Ersatzschrift. Gleiche Adresse wie in fonts.css; crossorigin ist bei Schriften Pflicht. -->
   <link rel="preload" href="fonts/permanent-marker-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-17.1">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-17.1">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-17.4">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-17.4">
 </head>
 <body>
   <!-- Pinsel-Filter: lässt Ränder und Flächen leicht unregelmäßig wie gemalt wirken -->
@@ -60,6 +60,7 @@
       <details class="menu">
         <summary class="btn btn-ghost btn-icon" aria-label="Weitere Aktionen"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="19" cy="12" r="1.2" fill="currentColor"/></svg></summary>
         <div class="menu-panel">
+          <p class="menu-group">Reise</p>
           <!-- Apple Wallet (Bordkarten): shoebox:// öffnet Wallet – nicht offiziell dokumentiert, aber seit Jahren stabil.
                Nur auf iPhone/iPad sichtbar (siehe app.js), anderswo gibt es kein Wallet. -->
           <a class="menu-link" id="menu-wallet" data-menu="wallet" href="shoebox://" hidden><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2M13 17v2M13 11v2"/></svg>Bordkarten · Wallet</a>
@@ -73,17 +74,19 @@
                nur Alben, zu denen man eingeladen ist. Nur auf iPhone/iPad sichtbar (siehe app.js). -->
           <a class="menu-link" id="menu-photos" data-menu="photos" href="photos-redirect://" hidden><svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>Fotos · Geteiltes Album</a>
           <hr>
-          <button type="button" data-menu="intro">So funktioniert's</button>
+          <p class="menu-group">Karte &amp; unterwegs</p>
           <button type="button" data-menu="fit">Alle Orte zeigen</button>
-          <button type="button" data-menu="recap">Reise-Rückblick</button>
-          <!-- Karte dauerhaft auf OpenStreetMap stellen (nur dieses Gerät); Beschriftung setzt app.js -->
-          <button type="button" id="menu-map-choice" data-menu="map-choice">Auf OpenStreetMap umstellen</button>
-          <!-- Zeigt, wie viele OpenStreetMap-Kacheln für unterwegs ohne Netz bereitliegen (siehe sw.js) -->
-          <button type="button" data-menu="offline-map">Offline-Karte</button>
           <!-- Live-Standort: eigenen für eine gewählte Zeit teilen; darunter wer gerade live unterwegs ist (app.js) -->
-          <hr>
           <button type="button" id="menu-live" data-menu="live">Live-Standort teilen</button>
           <div id="menu-live-list" class="menu-live-list"></div>
+          <!-- Zeigt, wie viele OpenStreetMap-Kacheln für unterwegs ohne Netz bereitliegen (siehe sw.js) -->
+          <button type="button" data-menu="offline-map">Offline-Karte</button>
+          <!-- Karte dauerhaft auf OpenStreetMap stellen (nur dieses Gerät); Beschriftung setzt app.js -->
+          <button type="button" id="menu-map-choice" data-menu="map-choice">Auf OpenStreetMap umstellen</button>
+          <hr>
+          <p class="menu-group">Mehr</p>
+          <button type="button" data-menu="recap">Reise-Rückblick</button>
+          <button type="button" data-menu="intro">So funktioniert's</button>
           <!-- Nur für den Admin (ausgeblendet über renderAdmin in app.js) -->
           <div id="menu-admin">
             <hr>
@@ -154,6 +157,7 @@
             <option value="28">28 km/h</option>
             <option value="30">30 km/h</option>
             <option value="32">32 km/h</option>
+            <option value="35">35 km/h</option>
           </select>
           <span class="muted">in der Ebene</span>
           </label>
@@ -325,8 +329,11 @@
             <button type="button" data-mode="quiet" aria-pressed="false" title="Meidet befahrene Straßen, nimmt dafür Umwege">Ruhig</button>
           </span>
           <button type="button" class="intro-info plan-mode-info-btn" id="plan-mode-info-btn" aria-expanded="false" aria-controls="plan-mode-info" aria-label="Unterschied Schnell und Ruhig">i</button>
-          <span id="plan-extras" class="plan-extras" hidden></span>
+          <!-- Tempo: Fahrzeit bei 18–35 km/h (Sprechblase, siehe openSpeedPop) -->
+          <button type="button" id="plan-speed" class="plan-extra plan-speed" data-extra="speed" aria-expanded="false" hidden></button>
         </div>
+        <!-- Werkzeuge (Rundtour, Kaffee-Stopp, Vergleich, Reihenfolge) und die Anstiege – Handy: seitlich wischbar -->
+        <div id="plan-extras" class="plan-extras" hidden></div>
         <div id="plan-pop" class="plan-mode-pop plan-pop" role="dialog" aria-modal="false" hidden></div>
         <!-- Erklärung zu „Schnell | Ruhig“: Sprechblase unter dem Planer, Spitze zum ⓘ (siehe app.js) -->
         <div id="plan-mode-info" class="plan-mode-pop" role="note" hidden>
@@ -703,6 +710,20 @@
     </div>
   </dialog>
 
+  <!-- Live-Standort per iPhone-Kurzbefehl: sendet im Hintergrund direkt an Supabase (Werte zum Kopieren, app.js) -->
+  <dialog id="shortcut-dialog" class="dialog" aria-labelledby="shortcut-title">
+    <div class="dialog-inner">
+      <header class="dialog-head">
+        <div>
+          <span class="eyebrow">Live-Standort im Hintergrund</span>
+          <h2 id="shortcut-title">Kurzbefehl einrichten</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="Schließen"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </header>
+      <div id="shortcut-body" class="shortcut-body"></div>
+    </div>
+  </dialog>
+
   <!-- Live-Standort teilen: Dauer und (optional) Etappe wählen; während des Teilens Ende und Verlängern -->
   <dialog id="live-dialog" class="dialog" aria-labelledby="live-title">
     <div class="dialog-inner">
@@ -785,38 +806,38 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-17.1"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-17.4"></script>
   <!-- Dreht die OpenStreetMap-Karte (zwei Finger); Lizenz GPL-3.0, siehe vendor/leaflet/LICENSE-leaflet-rotate.txt -->
-  <script src="vendor/leaflet/leaflet-rotate.js?v=2026-10-17.1"></script>
+  <script src="vendor/leaflet/leaflet-rotate.js?v=2026-10-17.4"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-17.1",
-      "./js/backend.js": "./js/backend.js?v=2026-10-17.1",
-      "./js/cash.js": "./js/cash.js?v=2026-10-17.1",
-      "./js/categories.js": "./js/categories.js?v=2026-10-17.1",
-      "./js/config.js": "./js/config.js?v=2026-10-17.1",
-      "./js/gluten.js": "./js/gluten.js?v=2026-10-17.1",
-      "./js/geo.js": "./js/geo.js?v=2026-10-17.1",
-      "./js/hours.js": "./js/hours.js?v=2026-10-17.1",
-      "./js/icons.js": "./js/icons.js?v=2026-10-17.1",
-      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-17.1",
-      "./js/importers.js": "./js/importers.js?v=2026-10-17.1",
-      "./js/map.js": "./js/map.js?v=2026-10-17.1",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-17.1",
-      "./js/directions.js": "./js/directions.js?v=2026-10-17.1",
-      "./js/road-distance.js": "./js/road-distance.js?v=2026-10-17.1",
-      "./js/osm-hours.js": "./js/osm-hours.js?v=2026-10-17.1",
-      "./js/wiki.js": "./js/wiki.js?v=2026-10-17.1",
-      "./js/climbs.js": "./js/climbs.js?v=2026-10-17.1",
-      "./js/profile.js": "./js/profile.js?v=2026-10-17.1",
-      "./js/pois.js": "./js/pois.js?v=2026-10-17.1",
-      "./js/usage.js": "./js/usage.js?v=2026-10-17.1",
-      "./js/store.js": "./js/store.js?v=2026-10-17.1"
+      "./js/app.js": "./js/app.js?v=2026-10-17.4",
+      "./js/backend.js": "./js/backend.js?v=2026-10-17.4",
+      "./js/cash.js": "./js/cash.js?v=2026-10-17.4",
+      "./js/categories.js": "./js/categories.js?v=2026-10-17.4",
+      "./js/config.js": "./js/config.js?v=2026-10-17.4",
+      "./js/gluten.js": "./js/gluten.js?v=2026-10-17.4",
+      "./js/geo.js": "./js/geo.js?v=2026-10-17.4",
+      "./js/hours.js": "./js/hours.js?v=2026-10-17.4",
+      "./js/icons.js": "./js/icons.js?v=2026-10-17.4",
+      "./js/home-loop.js": "./js/home-loop.js?v=2026-10-17.4",
+      "./js/importers.js": "./js/importers.js?v=2026-10-17.4",
+      "./js/map.js": "./js/map.js?v=2026-10-17.4",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-17.4",
+      "./js/directions.js": "./js/directions.js?v=2026-10-17.4",
+      "./js/road-distance.js": "./js/road-distance.js?v=2026-10-17.4",
+      "./js/osm-hours.js": "./js/osm-hours.js?v=2026-10-17.4",
+      "./js/wiki.js": "./js/wiki.js?v=2026-10-17.4",
+      "./js/climbs.js": "./js/climbs.js?v=2026-10-17.4",
+      "./js/profile.js": "./js/profile.js?v=2026-10-17.4",
+      "./js/pois.js": "./js/pois.js?v=2026-10-17.4",
+      "./js/usage.js": "./js/usage.js?v=2026-10-17.4",
+      "./js/store.js": "./js/store.js?v=2026-10-17.4"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-17.1"></script>
+  <script type="module" src="js/app.js?v=2026-10-17.4"></script>
 </body>
 </html>

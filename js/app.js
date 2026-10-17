@@ -8,7 +8,7 @@ import { expandMapsLinks, hasShortMapsLinks,
   rememberedTripKey, rememberTripKey, forgetTripKey, shareUrl, rememberTripCode, forgetTripCode, validTripCodeChars,
   rememberedAdminPin, rememberAdminPin,
 } from './backend.js';
-import { createMap, routeAttrs } from './map.js';
+import { createMap, routeAttrs, planPinHtml, planPinLabels } from './map.js';
 import { TRAVEL_MODES, computeRoute, navUrl } from './directions.js';
 import { roadKm, loadRoadDistances } from './road-distance.js';
 import { SKUS, setUsageSink, localUsage, pendingUsage, usageCost, usageMonth } from './usage.js';
@@ -17,7 +17,7 @@ import { GRADE_CLASSES, steepRuns, findClimbs, climbName } from './climbs.js';
 import { sanitizeHours, hoursStale, openAt, hoursStatus } from './hours.js';
 import { cachedPois, loadPois, sanitizePois, POI_TYPES } from './pois.js';
 import { connectToHome, bikeRoute } from './home-loop.js';
-import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './config.js';
+import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
 import { formatEuro, formatChf, toRappen, toEuroCents, cachedRate, loadRate, parseAmount, parseShare, computeBalances, settle, splitCents, sharesOf, expenseTotal, isTransfer, sanitizeParticipants, sanitizeExpense } from './cash.js';
 
@@ -946,7 +946,7 @@ function renderAirbnb() {
 
 // Fahrzeit ohne Pausen: Strecke im gewählten Grundtempo plus Zuschlag fürs Klettern. Die Steigleistung
 // wächst mit dem Tempo (25 km/h → 750 Hm/h). Grobe Faustregel; Abfahrten werden nicht abgezogen.
-const BIKE_SPEEDS = [18, 20, 22, 25, 28, 30, 32];
+const BIKE_SPEEDS = [18, 20, 22, 25, 28, 30, 32, 35];
 const bikeSpeed = () => { const v = Number(readPref('bikeSpeed')); return BIKE_SPEEDS.includes(v) ? v : 25; };
 // Reihenfolge der Etappen in der Liste (jedes Gerät merkt sich seine). Die Farben bleiben an den Etappen.
 const ROUTE_SORTS = ['added', 'recent', 'short', 'long', 'flat', 'climb', 'rating', 'open', 'name'];
@@ -1466,14 +1466,19 @@ function renderRoutes() {
         ${r.ridden ? `<div class="route-detail"><span class="route-detail-label">Bewertung</span>
           <span class="route-rating-row">${ratingDetailHtml(r)}</span></div>` : ''}
         <div class="route-detail-actions">
-          <button type="button" class="btn btn-small" data-action="show-route">${icon('route', { size: 14, stroke: 2 })}Auf der Karte zeigen</button>
-          ${garminReadyId === r.id
-            ? `<a class="btn btn-small btn-primary garmin-open" href="${GARMIN_COURSES_URL}" target="_blank" rel="noopener" title="Garmin Connect öffnen – dort Importieren und die geladene Datei wählen">Garmin öffnen ↗</a>`
-            : `<button type="button" class="btn btn-small" data-action="garmin-route" title="GPX laden und Garmin Connect (Strecken → Importieren) öffnen">${icon('share', { size: 14, stroke: 2 })}Für Garmin</button>`}
-          <button type="button" class="btn btn-small" data-action="resume-route" title="Etappe ab deinem Standort: der gefahrene Teil fällt weg, vom Standort zurück auf die Strecke">${icon('navigation', { size: 14, stroke: 2 })}Ab hier</button>
-          <button type="button" class="route-action" data-action="edit-route" aria-label="Etappe „${escapeHtml(r.name)}“ bearbeiten" title="Bearbeiten (als Kopie)">${icon('pencil', { size: 15, stroke: 1.9 })}</button>
-          <button type="button" class="route-action" data-action="download-route" aria-label="Etappe „${escapeHtml(r.name)}“ als GPX herunterladen" title="Als GPX herunterladen – z. B. für connect.garmin.com → Strecken → Importieren">${icon('download', { size: 15, stroke: 1.9 })}</button>
-          <button type="button" class="route-action is-danger" data-action="delete-route" aria-label="Etappe „${escapeHtml(r.name)}“ entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
+          <!-- Drei Hauptaktionen gleich breit, darunter rechts die kleinen (bearbeiten, GPX, entfernen) -->
+          <div class="route-main-actions">
+            <button type="button" class="btn btn-small" data-action="show-route" title="Etappe auf der Karte zeigen">${icon('route', { size: 14, stroke: 2 })}Auf Karte</button>
+            <button type="button" class="btn btn-small" data-action="resume-route" title="Etappe ab deinem Standort: der gefahrene Teil fällt weg, vom Standort zurück auf die Strecke">${icon('navigation', { size: 14, stroke: 2 })}Ab hier</button>
+            ${garminReadyId === r.id
+              ? `<a class="btn btn-small btn-primary garmin-open" href="${GARMIN_COURSES_URL}" target="_blank" rel="noopener" title="Garmin Connect öffnen – dort Importieren und die geladene Datei wählen">Öffnen ↗</a>`
+              : `<button type="button" class="btn btn-small" data-action="garmin-route" title="GPX laden und Garmin Connect (Strecken → Importieren) öffnen">${icon('share', { size: 14, stroke: 2 })}Garmin</button>`}
+          </div>
+          <div class="route-icon-actions">
+            <button type="button" class="route-action" data-action="edit-route" aria-label="Etappe „${escapeHtml(r.name)}“ bearbeiten" title="Bearbeiten (als Kopie)">${icon('pencil', { size: 15, stroke: 1.9 })}</button>
+            <button type="button" class="route-action" data-action="download-route" aria-label="Etappe „${escapeHtml(r.name)}“ als GPX herunterladen" title="Als GPX herunterladen">${icon('download', { size: 15, stroke: 1.9 })}</button>
+            <button type="button" class="route-action is-danger" data-action="delete-route" aria-label="Etappe „${escapeHtml(r.name)}“ entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
+          </div>
         </div>
       </div>`;
     }
@@ -2260,6 +2265,7 @@ function livePopupHtml(x) {
   </div>`;
 }
 
+let liveMine = null;
 async function pollLive() {
   if (!liveSupported() || document.visibilityState !== 'visible') return;
   retryLiveDelete();
@@ -2267,6 +2273,7 @@ async function pollLive() {
     const list = await backend.liveList();
     const mine = me()?.id;
     liveOthers = list.filter((x) => x.personId !== mine);
+    liveMine = list.find((x) => x.personId === mine) || null; // z. B. vom Kurzbefehl gesendet
   } catch {
     return; // Tabelle fehlt oder kein Netz: nichts anzeigen
   }
@@ -2316,12 +2323,106 @@ function renderLiveDialog() {
     return;
   }
   const routes = state.routes.filter((r) => r.points?.length);
-  body.innerHTML = `<p class="share-text">Die anderen dieser Reise sehen dich als Punkt mit deinen Initialen auf der Karte – bis zur gewählten Zeit oder bis du beendest.</p>
+  const mineNote = liveMine ? `<div class="live-mine"><p class="share-text">Deine Position ist gerade für die anderen sichtbar (z. B. vom Kurzbefehl) – zuletzt ${fmtAgo(liveMine.updatedAt)}, bis ${hhmm(new Date(liveMine.until))}.</p>
+      <button type="button" class="btn btn-small" data-live-delete>Jetzt löschen</button></div>` : '';
+  body.innerHTML = `${mineNote}<p class="share-text">Die anderen dieser Reise sehen dich als Punkt mit deinen Initialen auf der Karte – bis zur gewählten Zeit oder bis du beendest.</p>
     <label class="field"><span>Etappe <span class="field-opt">(optional – zeigt „km 34 von 82“)</span></span>
       <select id="live-route"><option value="">keine</option>${routes.map((r) => `<option value="${escapeHtml(r.id)}"${r.id === expandedRouteId ? ' selected' : ''}>${escapeHtml(r.name)}</option>`).join('')}</select></label>
     <div class="live-actions">${LIVE_HOURS.map((h) => `<button type="button" class="btn btn-small${h === 4 ? ' btn-primary' : ''}" data-live-start="${h}">${h} ${h === 1 ? 'Stunde' : 'Stunden'}</button>`).join('')}</div>
-    <p class="hint">Datenschutz: gespeichert wird nur deine letzte Position, sichtbar nur für diese Reise; beim Beenden wird sie gelöscht. Lass die App offen und den Bildschirm an.</p>`;
+    <p class="hint">Datenschutz: gespeichert wird nur deine letzte Position, sichtbar nur für diese Reise; beim Beenden wird sie gelöscht. Lass die App offen und den Bildschirm an.</p>
+    <button type="button" class="popup-link live-shortcut-link" data-live-shortcut>${icon('share', { size: 13, stroke: 2.2 })} Handy in der Tasche? Per iPhone-Kurzbefehl im Hintergrund senden …</button>`;
 }
+
+// --- Live-Standort per iPhone-Kurzbefehl -----------------------------------------------------------
+// Safari führt bei gesperrtem Bildschirm nichts aus. Ein Kurzbefehl kann aber selbst den Standort holen und ihn
+// direkt in live_positions schreiben (gleiche Prüfung wie die App: Reise-Schlüssel und Zugangscode als Header).
+// Hier stehen alle Werte zum Kopieren; Schlüssel und Code werden nur verdeckt angezeigt.
+const SHORTCUT_HOURS = 2; // so lange bleibt jede Meldung sichtbar (der Kurzbefehl setzt das Ende selbst)
+const shortcutDialog = $('#shortcut-dialog');
+let shortcutValues = {};
+
+function shortcutConfig() {
+  const code = backend.code || '';
+  const headers = [
+    ['apikey', SUPABASE_ANON_KEY],
+    ['Authorization', `Bearer ${SUPABASE_ANON_KEY}`],
+    ['Content-Type', 'application/json'],
+    ['Prefer', 'resolution=merge-duplicates,return=minimal'],
+    ['x-trip-key', backend.key],
+    ...(code ? [['x-trip-code', code]] : []),
+  ];
+  return {
+    url: `${SUPABASE_URL}/rest/v1/live_positions?on_conflict=trip_key,person_id`,
+    headers,
+    fields: [['trip_key', backend.key], ['person_id', me().id], ['name', me().name]],
+  };
+}
+
+function openShortcutHelp() {
+  if (!liveSupported()) return toast('Geht nur in einer gemeinsamen Reise mit Netz.');
+  if (!me()) return askWho();
+  const c = shortcutConfig();
+  const secret = (v) => (v.length > 12 ? `${v.slice(0, 4)}…${v.slice(-4)}` : '••••');
+  shortcutValues = { url: c.url };
+  const row = (id, label, value, hide = false) => {
+    shortcutValues[id] = value;
+    return `<div class="copy-row"><span class="copy-label">${escapeHtml(label)}</span><code>${escapeHtml(hide ? secret(value) : value)}</code>
+      <button type="button" class="btn btn-small" data-copy="${id}">Kopieren</button></div>`;
+  };
+  $('#shortcut-body').innerHTML = `
+    <p class="share-text">Ein Kurzbefehl auf deinem iPhone schickt deinen Standort auch bei gesperrtem Bildschirm – so oft, wie eine Automation ihn startet (z. B. alle 15 Minuten). Die anderen sehen dich dann wie gewohnt als Punkt mit Initialen.</p>
+    <ol class="shortcut-steps">
+      <li>App <strong>Kurzbefehle</strong> → <strong>+</strong> → Aktion <strong>„Aktuellen Standort abrufen“</strong>.</li>
+      <li>Aktion <strong>„Datum anpassen“</strong>: „Aktuelles Datum“ → <strong>Hinzufügen ${SHORTCUT_HOURS} Stunden</strong>.</li>
+      <li>Aktion <strong>„Datum formatieren“</strong>: Datumsformat <strong>ISO 8601</strong>.</li>
+      <li>Aktion <strong>„Inhalte von URL abrufen“</strong>, als URL einfügen:
+        ${row('url', 'URL', c.url)}
+        Aufklappen: Methode <strong>POST</strong>, unter <strong>Header</strong> diese ${c.headers.length} Einträge (links Name, rechts Wert):
+        ${c.headers.map(([k, v], i) => row(`h${i}`, k, v, /apikey|Authorization|x-trip/.test(k))).join('')}
+        Anfragetext <strong>JSON</strong>, diese Felder:
+        ${c.fields.map(([k, v], i) => row(`f${i}`, `${k} (Text)`, v, k === 'trip_key')).join('')}
+        <div class="copy-row"><span class="copy-label">lat (Zahl)</span><code>Aktueller Standort → Breitengrad</code></div>
+        <div class="copy-row"><span class="copy-label">lng (Zahl)</span><code>Aktueller Standort → Längengrad</code></div>
+        <div class="copy-row"><span class="copy-label">expires_at (Text)</span><code>Formatiertes Datum</code></div>
+      </li>
+      <li>Kurzbefehl <strong>„Live-Standort senden“</strong> nennen und einmal antippen – du solltest bei den anderen erscheinen.</li>
+      <li>Reiter <strong>Automation</strong> → <strong>Tageszeit</strong> (z. B. 8:00, 8:15, 8:30 … je eine) oder <strong>„Training“</strong> (Apple Watch) → Kurzbefehl wählen → <strong>„Sofort ausführen“</strong>.</li>
+    </ol>
+    <div class="live-actions"><button type="button" class="btn btn-small btn-primary" data-shortcut-test>Jetzt testen – einmal so senden wie der Kurzbefehl</button></div>
+    <p class="hint">Wichtig: Der Kurzbefehl enthält den Schlüssel und den Code eurer Reise – <strong>nicht teilen</strong>. Jede Meldung bleibt ${SHORTCUT_HOURS} Stunden sichtbar; im Menü unter „Live-Standort“ kannst du sie jederzeit löschen. Wechselst du unter „Wer bist du?“ die Person, den Kurzbefehl neu einrichten.</p>`;
+  liveDialog.close();
+  shortcutDialog.showModal();
+}
+
+$('#shortcut-body').addEventListener('click', async (e) => {
+  const copy = e.target.closest('[data-copy]');
+  if (copy) {
+    try {
+      await navigator.clipboard.writeText(shortcutValues[copy.dataset.copy] || '');
+      copy.textContent = 'Kopiert ✓';
+      setTimeout(() => { copy.textContent = 'Kopieren'; }, 1500);
+    } catch {
+      toast('Kopieren klappt hier nicht – Text lange antippen und kopieren.');
+    }
+    return;
+  }
+  if (!e.target.closest('[data-shortcut-test]')) return;
+  // Genau die Anfrage des Kurzbefehls (gleiche Adresse, Header und Felder), Ende in 15 Minuten
+  try {
+    const [lat, lng] = await myPosition();
+    const c = shortcutConfig();
+    const res = await fetch(c.url, {
+      method: 'POST',
+      headers: Object.fromEntries(c.headers),
+      body: JSON.stringify({ ...Object.fromEntries(c.fields), lat, lng, expires_at: new Date(Date.now() + 15 * 60000).toISOString() }),
+    });
+    if (!res.ok) throw new Error(`Antwort ${res.status}`);
+    toast('Test gesendet – die anderen sehen dich 15 Minuten lang. So arbeitet auch der Kurzbefehl.');
+    pollLive();
+  } catch (err) {
+    toast(`Test fehlgeschlagen (${err.message}) – ist der Abschnitt „Live-Standort“ in Supabase eingerichtet?`);
+  }
+});
 
 function openLiveDialog() {
   if (!liveSupported() && !live.on) return toast('Live-Standort geht nur in einer gemeinsamen Reise mit Netz (Menü „Teilen“).');
@@ -2334,6 +2435,14 @@ $('#live-body').addEventListener('click', (e) => {
   if (start) {
     liveDialog.close();
     startLive(Number(start.dataset.liveStart), $('#live-route')?.value || null);
+  }
+  if (e.target.closest('[data-live-shortcut]')) openShortcutHelp();
+  if (e.target.closest('[data-live-delete]')) {
+    backend.stopLive(me().id).then(() => {
+      liveMine = null;
+      renderLive();
+      toast('Deine Position ist gelöscht.');
+    }).catch((err) => toast(`Löschen klappt gerade nicht (${err.message}).`));
   }
   if (e.target.closest('[data-live-stop]')) {
     liveDialog.close();
@@ -4933,7 +5042,7 @@ function openPlanPop(kind, html, btn) {
   planPop.kind = kind;
   pop.innerHTML = `<button type="button" class="plan-pop-close" data-pop="close" aria-label="Schliessen">${icon('close', { size: 16, stroke: 2.2 })}</button>${html}`;
   pop.hidden = false;
-  for (const b of $$('#plan-extras [data-extra]')) b.setAttribute('aria-expanded', String(b.dataset.extra === kind));
+  for (const b of $$('#plan-panel [data-extra]')) b.setAttribute('aria-expanded', String(b.dataset.extra === kind));
   placePop(pop, btn);
 }
 function closePlanPop() {
@@ -4943,7 +5052,7 @@ function closePlanPop() {
   const pop = $('#plan-pop');
   pop.hidden = true;
   pop.innerHTML = '';
-  for (const b of $$('#plan-extras [data-extra]')) b.setAttribute('aria-expanded', 'false');
+  for (const b of $$('#plan-panel [data-extra]')) b.setAttribute('aria-expanded', 'false');
   mapView.setCursor(null);
   if (wasCompare) plan.alt = null;
   if (plan.on) renderPlan(); // Knöpfe (z. B. „Rundtour“ nur am Anfang) und Vergleichslinie auffrischen
@@ -4961,15 +5070,31 @@ function renderPlanExtras(track, pending) {
     items.push(['coffee', 'coffee', 'Kaffee-Stopp']);
     items.push(['compare', 'swap', 'Vergleichen']);
   }
+  // Reihenfolge der Punkte ändern: ab Start + zwei weiteren Punkten
+  if (plan.waypoints.length >= 3 || planPop.kind === 'order') items.push(['order', 'pin', 'Reihenfolge']);
   // Anstiege kurz: „⛰ 7,4 km · 5,8 %“ – voller Name im Tooltip, antippen zeigt sie auf der Karte
   const climbs = track ? planClimbs.map((c, i) => `<button type="button" class="climb" data-climb="${i}" data-climb-src="plan" title="${escapeHtml(climbName(c, state.places))}: ${Math.round(c.gainM)} Hm">${icon('mountain', { size: 13, stroke: 2.2 })}<span>${formatKm(c.km)} · ${c.avgPct.toLocaleString('de-DE', { maximumFractionDigits: 1 })} %</span></button>`).join('') : '';
   box.hidden = !items.length && !climbs;
   const html = items.map(([k, ic, label]) => `<button type="button" class="plan-extra" data-extra="${k}" aria-expanded="${planPop.kind === k}">${icon(ic, { size: 14, stroke: 2.2 })}${label}</button>`).join('') + climbs;
   if (box.innerHTML !== html) box.innerHTML = html;
   // Knopf der offenen Sprechblase verschwunden (z. B. Strecke gelöscht): Sprechblase zu
-  if (planPop.kind && !items.some(([k]) => k === planPop.kind)) closePlanPop();
+  // Tempo steht in der Einstellungszeile (neben Schnell/Ruhig), sobald es eine Strecke gibt
+  const speedBtn = $('#plan-speed');
+  const speedOk = Boolean(track && !pending) || planPop.kind === 'speed';
+  speedBtn.hidden = !speedOk;
+  const speedHtml = `${icon('clock', { size: 14, stroke: 2.2 })}${bikeSpeed()} km/h`;
+  if (speedBtn.innerHTML !== speedHtml) speedBtn.innerHTML = speedHtml;
+  speedBtn.title = 'Fahrzeit bei verschiedenen Geschwindigkeiten';
+  if (planPop.kind && !(planPop.kind === 'speed' ? speedOk : items.some(([k]) => k === planPop.kind))) closePlanPop();
+  // Offene Sprechblase mit Zahlen auffrischen (Abschnitt fertig berechnet, Punkt verschoben …)
+  if (planPop.kind === 'order') renderOrderPop();
+  if (planPop.kind === 'speed') renderSpeedPop();
 }
 
+$('#plan-speed').addEventListener('click', (e) => {
+  if (planPop.kind === 'speed') return closePlanPop();
+  openSpeedPop(e.currentTarget);
+});
 $('#plan-extras').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-extra]');
   if (!btn) return;
@@ -4978,6 +5103,8 @@ $('#plan-extras').addEventListener('click', (e) => {
   if (kind === 'coffee') openCoffeePop(btn);
   if (kind === 'compare') openComparePop(btn);
   if (kind === 'loop') openLoopPop(btn);
+  if (kind === 'speed') openSpeedPop(btn);
+  if (kind === 'order') openOrderPop(btn);
 });
 $('#plan-pop').addEventListener('click', (e) => {
   const t = e.target.closest('[data-pop]');
@@ -4990,7 +5117,97 @@ $('#plan-pop').addEventListener('click', (e) => {
   if (a === 'loop-dir') { loopOpts.dir = t.dataset.dir; renderLoopPop(); }
   if (a === 'loop-go') suggestLoops();
   if (a === 'loop-take') takeLoop(Number(t.dataset.i));
+  if (a === 'speed') setBikeSpeed(Number(t.dataset.speed));
+  if (a === 'order-up') movePlanOrder(Number(t.dataset.i), -1);
+  if (a === 'order-down') movePlanOrder(Number(t.dataset.i), 1);
+  if (a === 'order-remove') { plan.selected = Number(t.dataset.i); removePlanPoint(); renderOrderPop(); }
 });
+
+// --- Tempo: Fahrzeit der geplanten Strecke bei verschiedenen Geschwindigkeiten ------------------------
+// Gleiches Grundtempo wie bei den Etappen (Einstellung „in der Ebene“); Höhenmeter verlängern die Zeit wie dort.
+function openSpeedPop(btn) {
+  openPlanPop('speed', '<div id="speed-pop"></div>', btn);
+  renderSpeedPop();
+}
+function renderSpeedPop() {
+  const box = $('#speed-pop');
+  const track = planTrack();
+  if (!box || !track) return;
+  const sum = summarizeTrack('', track);
+  const cur = bikeSpeed();
+  box.innerHTML = `<strong class="plan-mode-pop-title">Tempo in der Ebene</strong>
+    <p class="muted">${formatKm(sum.distanceKm)} · ${formatHm(sum.elevationGainM) || '0 Hm'} – Fahrzeit ohne Pausen, Höhenmeter eingerechnet:</p>
+    <ul class="speed-list">${BIKE_SPEEDS.map((v) => `<li><button type="button" data-pop="speed" data-speed="${v}" aria-pressed="${v === cur}">
+      <span>${v} km/h</span><strong>${formatDuration(rideHours(sum, v)).replace('ca. ', '')}</strong></button></li>`).join('')}</ul>
+    <p class="muted">Gewähltes Tempo gilt auch für die Etappen (Ankunftszeiten, Kaffee-Stopps).</p>`;
+}
+function setBikeSpeed(v) {
+  if (!BIKE_SPEEDS.includes(v)) return;
+  writePref('bikeSpeed', v);
+  if ($('#bike-speed')) $('#bike-speed').value = String(v);
+  renderRoutes();
+  renderPlan();
+  renderSpeedPop();
+}
+
+// --- Reihenfolge: gesetzte Punkte nach oben/unten schieben ---------------------------------------------
+// Abschnitte zwischen Punkten, die nach dem Verschieben noch direkt aufeinander folgen, bleiben; nur die neuen
+// Verbindungen werden berechnet. „Rückgängig“ stellt die alte Reihenfolge wieder her.
+function openOrderPop(btn) {
+  openPlanPop('order', '<div id="order-pop"></div>', btn);
+  renderOrderPop();
+}
+function planPointName(w, i) {
+  if (w.coffee) return w.coffee;
+  if (state.airbnb && haversineKm(w[0], w[1], state.airbnb.lat, state.airbnb.lng) < 0.15) return 'Airbnb';
+  let best = null;
+  for (const p of state.places) {
+    if (!hasCoords(p)) continue;
+    const d = haversineKm(w[0], w[1], p.lat, p.lng);
+    if (d < 0.15 && (!best || d < best.d)) best = { p, d };
+  }
+  if (best) return best.p.name;
+  // sonst: bei km … (Summe der Abschnitte davor)
+  let km = 0;
+  for (let k = 0; k < i; k++) {
+    const t = plan.segments[k]?.points || [];
+    for (let j = 1; j < t.length; j++) km += haversineKm(t[j - 1][0], t[j - 1][1], t[j][0], t[j][1]);
+  }
+  return i === 0 ? 'Start' : `Punkt bei km ${Math.round(km)}`;
+}
+function renderOrderPop() {
+  const box = $('#order-pop');
+  if (!box) return;
+  if (plan.waypoints.length < 2) return closePlanPop();
+  const labels = planPinLabels(plan.waypoints);
+  const last = plan.waypoints.length - 1;
+  box.innerHTML = `<strong class="plan-mode-pop-title">Reihenfolge der Punkte</strong>
+    <ol class="order-list">${plan.waypoints.map((w, i) => `<li${plan.selected === i ? ' class="is-selected"' : ''}>
+      ${planPinHtml(labels[i])}<span class="order-name">${escapeHtml(planPointName(w, i))}</span>
+      <button type="button" class="order-btn" data-pop="order-up" data-i="${i}" aria-label="Nach oben"${i === 0 ? ' disabled' : ''}>${icon('chevron-up', { size: 15, stroke: 2.4 })}</button>
+      <button type="button" class="order-btn" data-pop="order-down" data-i="${i}" aria-label="Nach unten"${i === last ? ' disabled' : ''}>${icon('chevron-down', { size: 15, stroke: 2.4 })}</button>
+      <button type="button" class="order-btn" data-pop="order-remove" data-i="${i}" aria-label="Punkt entfernen"${plan.waypoints.length <= 2 ? ' disabled' : ''}>${icon('trash', { size: 14, stroke: 2.2 })}</button>
+    </li>`).join('')}</ol>
+    <p class="muted">Verschieben berechnet nur die neuen Verbindungen; „Rückgängig“ oben stellt die alte Reihenfolge wieder her.</p>`;
+}
+function movePlanOrder(i, dir) {
+  const j = i + dir;
+  const n = plan.waypoints.length;
+  if (j < 0 || j >= n) return;
+  const order = [...Array(n).keys()];
+  [order[i], order[j]] = [order[j], order[i]];
+  planSnapshot();
+  const old = plan.waypoints;
+  const oldSegs = plan.segments;
+  plan.waypoints = order.map((k) => old[k]);
+  plan.segments = order.slice(1).map((b, k) => {
+    const a = order[k];
+    return b === a + 1 && oldSegs[a] ? oldSegs[a] : planSegment(old[a], old[b]); // unverändert bleibt
+  });
+  plan.selected = j;
+  renderPlan();
+  renderOrderPop();
+}
 
 // Punkt bei km auf der Strecke: { point: [lat, lng], seg: Abschnitt-Index }
 function planPointAt(km) {
@@ -5600,6 +5817,7 @@ const INTRO = [
         '<strong>Schnell</strong>: direkte Wege. <strong>Ruhig</strong>: meidet Verkehr, dafür mit Umwegen – das <strong>ⓘ</strong> daneben erklärt den Unterschied.',
         'Kilometer, Höhenmeter, Fahrzeit und Höhenprofil laufend. Steile Stücke farbig: gelb ab 5 %, rot ab 8 %, violett ab 10 % – darunter die Anstiege, antippen zeigt sie auf der Karte.',
         'Knöpfe unter dem Profil: <strong>„Rundtour vorschlagen“</strong> (Länge und Richtung wählen), <strong>„Kaffee-Stopp“</strong> (eigenes Café an einer Stelle einbauen) und <strong>Schnell/Ruhig vergleichen</strong>.',
+        '<strong>„25 km/h“</strong> zeigt die Fahrzeit für 18–35 km/h und stellt das Tempo um; <strong>„Reihenfolge“</strong> schiebt gesetzte Punkte nach oben oder unten.',
         'Gespeichert zeigt jede Etappe Wetter, Kaffee-Stopps, Wasser & Velo – und lässt sich als GPX laden.',
         'Unterwegs: bei einer Etappe <strong>„Ab hier“</strong> – der gefahrene Teil fällt weg, vom Standort geht es zurück auf die Strecke (als Kopie speichern oder direkt als GPX laden).',
         'Oder eine GPX aus Strava/Komoot über <strong>„+ Importieren“</strong> – Start und Ziel werden ans Airbnb angeschlossen.',

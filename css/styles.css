@@ -531,7 +531,7 @@ details.panel[open] > .panel-summary .panel-chevron { transform: none; }
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
   padding-top: 16px; border-top: 2px dashed var(--line);
 }
-.result-count { font-size: 13px; color: var(--muted); }
+.result-count { font-size: 13px; color: var(--muted); white-space: nowrap; }
 .result-count strong {
   font-family: var(--font-marker); font-size: 22px; font-weight: 400; letter-spacing: 0.02em;
   color: var(--green); margin-right: 4px; text-transform: uppercase;
@@ -880,7 +880,11 @@ details.panel[open] > .panel-summary .panel-chevron { transform: none; }
 .route-stop-list, .route-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
 .route-details .route-link-form { grid-column: 2; padding: 0; }
 .route-details .route-link { font-size: 13px; }
-.route-detail-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
+.route-detail-actions { display: flex; flex-direction: column; gap: 4px; padding-top: 2px; }
+/* Drei Hauptaktionen gleich breit in einer Zeile, darunter rechtsbündig die Symbol-Knöpfe */
+.route-main-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.route-main-actions .btn { justify-content: center; min-width: 0; padding-left: 8px; padding-right: 8px; white-space: nowrap; }
+.route-icon-actions { display: flex; justify-content: flex-end; gap: 2px; }
 .route-detail-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
 
 .cat-select {
@@ -1111,7 +1115,7 @@ details.panel[open] > .panel-summary .panel-chevron { transform: none; }
 /* Zusatz-Knöpfe im Planer (Kaffee-Stopp, Vergleich, Rundtour) und ihre Sprechblase */
 /* Zeile mit Streckenwahl, ⓘ, Zusatz-Knöpfen und Anstiegen (Handy: seitlich wischbar, siehe unten) */
 .plan-options { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.plan-extras { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.plan-extras { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .plan-extras[hidden] { display: none; }
 .plan-save[hidden] { display: none; }
 .plan-options .climb { min-height: 30px; }
@@ -1801,10 +1805,18 @@ details.panel[open] > .panel-summary .panel-chevron { transform: none; }
   .plan-tools { gap: 3px; }
   .plan-tool { width: 32px; height: 32px; }
   .plan-tool .icon { width: 16px; height: 16px; }
-  .plan-options { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: -6px; padding-right: 6px; }
-  .plan-options::-webkit-scrollbar { display: none; }
+  /* Zeile 1: Einstellungen (Start, Schnell/Ruhig, ⓘ, Tempo) – passt ohne Wischen; Zeile 2: Werkzeuge und
+     Anstiege, seitlich wischbar, rechts ausgeblendet, solange es weitergeht */
+  .plan-options { flex-wrap: nowrap; gap: 6px; }
   .plan-options > *, .plan-extras > * { flex: none; }
-  .plan-extras { flex-wrap: nowrap; }
+  .plan-options .plan-mode button { padding: 0 9px; }
+  .plan-extras {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: -6px; padding-right: 18px;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+  }
+  .plan-extras::-webkit-scrollbar { display: none; }
+  .result-count strong { font-size: 19px; }
   /* Zuklapp-Pfeil neben „Espresso-Etappen“ und „Etappe planen“ in einer Zeile */
   .list-title { font-size: 19px; }
   .list-toggle { gap: 6px; }
@@ -2096,4 +2108,51 @@ button.popup-link { padding: 5px 0; border: 0; background: none; cursor: pointer
 .recap-cat {
   display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px 4px 8px; border-radius: 999px;
   background: color-mix(in srgb, var(--c) 30%, var(--card)); color: var(--text); font-size: 13px; font-weight: 700;
+}
+
+/* Kurzbefehl-Hilfe: Schritte mit Werten zum Kopieren */
+.shortcut-body { display: flex; flex-direction: column; gap: 12px; }
+.shortcut-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.45; color: var(--text-soft); }
+.copy-row {
+  display: grid; grid-template-columns: minmax(90px, auto) 1fr auto; align-items: center; gap: 8px;
+  margin: 6px 0; padding: 6px 8px; border-radius: 10px; background: var(--card); border: 1px solid var(--line);
+}
+.copy-label { font-size: 12px; font-weight: 700; color: var(--text); }
+.copy-row code { font-size: 12px; overflow-wrap: anywhere; color: var(--text-soft); }
+.copy-row .btn { min-height: 30px; padding: 0 10px; }
+.live-mine { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--orange-tint); }
+.live-shortcut-link { margin-top: 2px; }
+@media (max-width: 480px) {
+  .copy-row { grid-template-columns: 1fr auto; }
+  .copy-row code { grid-column: 1 / -1; grid-row: 2; }
+}
+
+/* Planer: Fahrzeit je Tempo (Sprechblase „25 km/h“) */
+.speed-list { list-style: none; margin: 8px 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.speed-list button {
+  width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 8px 10px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); cursor: pointer;
+  font: 600 13px var(--font-body);
+}
+.speed-list button strong { font-weight: 800; color: var(--green); }
+.speed-list button[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: #FFFFFF; }
+.speed-list button[aria-pressed="true"] strong { color: #FFFFFF; }
+/* Planer: Reihenfolge der Punkte (Sprechblase „Reihenfolge“) */
+.order-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 4px; max-height: 46vh; overflow-y: auto; }
+.order-list li {
+  display: grid; grid-template-columns: auto 1fr auto auto auto; align-items: center; gap: 6px;
+  padding: 4px 6px; border-radius: 10px; background: var(--card); border: 1px solid var(--line);
+}
+.order-list li.is-selected { border-color: var(--orange); }
+.order-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.order-btn {
+  width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px;
+  background: var(--chip); color: var(--green); cursor: pointer;
+}
+.order-btn:disabled { opacity: 0.3; cursor: default; }
+/* Sehr schmale Handys (z. B. 360 px): Einstellungszeile des Planers etwas enger, damit „25 km/h“ ganz passt */
+@media (max-width: 380px) {
+  .plan-options { gap: 4px; }
+  .plan-options .plan-mode button { padding: 0 7px; }
+  .plan-options .plan-speed { padding: 0 9px; gap: 4px; }
 }
