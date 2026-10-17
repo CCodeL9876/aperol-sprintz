@@ -67,6 +67,9 @@ alter table public.routes add column if not exists pois jsonb;
 -- Supabase fehlende Felder einzelner Zeilen mit null statt mit dem Standardwert (siehe gluten_free in js/backend.js);
 -- null gilt in der App als „noch nicht bewertet“.
 alter table public.routes add column if not exists ratings jsonb;
+-- Effektive Fahrzeit je Person in Minuten (ohne Pausen): { "<person-id>": 165 } – daraus rechnet die App das
+-- persönliche Tempo (Ebene und Höhenmeter) für die Fahrzeiten. Wie ratings bewusst ohne „not null“.
+alter table public.routes add column if not exists ride_times jsonb;
 
 -- Original-GPX je Route (für den Download) – eigene Tabelle, damit der regelmäßige Abgleich die
 -- großen Dateien nicht jedes Mal mitlädt. Wird beim Löschen der Route automatisch mit gelöscht.

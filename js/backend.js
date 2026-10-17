@@ -141,6 +141,7 @@ export class DemoBackend {
   async addRoutes() {}
   async updateRoute() {}
   async setRating() { return {}; }
+  async setRideTime() { return {}; }
   async deleteRoute() {}
   async deleteAllRoutes() {}
   async saveSettings() {}
@@ -174,6 +175,7 @@ export class LocalBackend {
   async addRoutes() { this.#save(); }
   async updateRoute() { this.#save(); }
   async setRating() { this.#save(); return null; }
+  async setRideTime() { this.#save(); return null; }
   async deleteRoute() { this.#save(); }
   async deleteAllRoutes() { this.#save(); }
   async saveSettings() { this.#save(); }
@@ -283,6 +285,7 @@ const toRouteRow = (route, key) => ({
   ...(route.activityUrl ? { activity_url: route.activityUrl } : {}),
   ...(Array.isArray(route.pois) ? { pois: route.pois } : {}),
   ...(route.ratings && Object.keys(route.ratings).length ? { ratings: route.ratings } : {}),
+  ...(route.rideTimes && Object.keys(route.rideTimes).length ? { ride_times: route.rideTimes } : {}),
 });
 
 // Sterne je Person als reines Objekt { "<person-id>": 1–5 }; alles andere (null, Liste, Unsinn) gilt als leer
@@ -303,6 +306,7 @@ const fromRouteRow = (r) => ({
   activityUrl: r.activity_url || '',
   pois: Array.isArray(r.pois) ? r.pois : null,
   ratings: ratingsObject(r.ratings),
+  rideTimes: ratingsObject(r.ride_times),
 });
 
 function check({ error }) {
@@ -457,6 +461,11 @@ export class SharedBackend {
       const probe = await this.db.from('routes').select('ratings').limit(1);
       this.ratingsMissing = Boolean(probe.error);
     }
+    // und die Spalte für die effektiven Fahrzeiten (fehlt sie, lässt sich keine Zeit eintragen)
+    if (this.rideTimesMissing === undefined) {
+      const probe = await this.db.from('routes').select('ride_times').limit(1);
+      this.rideTimesMissing = Boolean(probe.error);
+    }
     return {
       places: places.data.map(fromRow),
       routes: routes.data.map(fromRouteRow),
@@ -469,6 +478,7 @@ export class SharedBackend {
       hoursMissing: Boolean(this.hoursMissing),
       poisMissing: Boolean(this.poisMissing),
       ratingsMissing: Boolean(this.ratingsMissing),
+      rideTimesMissing: Boolean(this.rideTimesMissing),
     };
   }
 
@@ -563,6 +573,18 @@ export class SharedBackend {
     if (stars) ratings[personId] = stars; else delete ratings[personId];
     check(await this.db.from('routes').update({ ratings, updated_at: new Date().toISOString() }).eq('id', routeId).eq('trip_key', this.key));
     return ratings;
+  }
+
+  // Effektive Fahrzeit einer Person in Minuten setzen oder mit minutes = null entfernen – wie setRating nur den
+  // eigenen Eintrag ändern. Rückgabe: alle Fahrzeiten der Etappe vom Server.
+  async setRideTime(routeId, personId, minutes) {
+    if (this.rideTimesMissing) throw new Error('Spalte „ride_times“ fehlt (supabase/schema.sql ausführen)');
+    const current = await this.db.from('routes').select('ride_times').eq('id', routeId).eq('trip_key', this.key).maybeSingle();
+    check(current);
+    const times = { ...ratingsObject(current.data?.ride_times) };
+    if (minutes) times[personId] = minutes; else delete times[personId];
+    check(await this.db.from('routes').update({ ride_times: times, updated_at: new Date().toISOString() }).eq('id', routeId).eq('trip_key', this.key));
+    return times;
   }
 
   async deleteRoute(id) {
@@ -672,6 +694,7 @@ export class OfflineBackend {
   async addRoutes() { this.#offline(); }
   async updateRoute() { this.#offline(); }
   async setRating() { this.#offline(); }
+  async setRideTime() { this.#offline(); }
   async deleteRoute() { this.#offline(); }
   async deleteAllRoutes() { this.#offline(); }
   async saveSettings() { this.#offline(); }
