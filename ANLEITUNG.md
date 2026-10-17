@@ -293,6 +293,10 @@ frei (optional mit Etappe – dann sehen die anderen „km 34 von 82“). Die an
 orangen Punkt mit Initialen; im Menü steht, wer gerade live ist. Gespeichert wird nur die letzte Position, „Beenden“
 löscht sie. Die App muss dabei offen und der Bildschirm an sein (gesperrt sendet das iPhone keinen Standort).
 Einmalig nötig: `supabase/schema.sql` erneut im SQL Editor ausführen (Tabelle `live_positions`).
+Handy in der Tasche (gesperrt)? Im Live-Fenster **„Per iPhone-Kurzbefehl im Hintergrund senden …“**: Die App
+zeigt Schritt für Schritt einen Kurzbefehl (Standort abrufen → per POST an Supabase), alle Werte zum Kopieren und
+einen Test-Knopf. Eine Automation (z. B. alle 15 Minuten über mehrere „Tageszeit“-Automationen) startet ihn. Der
+Kurzbefehl enthält Reise-Schlüssel und Zugangscode – nicht teilen.
 
 **Google-Verbrauch (Admin):** Im Menü **„•••“ → „Google-Verbrauch“** zeigt die App, wie viele Google-Abfragen sie
 diesen Monat gemacht hat – je Preisstufe mit Balken gegen das Gratis-Kontingent und geschätzten Kosten darüber.

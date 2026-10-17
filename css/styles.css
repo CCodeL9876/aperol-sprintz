@@ -2097,3 +2097,20 @@ button.popup-link { padding: 5px 0; border: 0; background: none; cursor: pointer
   display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px 4px 8px; border-radius: 999px;
   background: color-mix(in srgb, var(--c) 30%, var(--card)); color: var(--text); font-size: 13px; font-weight: 700;
 }
+
+/* Kurzbefehl-Hilfe: Schritte mit Werten zum Kopieren */
+.shortcut-body { display: flex; flex-direction: column; gap: 12px; }
+.shortcut-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.45; color: var(--text-soft); }
+.copy-row {
+  display: grid; grid-template-columns: minmax(90px, auto) 1fr auto; align-items: center; gap: 8px;
+  margin: 6px 0; padding: 6px 8px; border-radius: 10px; background: var(--card); border: 1px solid var(--line);
+}
+.copy-label { font-size: 12px; font-weight: 700; color: var(--text); }
+.copy-row code { font-size: 12px; overflow-wrap: anywhere; color: var(--text-soft); }
+.copy-row .btn { min-height: 30px; padding: 0 10px; }
+.live-mine { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--orange-tint); }
+.live-shortcut-link { margin-top: 2px; }
+@media (max-width: 480px) {
+  .copy-row { grid-template-columns: 1fr auto; }
+  .copy-row code { grid-column: 1 / -1; grid-row: 2; }
+}

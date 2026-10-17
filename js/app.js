@@ -17,7 +17,7 @@ import { GRADE_CLASSES, steepRuns, findClimbs, climbName } from './climbs.js';
 import { sanitizeHours, hoursStale, openAt, hoursStatus } from './hours.js';
 import { cachedPois, loadPois, sanitizePois, POI_TYPES } from './pois.js';
 import { connectToHome, bikeRoute } from './home-loop.js';
-import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './config.js';
+import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
 import { formatEuro, formatChf, toRappen, toEuroCents, cachedRate, loadRate, parseAmount, parseShare, computeBalances, settle, splitCents, sharesOf, expenseTotal, isTransfer, sanitizeParticipants, sanitizeExpense } from './cash.js';
 
@@ -2260,6 +2260,7 @@ function livePopupHtml(x) {
   </div>`;
 }
 
+let liveMine = null;
 async function pollLive() {
   if (!liveSupported() || document.visibilityState !== 'visible') return;
   retryLiveDelete();
@@ -2267,6 +2268,7 @@ async function pollLive() {
     const list = await backend.liveList();
     const mine = me()?.id;
     liveOthers = list.filter((x) => x.personId !== mine);
+    liveMine = list.find((x) => x.personId === mine) || null; // z. B. vom Kurzbefehl gesendet
   } catch {
     return; // Tabelle fehlt oder kein Netz: nichts anzeigen
   }
@@ -2316,12 +2318,106 @@ function renderLiveDialog() {
     return;
   }
   const routes = state.routes.filter((r) => r.points?.length);
-  body.innerHTML = `<p class="share-text">Die anderen dieser Reise sehen dich als Punkt mit deinen Initialen auf der Karte – bis zur gewählten Zeit oder bis du beendest.</p>
+  const mineNote = liveMine ? `<div class="live-mine"><p class="share-text">Deine Position ist gerade für die anderen sichtbar (z. B. vom Kurzbefehl) – zuletzt ${fmtAgo(liveMine.updatedAt)}, bis ${hhmm(new Date(liveMine.until))}.</p>
+      <button type="button" class="btn btn-small" data-live-delete>Jetzt löschen</button></div>` : '';
+  body.innerHTML = `${mineNote}<p class="share-text">Die anderen dieser Reise sehen dich als Punkt mit deinen Initialen auf der Karte – bis zur gewählten Zeit oder bis du beendest.</p>
     <label class="field"><span>Etappe <span class="field-opt">(optional – zeigt „km 34 von 82“)</span></span>
       <select id="live-route"><option value="">keine</option>${routes.map((r) => `<option value="${escapeHtml(r.id)}"${r.id === expandedRouteId ? ' selected' : ''}>${escapeHtml(r.name)}</option>`).join('')}</select></label>
     <div class="live-actions">${LIVE_HOURS.map((h) => `<button type="button" class="btn btn-small${h === 4 ? ' btn-primary' : ''}" data-live-start="${h}">${h} ${h === 1 ? 'Stunde' : 'Stunden'}</button>`).join('')}</div>
-    <p class="hint">Datenschutz: gespeichert wird nur deine letzte Position, sichtbar nur für diese Reise; beim Beenden wird sie gelöscht. Lass die App offen und den Bildschirm an.</p>`;
+    <p class="hint">Datenschutz: gespeichert wird nur deine letzte Position, sichtbar nur für diese Reise; beim Beenden wird sie gelöscht. Lass die App offen und den Bildschirm an.</p>
+    <button type="button" class="popup-link live-shortcut-link" data-live-shortcut>${icon('share', { size: 13, stroke: 2.2 })} Handy in der Tasche? Per iPhone-Kurzbefehl im Hintergrund senden …</button>`;
 }
+
+// --- Live-Standort per iPhone-Kurzbefehl -----------------------------------------------------------
+// Safari führt bei gesperrtem Bildschirm nichts aus. Ein Kurzbefehl kann aber selbst den Standort holen und ihn
+// direkt in live_positions schreiben (gleiche Prüfung wie die App: Reise-Schlüssel und Zugangscode als Header).
+// Hier stehen alle Werte zum Kopieren; Schlüssel und Code werden nur verdeckt angezeigt.
+const SHORTCUT_HOURS = 2; // so lange bleibt jede Meldung sichtbar (der Kurzbefehl setzt das Ende selbst)
+const shortcutDialog = $('#shortcut-dialog');
+let shortcutValues = {};
+
+function shortcutConfig() {
+  const code = backend.code || '';
+  const headers = [
+    ['apikey', SUPABASE_ANON_KEY],
+    ['Authorization', `Bearer ${SUPABASE_ANON_KEY}`],
+    ['Content-Type', 'application/json'],
+    ['Prefer', 'resolution=merge-duplicates,return=minimal'],
+    ['x-trip-key', backend.key],
+    ...(code ? [['x-trip-code', code]] : []),
+  ];
+  return {
+    url: `${SUPABASE_URL}/rest/v1/live_positions?on_conflict=trip_key,person_id`,
+    headers,
+    fields: [['trip_key', backend.key], ['person_id', me().id], ['name', me().name]],
+  };
+}
+
+function openShortcutHelp() {
+  if (!liveSupported()) return toast('Geht nur in einer gemeinsamen Reise mit Netz.');
+  if (!me()) return askWho();
+  const c = shortcutConfig();
+  const secret = (v) => (v.length > 12 ? `${v.slice(0, 4)}…${v.slice(-4)}` : '••••');
+  shortcutValues = { url: c.url };
+  const row = (id, label, value, hide = false) => {
+    shortcutValues[id] = value;
+    return `<div class="copy-row"><span class="copy-label">${escapeHtml(label)}</span><code>${escapeHtml(hide ? secret(value) : value)}</code>
+      <button type="button" class="btn btn-small" data-copy="${id}">Kopieren</button></div>`;
+  };
+  $('#shortcut-body').innerHTML = `
+    <p class="share-text">Ein Kurzbefehl auf deinem iPhone schickt deinen Standort auch bei gesperrtem Bildschirm – so oft, wie eine Automation ihn startet (z. B. alle 15 Minuten). Die anderen sehen dich dann wie gewohnt als Punkt mit Initialen.</p>
+    <ol class="shortcut-steps">
+      <li>App <strong>Kurzbefehle</strong> → <strong>+</strong> → Aktion <strong>„Aktuellen Standort abrufen“</strong>.</li>
+      <li>Aktion <strong>„Datum anpassen“</strong>: „Aktuelles Datum“ → <strong>Hinzufügen ${SHORTCUT_HOURS} Stunden</strong>.</li>
+      <li>Aktion <strong>„Datum formatieren“</strong>: Datumsformat <strong>ISO 8601</strong>.</li>
+      <li>Aktion <strong>„Inhalte von URL abrufen“</strong>, als URL einfügen:
+        ${row('url', 'URL', c.url)}
+        Aufklappen: Methode <strong>POST</strong>, unter <strong>Header</strong> diese ${c.headers.length} Einträge (links Name, rechts Wert):
+        ${c.headers.map(([k, v], i) => row(`h${i}`, k, v, /apikey|Authorization|x-trip/.test(k))).join('')}
+        Anfragetext <strong>JSON</strong>, diese Felder:
+        ${c.fields.map(([k, v], i) => row(`f${i}`, `${k} (Text)`, v, k === 'trip_key')).join('')}
+        <div class="copy-row"><span class="copy-label">lat (Zahl)</span><code>Aktueller Standort → Breitengrad</code></div>
+        <div class="copy-row"><span class="copy-label">lng (Zahl)</span><code>Aktueller Standort → Längengrad</code></div>
+        <div class="copy-row"><span class="copy-label">expires_at (Text)</span><code>Formatiertes Datum</code></div>
+      </li>
+      <li>Kurzbefehl <strong>„Live-Standort senden“</strong> nennen und einmal antippen – du solltest bei den anderen erscheinen.</li>
+      <li>Reiter <strong>Automation</strong> → <strong>Tageszeit</strong> (z. B. 8:00, 8:15, 8:30 … je eine) oder <strong>„Training“</strong> (Apple Watch) → Kurzbefehl wählen → <strong>„Sofort ausführen“</strong>.</li>
+    </ol>
+    <div class="live-actions"><button type="button" class="btn btn-small btn-primary" data-shortcut-test>Jetzt testen – einmal so senden wie der Kurzbefehl</button></div>
+    <p class="hint">Wichtig: Der Kurzbefehl enthält den Schlüssel und den Code eurer Reise – <strong>nicht teilen</strong>. Jede Meldung bleibt ${SHORTCUT_HOURS} Stunden sichtbar; im Menü unter „Live-Standort“ kannst du sie jederzeit löschen. Wechselst du unter „Wer bist du?“ die Person, den Kurzbefehl neu einrichten.</p>`;
+  liveDialog.close();
+  shortcutDialog.showModal();
+}
+
+$('#shortcut-body').addEventListener('click', async (e) => {
+  const copy = e.target.closest('[data-copy]');
+  if (copy) {
+    try {
+      await navigator.clipboard.writeText(shortcutValues[copy.dataset.copy] || '');
+      copy.textContent = 'Kopiert ✓';
+      setTimeout(() => { copy.textContent = 'Kopieren'; }, 1500);
+    } catch {
+      toast('Kopieren klappt hier nicht – Text lange antippen und kopieren.');
+    }
+    return;
+  }
+  if (!e.target.closest('[data-shortcut-test]')) return;
+  // Genau die Anfrage des Kurzbefehls (gleiche Adresse, Header und Felder), Ende in 15 Minuten
+  try {
+    const [lat, lng] = await myPosition();
+    const c = shortcutConfig();
+    const res = await fetch(c.url, {
+      method: 'POST',
+      headers: Object.fromEntries(c.headers),
+      body: JSON.stringify({ ...Object.fromEntries(c.fields), lat, lng, expires_at: new Date(Date.now() + 15 * 60000).toISOString() }),
+    });
+    if (!res.ok) throw new Error(`Antwort ${res.status}`);
+    toast('Test gesendet – die anderen sehen dich 15 Minuten lang. So arbeitet auch der Kurzbefehl.');
+    pollLive();
+  } catch (err) {
+    toast(`Test fehlgeschlagen (${err.message}) – ist der Abschnitt „Live-Standort“ in Supabase eingerichtet?`);
+  }
+});
 
 function openLiveDialog() {
   if (!liveSupported() && !live.on) return toast('Live-Standort geht nur in einer gemeinsamen Reise mit Netz (Menü „Teilen“).');
@@ -2334,6 +2430,14 @@ $('#live-body').addEventListener('click', (e) => {
   if (start) {
     liveDialog.close();
     startLive(Number(start.dataset.liveStart), $('#live-route')?.value || null);
+  }
+  if (e.target.closest('[data-live-shortcut]')) openShortcutHelp();
+  if (e.target.closest('[data-live-delete]')) {
+    backend.stopLive(me().id).then(() => {
+      liveMine = null;
+      renderLive();
+      toast('Deine Position ist gelöscht.');
+    }).catch((err) => toast(`Löschen klappt gerade nicht (${err.message}).`));
   }
   if (e.target.closest('[data-live-stop]')) {
     liveDialog.close();

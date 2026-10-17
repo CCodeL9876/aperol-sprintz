@@ -703,6 +703,20 @@
     </div>
   </dialog>
 
+  <!-- Live-Standort per iPhone-Kurzbefehl: sendet im Hintergrund direkt an Supabase (Werte zum Kopieren, app.js) -->
+  <dialog id="shortcut-dialog" class="dialog" aria-labelledby="shortcut-title">
+    <div class="dialog-inner">
+      <header class="dialog-head">
+        <div>
+          <span class="eyebrow">Live-Standort im Hintergrund</span>
+          <h2 id="shortcut-title">Kurzbefehl einrichten</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="Schließen"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </header>
+      <div id="shortcut-body" class="shortcut-body"></div>
+    </div>
+  </dialog>
+
   <!-- Live-Standort teilen: Dauer und (optional) Etappe wählen; während des Teilens Ende und Verlängern -->
   <dialog id="live-dialog" class="dialog" aria-labelledby="live-title">
     <div class="dialog-inner">
